@@ -5,7 +5,7 @@
 sudo koha-foreach /usr/share/koha/bin/cronjobs/imcode_ss12000.pl
 
 # Examples of use in cron:
-/usr/share/koha/bin/cronjobs/crontab.example
+*/40 */8 * * * root /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run.sh >> /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run.log
 
 # Additional, MULTIPLE KOHA SUPPORT:
 PERL5LIB=/usr/share/koha/lib

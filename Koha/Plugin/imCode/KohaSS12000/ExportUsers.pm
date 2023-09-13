@@ -4,7 +4,7 @@
 # It exports user data from the API in SS12000 format to your Koha database
 #
 # Category: Koha, https://koha-community.org 
-# Package:  imCode::KohaSS12000::ExportUsers
+# Plugin:   imCode::KohaSS12000::ExportUsers
 # Author:   Tkachuk Serge, https://github.com/fly304625, <tkachuk.serge@gmail.com>
 # License:  https://www.gnu.org/licenses/gpl-3.0.html GNU General Public License v3.0
 #

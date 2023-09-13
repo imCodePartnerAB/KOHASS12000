@@ -187,16 +187,13 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
     $(document).ready(function () {
-        // Слухач подій для вибору
         $('select[name="debug_mode"]').on('change', function () {
             if ($(this).val() === 'Yes') {
-                $(this).css('color', 'red'); // Встановлюємо червоний колір для тексту
+                $(this).css('color', 'red'); 
             } else {
-                $(this).css('color', ''); // Знімаємо стиль для тексту, щоб використовувати стандартний колір
+                $(this).css('color', ''); 
             }
         });
-
-        // Ініціалізуємо колір на початку відповідно до обраного значення
         if ($('select[name="debug_mode"]').val() === 'Yes') {
             $('select[name="debug_mode"]').css('color', 'red');
         }

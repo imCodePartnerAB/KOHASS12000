@@ -9,6 +9,7 @@ sudo koha-foreach /usr/share/koha/bin/cronjobs/imcode_ss12000.pl
 
 # Additional, MULTIPLE KOHA SUPPORT:
 PERL5LIB=/usr/share/koha/lib
+
 KOHA_CONF=/etc/koha/koha-conf.xml
 
 Some additional variables to save you typing

@@ -1,5 +1,4 @@
 # Copyright (C) 2023 imCode, https://www.imcode.com, <info@imcode.com>
-# Copyright (C) 2023 Tkachuk Serge, https://github.com/fly304625, <tkachuk.serge@gmail.com>
 #
 # This is a plugin for Koha, https://koha-community.org 
 # It exports user data from the API in SS12000 format to your Koha database

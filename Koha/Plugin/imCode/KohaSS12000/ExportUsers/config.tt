@@ -1,0 +1,207 @@
+[% INCLUDE 'doc-head-open.inc' %]
+    <title>Configuration imCode SS12000 </title>
+[% INCLUDE 'doc-head-close.inc' %]
+
+
+</head>
+
+<body>
+[% INCLUDE 'header.inc' %]
+[% INCLUDE 'cat-search.inc' %]
+
+<div id="breadcrumbs">
+    <a href="/cgi-bin/koha/mainpage.pl">Home</a> &rsaquo; 
+    <a href="/cgi-bin/koha/plugins/plugins-home.pl">Plugins</a> &rsaquo;  
+    KohaSS12000 &rsaquo; Configuration
+</div>
+
+<div class="main container-fluid">
+  <div class="row">
+    <div class="col-sm-10 col-sm-push-2">
+      <main>
+
+        <h1>Configuration Settings</h1>
+        <br/>
+        <form method="post" action="#" onsubmit="return validateForm();">
+
+            <div class="form-group row">
+                <label for="client_id" class="col-sm-2 col-form-label">Client ID:</label>
+                <div class="col-sm-4">
+                    <input type="text" class="form-control" name="client_id" value="[% client_id %]" />
+                </div>
+            </div>
+
+            <div class="form-group row">
+                <label for="client_secret" class="col-sm-2 col-form-label">Client Secret:</label>
+                <div class="col-sm-4">
+                    <input type="text" class="form-control" name="client_secret" value="[% client_secret %]" />
+                </div>
+            </div>
+
+            <div class="form-group row">
+                <label for="customerId" class="col-sm-2 col-form-label">Customer ID:</label>
+                <div class="col-sm-4">
+                    <input type="text" class="form-control" name="customerId" value="[% customerId %]" />
+                </div>
+            </div>
+
+            <div class="form-group row">
+                <label for="api_url" class="col-sm-2 col-form-label">API URL:</label>
+                <div class="col-sm-4">
+                    <input type="text" class="form-control" name="api_url" value="[% api_url %]" />
+                </div>
+            </div>
+
+            <div class="form-group row">
+                <label for="oauth_url" class="col-sm-2 col-form-label">OAUTH API URL:</label>
+                <div class="col-sm-4">
+                    <input type="text" class="form-control" name="oauth_url" value="[% oauth_url %]" />
+                </div>
+            </div>
+
+            <div class="form-group row">
+                <label for="koha_default_categorycode" class="col-sm-2 col-form-label">Koha Default Categorycode:</label>
+                <div class="col-sm-4">
+                    <select class="form-control" name="koha_default_categorycode" id="koha_default_categorycode">
+                        <option value="">Select a category</option>
+                        [% FOREACH category IN categories %]
+                            <option value="[% category %]" [% IF category == koha_default_categorycode %]selected="selected"[% END %]>[% category %]</option>
+                        [% END %]
+                    </select>
+                    <p class="text-info">When you change a parameter, it will be changed for all existing users in the next data update cycle.</p>
+                </div>
+            </div>
+
+            <div class="form-group row">
+                <label for="koha_default_branchcode" class="col-sm-2 col-form-label">Koha Default Branchcode:</label>
+                <div class="col-sm-4">
+                    <select class="form-control" name="koha_default_branchcode" id="koha_default_branchcode">
+                        <option value="">Choose a branch</option>
+                        [% FOREACH branch IN branches %]
+                            <option value="[% branch %]" [% IF branch == koha_default_branchcode %]selected="selected"[% END %]>[% branch %]</option>
+                        [% END %]
+                    </select>
+                    <p class="text-info">When you change a parameter, it will be changed for all existing users in the next data update cycle.</p>
+                </div>
+            </div>
+
+            <div class="form-group row">
+                <label for="debug_mode" class="col-sm-2 col-form-label">Debug Mode:</label>
+                <div class="col-sm-4">
+                    <select class="form-control" name="debug_mode">
+                        [% FOREACH mode IN ["Yes", "No"] %]
+                            <option value="[% mode %]" [% IF debug_mode == mode %]selected="selected"[% END %]>[% mode %]</option>
+                        [% END %]
+                    </select>
+                    <p class="text-info">If this option is enabled, then there will be more data in the Tool tab and the Response from the API will be put into the database in full.</p>
+                </div>
+            </div>            
+
+            <div class="form-group row">
+                <label for="oauth_url" class="col-sm-2 col-form-label">SS12000 API limit per page:</label>
+                <div class="col-sm-4">
+                    <select class="form-control" name="api_limit">
+                        [% FOREACH limit IN [10, 20, 30, 40, 50, 75, 100] %]
+                            <option value="[% limit %]" [% IF limit == api_limit %]selected="selected"[% END %]>[% limit %]</option>
+                        [% END %]
+                    </select>
+                    <p class="text-info">10 or 20 - fast, 30 - normal, 100 - very slowly</p>
+                </div>
+            </div>
+
+            <div class="form-group row">
+                <label for="oauth_url" class="col-sm-2 col-form-label">CardNumber for Koha:</label>
+                <div class="col-sm-4">
+                    <select class="form-control" name="cardnumberPlugin">
+                        [% FOREACH cardnumbers IN ["civicNo", "externalIdentifier"] %]
+                            <option value="[% cardnumbers %]" [% IF cardnumberPlugin == cardnumbers %]selected="selected"[% END %]>[% cardnumbers %]</option>
+                        [% END %]
+                    </select>
+                    <p class="text-info">CivicNo is used by default</p>
+                </div>
+            </div>            
+
+            <div class="form-group row">
+                <label for="oauth_url" class="col-sm-2 col-form-label">UserID for Koha:</label>
+                <div class="col-sm-4">
+                    <select class="form-control" name="useridPlugin">
+                        [% FOREACH userids IN ["civicNo", "externalIdentifier"] %]
+                            <option value="[% userids %]" [% IF useridPlugin == userids %]selected="selected"[% END %]>[% userids %]</option>
+                        [% END %]
+                    </select>
+                    <p class="text-info">CivicNo is used by default</p>
+                </div>
+            </div>  
+
+            <div class="form-group row">
+                <label for="oauth_url" class="col-sm-2 col-form-label">How many days to keep plugin logs:</label>
+                <div class="col-sm-4">
+                    <select class="form-control" name="logs_limit">
+                        [% FOREACH day_limit IN [1, 2, 3, 7, 14, 30, 60, 90, 120] %]
+                            <option value="[% day_limit %]" [% IF day_limit == logs_limit %]selected="selected"[% END %]>[% day_limit %]</option>
+                        [% END %]
+                    </select>
+                    <p class="text-info">The default value is 3 days</p>
+                </div>
+            </div>
+
+            <input type="hidden" name="class" value="[% CLASS %]" />
+            <input type="hidden" name="method" value="[% METHOD %]" />
+
+            <div class="form-group row">
+                <input type="hidden" name="op" value="save-config" />
+                <div class="col-sm-4">
+                    <input type="submit" value="Save" />
+                </div>
+            </div>
+
+        </form>
+
+        [% IF success %]
+        <div class="alert alert-success">[% success %]</div>
+        [% END %]
+
+      </main>
+    </div>
+    <div class="col-sm-2 col-sm-pull-10">
+      <aside>
+        [% INCLUDE 'tools-menu.inc' %]
+      </aside>
+    </div> <!-- /.col-sm-2.col-sm-pull-10 -->
+  </div>
+</div>
+
+<script>
+    function validateForm() {
+        var categorycode = document.getElementById("koha_default_categorycode").value;
+        var branchcode = document.getElementById("koha_default_branchcode").value;
+        
+        if (categorycode === "" || branchcode === "") {
+            alert("Please select values for both Koha Default Categorycode and Koha Default Branchcode.");
+            return false;
+        }
+        return true;
+    }
+</script>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    $(document).ready(function () {
+        // Слухач подій для вибору
+        $('select[name="debug_mode"]').on('change', function () {
+            if ($(this).val() === 'Yes') {
+                $(this).css('color', 'red'); // Встановлюємо червоний колір для тексту
+            } else {
+                $(this).css('color', ''); // Знімаємо стиль для тексту, щоб використовувати стандартний колір
+            }
+        });
+
+        // Ініціалізуємо колір на початку відповідно до обраного значення
+        if ($('select[name="debug_mode"]').val() === 'Yes') {
+            $('select[name="debug_mode"]').css('color', 'red');
+        }
+    });
+</script>
+
+[% INCLUDE 'intranet-bottom.inc' %]
+

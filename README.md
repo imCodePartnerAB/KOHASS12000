@@ -1,5 +1,7 @@
 # KOHASS12000
 
+![imCode](Doc/logo_imcode.png)
+
 This is a plugin for [Koha](https://github.com/Koha-Community/Koha) by [imCode](https://imcode.com)
 
 It exports user data from the API in SS12000 format to your Koha database

@@ -26,7 +26,26 @@ use HTTP::Request::Common;
 use base qw(Koha::Plugins::Base);
 use Digest::MD5;
 
-our $VERSION = "1.002";
+use Locale::Messages;
+Locale::Messages->select_package('gettext_pp');
+
+use Locale::Messages qw(:locale_h :libintl_h);
+use POSIX qw(setlocale);
+
+# set locale settings for gettext
+my $self = new('Koha::Plugin::imCode::KohaSS12000::ExportUsers');
+my $cgi  = $self->{'cgi'};
+
+my $locale = C4::Languages::getlanguage($cgi);
+$locale = substr( $locale, 0, 2 );
+$ENV{'LANGUAGE'} = $locale;
+setlocale Locale::Messages::LC_ALL(), '';
+textdomain "com.imcode.exportusers";
+
+my $locale_path = abs_path( $self->mbf_path('translations') );
+bindtextdomain "com.imcode.exportusers" => $locale_path;
+
+our $VERSION = "1.1";
 
 our $metadata = {
     name            => 'Export Users from SS12000',

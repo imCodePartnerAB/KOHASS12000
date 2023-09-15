@@ -26,6 +26,7 @@ use HTTP::Request::Common;
 use base qw(Koha::Plugins::Base);
 use Digest::MD5;
 
+use Cwd qw( abs_path cwd );
 use Locale::Messages;
 Locale::Messages->select_package('gettext_pp');
 

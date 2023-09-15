@@ -1,5 +1,5 @@
 [% INCLUDE 'doc-head-open.inc' %]
-    <title>Configuration imCode SS12000 </title>
+    <title>[% 'Configuration imCode SS12000' | gettext %]</title>
 [% INCLUDE 'doc-head-close.inc' %]
 
 
@@ -10,9 +10,9 @@
 [% INCLUDE 'cat-search.inc' %]
 
 <div id="breadcrumbs">
-    <a href="/cgi-bin/koha/mainpage.pl">Home</a> &rsaquo; 
-    <a href="/cgi-bin/koha/plugins/plugins-home.pl">Plugins</a> &rsaquo;  
-    KohaSS12000 &rsaquo; Tool
+    <a href="/cgi-bin/koha/mainpage.pl">[% 'Home' | gettext %]</a> &rsaquo; 
+    <a href="/cgi-bin/koha/plugins/plugins-home.pl">[% 'Plugins' | gettext %]</a> &rsaquo;  
+    [% 'KohaSS12000 &rsaquo; Tool' | gettext %]
 </div>
 
 <div class="main container-fluid">
@@ -20,16 +20,16 @@
     <div class="col-sm-10 col-sm-push-2">
       <main>
 
-        <h1>Tool</h1>
+        <h1>[% 'Tool' | gettext %]</h1>
         <br/>
         <form method="post" action="#">
 
             <div class="form-group row">
-                <label for="client_id" class="col-sm-2 col-form-label">Action:</label>
+                <label for="client_id" class="col-sm-2 col-form-label">[% 'Action' | gettext %]:</label>
                 <div class="col-sm-4">
                     <select class="form-control" name="op">
-                        <option value="show-logs">Show user export log</option>
-                        <option value="show-stat">Show user export statistics</option>
+                        <option value="show-logs">[% 'Show user export log' | gettext %]</option>
+                        <option value="show-stat">[% 'Show user export statistics' | gettext %]</option>
                     </select>
                 </div>
             </div>
@@ -40,7 +40,7 @@
 
             <div class="form-group row">
                 <div class="col-sm-4">
-                    <input type="submit" value="Ok" />
+                    <input type="submit" value="[% 'Ok' | gettext %]" />
                 </div>
             </div>
 
@@ -48,18 +48,18 @@
 
         [% IF logs.size > 0 %]
         <br/>
-        <h2>Last 10 Logs Lines</h2>
+        <h2>[% 'Last 10 Logs Lines' | gettext %]</h2>
         <table class="table table-striped">
             <thead>
                 <tr>
                     <th>ID</th>
-                    [% IF debug_mode == "Yes" %]<th>Page token Next</th>[% END %]
-                    <th>Record Count</th>
-                    [% IF debug_mode == "Yes" %]<th>Response</th>[% END %]
-                    [% IF debug_mode == "No" %]<th>Data Status</th>[% END %]
-                    <th>Created At</th>
-                    <th>Is Processed</th>
-                    <th>Data Hash</th>
+                    [% IF debug_mode == "Yes" %]<th>[% 'Page token Next' | gettext %]</th>[% END %]
+                    <th>[% 'Record Count' | gettext %]</th>
+                    [% IF debug_mode == "Yes" %]<th>[% 'Response' | gettext %]</th>[% END %]
+                    [% IF debug_mode == "No" %]<th>[% 'Data Status' | gettext %]</th>[% END %]
+                    <th>[% 'Created At' | gettext %]</th>
+                    <th>[% 'Is Processed' | gettext %]</th>
+                    <th>[% 'Data Hash' | gettext %]</th>
                 </tr>
             </thead>
             <tbody>
@@ -70,7 +70,7 @@
                         <td>[% log.record_count %]</td>
                         <td class="truncate-text">[% log.response %]</td>
                         <td>[% log.created_at %]</td>
-                        <td>[% IF log.is_processed == 1 %]Yes[% ELSE %]No[% END %]</td>
+                        <td>[% IF log.is_processed == 1 %][% 'Yes' | gettext %][% ELSE %][% 'No' | gettext %][% END %]</td>
                         <td>[% log.data_hash %]</td>
                     </tr>
                 [% END %]
@@ -80,13 +80,13 @@
 
         [% IF stats.size > 0 %]
         <br/>
-        <h2>Last 10 Statistics Lines</h2>
+        <h2>[% 'Last 10 Statistics Lines' | gettext %]</h2>
         <table class="table table-striped">
             <thead>
                 <tr>
-                    <th>Added</th>
-                    <th>Updated</th>
-                    <th>Date</th>
+                    <th>[% 'Added' | gettext %]</th>
+                    <th>[% 'Updated' | gettext %]</th>
+                    <th>[% 'Date' | gettext %]</th>
                 </tr>
             </thead>
             <tbody>

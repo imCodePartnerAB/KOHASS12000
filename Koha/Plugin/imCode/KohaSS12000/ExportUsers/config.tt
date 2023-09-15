@@ -1,5 +1,5 @@
 [% INCLUDE 'doc-head-open.inc' %]
-    <title>Configuration imCode SS12000 </title>
+    <title>[% 'Configuration imCode SS12000' | gettext %]</title>
 [% INCLUDE 'doc-head-close.inc' %]
 
 
@@ -10,9 +10,9 @@
 [% INCLUDE 'cat-search.inc' %]
 
 <div id="breadcrumbs">
-    <a href="/cgi-bin/koha/mainpage.pl">Home</a> &rsaquo; 
-    <a href="/cgi-bin/koha/plugins/plugins-home.pl">Plugins</a> &rsaquo;  
-    KohaSS12000 &rsaquo; Configuration
+    <a href="/cgi-bin/koha/mainpage.pl">[% 'Home' | gettext %]</a> &rsaquo; 
+    <a href="/cgi-bin/koha/plugins/plugins-home.pl">[% 'Plugins' | gettext %]</a> &rsaquo;  
+    [% 'KohaSS12000 &rsaquo; Configuration' | gettext %]
 </div>
 
 <div class="main container-fluid">
@@ -20,128 +20,128 @@
     <div class="col-sm-10 col-sm-push-2">
       <main>
 
-        <h1>Configuration Settings</h1>
+        <h1>[% 'Configuration Settings' | gettext %]</h1>
         <br/>
         <form method="post" action="#" onsubmit="return validateForm();">
 
             <div class="form-group row">
-                <label for="client_id" class="col-sm-2 col-form-label">Client ID:</label>
+                <label for="client_id" class="col-sm-2 col-form-label">[% 'Client ID' | gettext %]:</label>
                 <div class="col-sm-4">
                     <input type="text" class="form-control" name="client_id" value="[% client_id %]" />
                 </div>
             </div>
 
             <div class="form-group row">
-                <label for="client_secret" class="col-sm-2 col-form-label">Client Secret:</label>
+                <label for="client_secret" class="col-sm-2 col-form-label">[% 'Client Secret' | gettext %]:</label>
                 <div class="col-sm-4">
                     <input type="text" class="form-control" name="client_secret" value="[% client_secret %]" />
                 </div>
             </div>
 
             <div class="form-group row">
-                <label for="customerId" class="col-sm-2 col-form-label">Customer ID:</label>
+                <label for="customerId" class="col-sm-2 col-form-label">[% 'Customer ID' | gettext %]:</label>
                 <div class="col-sm-4">
                     <input type="text" class="form-control" name="customerId" value="[% customerId %]" />
                 </div>
             </div>
 
             <div class="form-group row">
-                <label for="api_url" class="col-sm-2 col-form-label">API URL:</label>
+                <label for="api_url" class="col-sm-2 col-form-label">[% 'API URL' | gettext %]:</label>
                 <div class="col-sm-4">
                     <input type="text" class="form-control" name="api_url" value="[% api_url %]" />
                 </div>
             </div>
 
             <div class="form-group row">
-                <label for="oauth_url" class="col-sm-2 col-form-label">OAUTH API URL:</label>
+                <label for="oauth_url" class="col-sm-2 col-form-label">[% 'OAUTH API URL' | gettext %]:</label>
                 <div class="col-sm-4">
                     <input type="text" class="form-control" name="oauth_url" value="[% oauth_url %]" />
                 </div>
             </div>
 
             <div class="form-group row">
-                <label for="koha_default_categorycode" class="col-sm-2 col-form-label">Koha Default Categorycode:</label>
+                <label for="koha_default_categorycode" class="col-sm-2 col-form-label">[% 'Koha Default Categorycode' | gettext %]:</label>
                 <div class="col-sm-4">
                     <select class="form-control" name="koha_default_categorycode" id="koha_default_categorycode">
-                        <option value="">Select a category</option>
+                        <option value="">[% 'Select a category' | gettext %]</option>
                         [% FOREACH category IN categories %]
                             <option value="[% category %]" [% IF category == koha_default_categorycode %]selected="selected"[% END %]>[% category %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">When you change a parameter, it will be changed for all existing users in the next data update cycle.</p>
+                    <p class="text-info">[% 'When you change a parameter, it will be changed for all existing users in the next data update cycle' | gettext %].</p>
                 </div>
             </div>
 
             <div class="form-group row">
-                <label for="koha_default_branchcode" class="col-sm-2 col-form-label">Koha Default Branchcode:</label>
+                <label for="koha_default_branchcode" class="col-sm-2 col-form-label">[% 'Koha Default Branchcode' | gettext %]:</label>
                 <div class="col-sm-4">
                     <select class="form-control" name="koha_default_branchcode" id="koha_default_branchcode">
-                        <option value="">Choose a branch</option>
+                        <option value="">[% 'Choose a branch' | gettext %]</option>
                         [% FOREACH branch IN branches %]
                             <option value="[% branch %]" [% IF branch == koha_default_branchcode %]selected="selected"[% END %]>[% branch %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">When you change a parameter, it will be changed for all existing users in the next data update cycle.</p>
+                    <p class="text-info">[% 'When you change a parameter, it will be changed for all existing users in the next data update cycle' | gettext %].</p>
                 </div>
             </div>
 
             <div class="form-group row">
-                <label for="debug_mode" class="col-sm-2 col-form-label">Debug Mode:</label>
+                <label for="debug_mode" class="col-sm-2 col-form-label">[% 'Debug Mode' | gettext %]:</label>
                 <div class="col-sm-4">
                     <select class="form-control" name="debug_mode">
                         [% FOREACH mode IN ["Yes", "No"] %]
                             <option value="[% mode %]" [% IF debug_mode == mode %]selected="selected"[% END %]>[% mode %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">If this option is enabled, then there will be more data in the Tool tab and the Response from the API will be put into the database in full.</p>
+                    <p class="text-info">[% 'If this option is enabled, then there will be more data in the Tool tab and the Response from the API will be put into the database in full' | gettext %].</p>
                 </div>
             </div>            
 
             <div class="form-group row">
-                <label for="oauth_url" class="col-sm-2 col-form-label">SS12000 API limit per page:</label>
+                <label for="oauth_url" class="col-sm-2 col-form-label">[% 'SS12000 API limit per page' | gettext %]:</label>
                 <div class="col-sm-4">
                     <select class="form-control" name="api_limit">
                         [% FOREACH limit IN [10, 20, 30, 40, 50, 75, 100] %]
                             <option value="[% limit %]" [% IF limit == api_limit %]selected="selected"[% END %]>[% limit %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">10 or 20 - fast, 30 - normal, 100 - very slowly</p>
+                    <p class="text-info">[% '10 or 20 - fast, 30 - normal, 100 - very slowly' | gettext %]</p>
                 </div>
             </div>
 
             <div class="form-group row">
-                <label for="oauth_url" class="col-sm-2 col-form-label">CardNumber for Koha:</label>
+                <label for="oauth_url" class="col-sm-2 col-form-label">[% 'CardNumber for Koha' | gettext %]:</label>
                 <div class="col-sm-4">
                     <select class="form-control" name="cardnumberPlugin">
                         [% FOREACH cardnumbers IN ["civicNo", "externalIdentifier"] %]
                             <option value="[% cardnumbers %]" [% IF cardnumberPlugin == cardnumbers %]selected="selected"[% END %]>[% cardnumbers %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">CivicNo is used by default</p>
+                    <p class="text-info">[% 'CivicNo is used by default' | gettext %]</p>
                 </div>
             </div>            
 
             <div class="form-group row">
-                <label for="oauth_url" class="col-sm-2 col-form-label">UserID for Koha:</label>
+                <label for="oauth_url" class="col-sm-2 col-form-label">[% 'UserID for Koha' | gettext %]:</label>
                 <div class="col-sm-4">
                     <select class="form-control" name="useridPlugin">
                         [% FOREACH userids IN ["civicNo", "externalIdentifier"] %]
                             <option value="[% userids %]" [% IF useridPlugin == userids %]selected="selected"[% END %]>[% userids %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">CivicNo is used by default</p>
+                    <p class="text-info">[% 'CivicNo is used by default' | gettext %]</p>
                 </div>
             </div>  
 
             <div class="form-group row">
-                <label for="oauth_url" class="col-sm-2 col-form-label">How many days to keep plugin logs:</label>
+                <label for="oauth_url" class="col-sm-2 col-form-label">[% 'How many days to keep plugin logs' | gettext %]:</label>
                 <div class="col-sm-4">
                     <select class="form-control" name="logs_limit">
                         [% FOREACH day_limit IN [1, 2, 3, 7, 14, 30, 60, 90, 120] %]
                             <option value="[% day_limit %]" [% IF day_limit == logs_limit %]selected="selected"[% END %]>[% day_limit %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">The default value is 3 days</p>
+                    <p class="text-info">[% 'The default value is 3 days' | gettext %]</p>
                 </div>
             </div>
 
@@ -151,7 +151,7 @@
             <div class="form-group row">
                 <input type="hidden" name="op" value="save-config" />
                 <div class="col-sm-4">
-                    <input type="submit" value="Save" />
+                    <input type="submit" value="[% 'Save' | gettext %]" />
                 </div>
             </div>
 
@@ -177,7 +177,7 @@
         var branchcode = document.getElementById("koha_default_branchcode").value;
         
         if (categorycode === "" || branchcode === "") {
-            alert("Please select values for both Koha Default Categorycode and Koha Default Branchcode.");
+            alert("[% 'Please select values for both Koha Default Categorycode and Koha Default Branchcode' | gettext %].");
             return false;
         }
         return true;

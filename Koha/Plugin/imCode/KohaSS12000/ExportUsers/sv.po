@@ -1,0 +1,217 @@
+# For package Koha::Plugin::imCode::KohaSS12000::ExportUsers
+# Copyright (C) 2023 imCode, https://www.imcode.com, <info@imcode.com>
+# This file is distributed under the same license as the imCode::KohaSS12000::ExportUsers package.
+# Tkachuk Serge <tkachuk.serge@gmail.com>, 2023.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: 1.1\n"
+"Report-Msgid-Bugs-To: <tkachuk.serge@gmail.com>\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: imCode.com\n"
+"Language: sv\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 3.3.2\n"
+
+#: ExportUsers.pm:52
+msgid "Export Users from SS12000"
+msgstr "Exportera användare från SS12000"
+
+#: config.tt:2 tool.tt:2
+msgid "Configuration imCode SS12000"
+msgstr "Konfiguration imCode SS12000"
+
+#: config.tt:13 tool.tt:13
+msgid "Home"
+msgstr "Hem"
+
+#: config.tt:14 tool.tt:14
+msgid "Plugins"
+msgstr "Tillägg"
+
+#: tool.tt:15
+msgid "KohaSS12000 &rsaquo; Tool"
+msgstr "KohaSS12000 &rsaquo; Verktyg"
+
+#: config.tt:15
+msgid "KohaSS12000 &rsaquo; Configuration"
+msgstr "KohaSS12000 &rsaquo; Konfiguration"
+
+#: config.tt:23
+msgid "Configuration Settings"
+msgstr "Konfigurationsinställningar"
+
+#: tool.tt:23
+msgid "Tool"
+msgstr "Verktyg"
+
+#: tool.tt:28
+msgid "Action"
+msgstr "Åtgärd"
+
+#: tool.tt:31
+msgid "Show user export log"
+msgstr "Visa exportlogg för användare"
+
+#: tool.tt:32
+msgid "Show user export statistics"
+msgstr "Visa statistik för användarexport"
+
+#: tool.tt:43
+msgid "Ok"
+msgstr "Ok"
+
+#: tool.tt:51
+msgid "Last 10 Logs Lines"
+msgstr "Senaste 10 logglinjer"
+
+#: tool.tt:56
+msgid "Page token Next"
+msgstr "Sida token Nästa"
+
+#: tool.tt:57
+msgid "Record Count"
+msgstr "Antal inspelningar"
+
+#: tool.tt:58
+msgid "Response"
+msgstr "Svar"
+
+#: tool.tt:59
+msgid "Data Status"
+msgstr "Status för data"
+
+#: tool.tt:60
+msgid "Created At"
+msgstr "Skapad vid"
+
+#: tool.tt:61
+msgid "Is Processed"
+msgstr "Är bearbetad"
+
+#: tool.tt:62
+msgid "Data Hash"
+msgstr "Hash av data"
+
+#: tool.tt:83
+msgid "Last 10 Statistics Lines"
+msgstr "Senaste 10 statistiklinjer"
+
+#: tool.tt:87
+msgid "Added"
+msgstr "Tillagd"
+
+#: tool.tt:88
+msgid "Updated"
+msgstr "Uppdaterad"
+
+#: tool.tt:89
+msgid "Date"
+msgstr "Datum"
+
+#: tool.tt:73
+msgid "Yes"
+msgstr "Ja"
+
+#: tool.tt:73
+msgid "No"
+msgstr "Nej"
+
+#: config.tt:28
+msgid "Client ID"
+msgstr "Kund-ID"
+
+#: config.tt:35
+msgid "Client Secret"
+msgstr "Kundhemlighet"
+
+#: config.tt:42
+msgid "Customer ID"
+msgstr "Kundens ID"
+
+#: config.tt:49
+msgid "API URL"
+msgstr "URL FÖR API"
+
+#: config.tt:56
+msgid "OAUTH API URL"
+msgstr "URL FÖR OAUTH API"
+
+#: config.tt:63
+msgid "Koha Default Categorycode"
+msgstr "Koha Standard Kategorikod"
+
+#: config.tt:66
+msgid "Select a category"
+msgstr "Välj en kategori"
+
+#: config.tt:71 config.tt:84
+msgid ""
+"When you change a parameter, it will be changed for all existing users in "
+"the next data update cycle"
+msgstr ""
+"När du ändrar en parameter kommer den att ändras för alla befintliga "
+"användare i nästa datauppdateringscykel"
+
+#: config.tt:76
+msgid "Koha Default Branchcode"
+msgstr "Koha Default Kontorskod"
+
+#: config.tt:79
+msgid "Choose a branch"
+msgstr "Välj en bransch"
+
+#: config.tt:89
+msgid "Debug Mode"
+msgstr "Debuggläge"
+
+#: config.tt:96
+msgid ""
+"If this option is enabled, then there will be more data in the Tool tab and "
+"the Response from the API will be put into the database in full"
+msgstr ""
+"Om detta alternativ är aktiverat kommer det att finnas mer data på fliken "
+"Verktyg och svaret från API:et kommer att läggas in i databasen i sin helhet"
+
+#: config.tt:101
+msgid "SS12000 API limit per page"
+msgstr "SS12000 API gräns per sida"
+
+#: config.tt:108
+msgid "10 or 20 - fast, 30 - normal, 100 - very slowly"
+msgstr "10 eller 20 - snabbt, 30 - normalt, 100 - mycket långsamt"
+
+#: config.tt:113
+msgid "CardNumber for Koha"
+msgstr "Kortnummer för Koha"
+
+#: config.tt:120 config.tt:132
+msgid "CivicNo is used by default"
+msgstr "CivicNo används som standard"
+
+#: config.tt:125
+msgid "UserID for Koha"
+msgstr "Användar-ID för Koha"
+
+#: config.tt:137
+msgid "How many days to keep plugin logs"
+msgstr "Hur många dagar ska plugin-loggar bevaras"
+
+#: config.tt:144
+msgid "The default value is 3 days"
+msgstr "Standardvärdet är 3 dagar"
+
+#: config.tt:154
+msgid "Save"
+msgstr "Spara"
+
+#: config.tt:180
+msgid ""
+"Please select values for both Koha Default Categorycode and Koha Default "
+"Branchcode"
+msgstr ""
+"Välj värden för både Koha Default Categorycode och Koha Default Branchcode"

@@ -31,6 +31,7 @@ Locale::Messages->select_package('gettext_pp');
 
 use Locale::Messages qw(:locale_h :libintl_h);
 use POSIX qw(setlocale);
+use Encode;
 
 # set locale settings for gettext
 my $self = new('Koha::Plugin::imCode::KohaSS12000::ExportUsers');
@@ -48,7 +49,7 @@ bindtextdomain "com.imcode.exportusers" => $locale_path;
 our $VERSION = "1.1";
 
 our $metadata = {
-    name            => 'Export Users from SS12000',
+    name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode',
     date_authored   => '2023-08-08',
     date_updated    => '2023-08-08',
@@ -168,6 +169,12 @@ sub configure {
 
     if ($missing_modules) {
         my $template = $self->get_template({ file => 'error.tt' });
+        warn "Lang: ".C4::Languages::getlanguage($cgi);
+        $template->param(
+            language => C4::Languages::getlanguage($cgi) || 'en',
+            mbf_path => abs_path( $self->mbf_path('translations') ),
+        );
+
         $template->param(
             error => "<div class='alert alert-warning'>Missing required module: URI::Encode qw(uri_encode)</div><br/><br/>" .
                      "Run at command line:<br/>" .
@@ -852,7 +859,6 @@ sub addOrUpdateBorrower {
         ) = @_;
 
     # use utf8;
-    # use Encode;
 
     # IMPORTANT INFORMATION:  
     # verification of user availability is possible only by cardnumber, surname and firstname can be empty and come filled with updates
@@ -971,5 +977,9 @@ sub addOrUpdateBorrower {
     }
 }
 
+sub getTranslation {
+    my ($string) = @_;
+    return Encode::decode( 'UTF-8', gettext($string) );
+}
 
 1;

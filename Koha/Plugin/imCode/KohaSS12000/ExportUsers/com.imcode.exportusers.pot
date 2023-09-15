@@ -21,7 +21,7 @@ msgstr ""
 msgid "Export Users from SS12000"
 msgstr ""
 
-#: config.tt:2 tool.tt:2
+#: config.tt:3 tool.tt:3
 msgid "Configuration imCode SS12000"
 msgstr ""
 

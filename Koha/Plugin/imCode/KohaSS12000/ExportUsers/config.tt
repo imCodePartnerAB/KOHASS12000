@@ -1,7 +1,7 @@
-[% INCLUDE 'doc-head-open.inc' %]
+[% USE gtx = Gettext('com.imcode.exportusers', language, 'utf-8', mbf_path) %]
+[% INCLUDE 'doc-head-open.inc' %]    
     <title>[% 'Configuration imCode SS12000' | gettext %]</title>
 [% INCLUDE 'doc-head-close.inc' %]
-
 
 </head>
 

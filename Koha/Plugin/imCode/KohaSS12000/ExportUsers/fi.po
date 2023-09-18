@@ -1,4 +1,3 @@
-"com.imcode.exportusers.pot" 1020L, 836C
 # For package Koha::Plugin::imCode::KohaSS12000::ExportUsers
 # Copyright (C) 2023 imCode, https://www.imcode.com, <info@imcode.com>
 # This file is distributed under the same license as the imCode::KohaSS12000::ExportUsers package.
@@ -8,231 +7,244 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 1.1\n"
 "Report-Msgid-Bugs-To: <tkachuk.serge@gmail.com>\n"
-"Last-Translator: Tkachuk Serge <tkachuk.serge@gmail.com> \n"
-"Language-Team: imCode.com \n"
-"Language: \n"
-"MIME-Version: \n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: imCode.com\n"
+"Language: fi_FI\n"
+"MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit"
-
-
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 3.3.2\n"
 
 #: ExportUsers.pm:52
 msgid "Export Users from SS12000"
-msgstr ""
+msgstr "Käyttäjien vienti SS12000:sta"
 
 #: config.tt:3 tool.tt:3 error.tt:3
 msgid "Configuration imCode SS12000"
-msgstr ""
+msgstr "Konfigurointi imCode SS12000"
 
 #: config.tt:13 tool.tt:13 error.tt:13
 msgid "Home"
-msgstr ""
+msgstr "Etusivu"
 
 #: config.tt:14 tool.tt:14 error.tt:14
 msgid "Plugins"
-msgstr ""
+msgstr "Liitännäiset"
 
 #: tool.tt:15
 msgid "KohaSS12000 &rsaquo; Tool"
-msgstr ""
+msgstr "KohaSS12000 &rsaquo; Työkalu"
 
 #: config.tt:15
 msgid "KohaSS12000 &rsaquo; Configuration"
-msgstr ""
+msgstr "KohaSS12000 &rsaquo; Konfigurointi"
 
 #: config.tt:23
 msgid "Configuration Settings"
-msgstr ""
+msgstr "Konfigurointiasetukset"
 
 #: tool.tt:23
 msgid "Tool"
-msgstr ""
+msgstr "Työkalu"
 
 #: tool.tt:28
 msgid "Action"
-msgstr ""
+msgstr "Toiminta"
 
 #: tool.tt:31
 msgid "Show user export log"
-msgstr ""
+msgstr "Näytä käyttäjän vientiloki"
 
 #: tool.tt:32
 msgid "Show user export statistics"
-msgstr ""
+msgstr "Näytä käyttäjän vientitilastot"
 
 #: tool.tt:43
 msgid "Ok"
-msgstr ""
+msgstr "Okei"
 
 #: tool.tt:51
 msgid "Last 10 Logs Lines"
-msgstr ""
+msgstr "Viimeiset 10 lokiriviä"
 
 #: tool.tt:56
 msgid "Page token Next"
-msgstr ""
+msgstr "Sivun merkki Seuraava"
 
 #: tool.tt:57
 msgid "Record Count"
-msgstr ""
+msgstr "Tietueiden määrä"
 
 #: tool.tt:58
 msgid "Response"
-msgstr ""
+msgstr "Vastaus"
 
 #: tool.tt:59
 msgid "Data Status"
-msgstr ""
+msgstr "Tietojen tila"
 
 #: tool.tt:60
 msgid "Created At"
-msgstr ""
+msgstr "Luonut"
 
 #: tool.tt:61
 msgid "Is Processed"
-msgstr ""
+msgstr "Käsitellään"
 
 #: tool.tt:62
 msgid "Data Hash"
-msgstr ""
+msgstr "Data Hash"
 
 #: tool.tt:83
 msgid "Last 10 Statistics Lines"
-msgstr ""
+msgstr "Viimeiset 10 tilastoriviä"
 
 #: tool.tt:87
 msgid "Added"
-msgstr ""
+msgstr "Lisätty"
 
 #: tool.tt:88
 msgid "Updated"
-msgstr ""
+msgstr "Päivitetty"
 
 #: tool.tt:89
 msgid "Date"
-msgstr ""
+msgstr "Päivämäärä"
 
 #: tool.tt:73
 msgid "Yes"
-msgstr ""
+msgstr "Kyllä"
 
 #: tool.tt:73
 msgid "No"
-msgstr ""
+msgstr "Ei"
 
 #: config.tt:28
 msgid "Client ID"
-msgstr ""
+msgstr "Client ID"
 
 #: config.tt:35
 msgid "Client Secret"
-msgstr ""
+msgstr "Client Secret"
 
 #: config.tt:42
 msgid "Customer ID"
-msgstr ""
+msgstr "Customer ID"
 
 #: config.tt:49
 msgid "API URL"
-msgstr ""
+msgstr "API URL"
 
 #: config.tt:56
 msgid "OAUTH API URL"
-msgstr ""
+msgstr "URL-osoite tunnisteiden hakua varten"
 
 #: config.tt:63
 msgid "Koha Default Categorycode"
-msgstr ""
+msgstr "Koha Default Categorycode"
 
 #: config.tt:66
 msgid "Select a category"
-msgstr ""
+msgstr "Valitse luokka"
 
 #: config.tt:71 config.tt:84
-msgid "When you change a parameter, it will be changed for all existing users in the next data update cycle"
+msgid ""
+"When you change a parameter, it will be changed for all existing users in "
+"the next data update cycle"
 msgstr ""
+"Kun muutat parametria, se muuttuu kaikkien nykyisten käyttäjien osalta "
+"seuraavassa tietojen päivityssyklissä"
 
 #: config.tt:76
 msgid "Koha Default Branchcode"
-msgstr ""
+msgstr "Koha Default Branchcode"
 
 #: config.tt:79
 msgid "Choose a branch"
-msgstr ""
+msgstr "Valitse haara"
 
 #: config.tt:89
 msgid "Debug Mode"
-msgstr ""
+msgstr "Vianmääritystila"
 
 #: config.tt:96
-msgid "If this option is enabled, then there will be more data in the Tool tab and the Response from the API will be put into the database in full"
+msgid ""
+"If this option is enabled, then there will be more data in the Tool tab and "
+"the Response from the API will be put into the database in full"
 msgstr ""
+"Jos tämä vaihtoehto on käytössä, Työkalu-välilehdellä on enemmän tietoja ja "
+"API:n vastaus tallennetaan tietokantaan kokonaisuudessaan"
 
 #: config.tt:101
 msgid "SS12000 API limit per page"
-msgstr ""
+msgstr "SS12000 API-raja sivua kohti"
 
 #: config.tt:108
 msgid "10 or 20 - fast, 30 - normal, 100 - very slowly"
-msgstr ""
+msgstr "10 tai 20 - nopeasti, 30 - normaalisti, 100 - hyvin hitaasti"
 
 #: config.tt:113
 msgid "CardNumber for Koha"
-msgstr ""
+msgstr "CardNumber for Koha"
 
 #: config.tt:120 config.tt:132
 msgid "CivicNo is used by default"
-msgstr ""
+msgstr "CivicNo on oletusarvoisesti käytössä"
 
 #: config.tt:125
 msgid "UserID for Koha"
-msgstr ""
+msgstr "UserID for Koha"
 
 #: config.tt:137
 msgid "How many days to keep plugin logs"
-msgstr ""
+msgstr "Kuinka monta päivää pitää säilyttää plugin-lokit"
 
 #: config.tt:144
 msgid "The default value is 3 days"
-msgstr ""
+msgstr "Oletusarvo on 3 päivää"
 
 #: config.tt:154
 msgid "Save"
-msgstr ""
+msgstr "Tallenna"
 
 #: config.tt:180
-msgid "Please select values for both Koha Default Categorycode and Koha Default Branchcode"
+msgid ""
+"Please select values for both Koha Default Categorycode and Koha Default "
+"Branchcode"
 msgstr ""
+"Valitse arvot sekä Koha Default Categorycode että Koha Default Branchcode -"
+"koodeille"
 
 #: ExportUsers.pm:60
 msgid "This plugin implements export users from SS12000"
-msgstr ""
+msgstr "Tämä lisäosa toteuttaa käyttäjien viennin SS12000:sta"
 
 #: config.tt:149
 msgid "Plugin Interface Language"
-msgstr ""
+msgstr "Liitännäisen käyttöliittymäkieli"
 
 #: ExportUsers.pm:299
 msgid "Configuration successfully updated"
-msgstr ""
+msgstr "Konfiguraatio päivitetty onnistuneesti"
 
 #: error.tt:23
 msgid "An error was detected"
-msgstr ""
+msgstr "Virhe havaittiin"
 
 #: error.tt:15
 msgid "KohaSS12000 &rsaquo; Error"
-msgstr ""
+msgstr "KohaSS12000 &rsaquo; Virhe"
 
 #: ExportUsers.pm:175
 msgid "Missing required module"
-msgstr ""
+msgstr "Puuttuva vaadittu moduuli"
 
 #: ExportUsers.pm:176
 msgid "Run in the server command line"
-msgstr ""
+msgstr "Suorita palvelimen komentorivillä"
 
 #: ExportUsers.pm:187
 msgid "Text copied to clipboard"
-msgstr ""
+msgstr "Leikepöydälle kopioitu teksti"

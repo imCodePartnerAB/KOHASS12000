@@ -19,19 +19,19 @@ msgstr ""
 
 #: ExportUsers.pm:52
 msgid "Export Users from SS12000"
-msgstr "Exportera användare från SS12000"
+msgstr "Export av användare från SS12000"
 
-#: config.tt:2 tool.tt:2
+#: config.tt:3 tool.tt:3 error.tt:3
 msgid "Configuration imCode SS12000"
 msgstr "Konfiguration imCode SS12000"
 
-#: config.tt:13 tool.tt:13
+#: config.tt:13 tool.tt:13 error.tt:13
 msgid "Home"
 msgstr "Hem"
 
-#: config.tt:14 tool.tt:14
+#: config.tt:14 tool.tt:14 error.tt:14
 msgid "Plugins"
-msgstr "Tillägg"
+msgstr "Hantera plugins"
 
 #: tool.tt:15
 msgid "KohaSS12000 &rsaquo; Tool"
@@ -51,7 +51,7 @@ msgstr "Verktyg"
 
 #: tool.tt:28
 msgid "Action"
-msgstr "Åtgärd"
+msgstr "Åtgärder"
 
 #: tool.tt:31
 msgid "Show user export log"
@@ -63,7 +63,7 @@ msgstr "Visa statistik för användarexport"
 
 #: tool.tt:43
 msgid "Ok"
-msgstr "Ok"
+msgstr "Okej"
 
 #: tool.tt:51
 msgid "Last 10 Logs Lines"
@@ -71,7 +71,7 @@ msgstr "Senaste 10 logglinjer"
 
 #: tool.tt:56
 msgid "Page token Next"
-msgstr "Sida token Nästa"
+msgstr "Page token Nästa"
 
 #: tool.tt:57
 msgid "Record Count"
@@ -91,15 +91,15 @@ msgstr "Skapad vid"
 
 #: tool.tt:61
 msgid "Is Processed"
-msgstr "Är bearbetad"
+msgstr "Har bearbetats"
 
 #: tool.tt:62
 msgid "Data Hash"
-msgstr "Hash av data"
+msgstr "Hash för data"
 
 #: tool.tt:83
 msgid "Last 10 Statistics Lines"
-msgstr "Senaste 10 statistiklinjer"
+msgstr "Senaste 10 statistiska linjer"
 
 #: tool.tt:87
 msgid "Added"
@@ -123,23 +123,23 @@ msgstr "Nej"
 
 #: config.tt:28
 msgid "Client ID"
-msgstr "Kund-ID"
+msgstr "Client ID"
 
 #: config.tt:35
 msgid "Client Secret"
-msgstr "Kundhemlighet"
+msgstr "Client Secret"
 
 #: config.tt:42
 msgid "Customer ID"
-msgstr "Kundens ID"
+msgstr "Customer ID"
 
 #: config.tt:49
 msgid "API URL"
-msgstr "URL FÖR API"
+msgstr "API URL"
 
 #: config.tt:56
 msgid "OAUTH API URL"
-msgstr "URL FÖR OAUTH API"
+msgstr "URL för åtkomsttoken för hämtning"
 
 #: config.tt:63
 msgid "Koha Default Categorycode"
@@ -199,7 +199,7 @@ msgstr "Användar-ID för Koha"
 
 #: config.tt:137
 msgid "How many days to keep plugin logs"
-msgstr "Hur många dagar ska plugin-loggar bevaras"
+msgstr "Hur många dagar ska plugin-loggar sparas"
 
 #: config.tt:144
 msgid "The default value is 3 days"
@@ -207,11 +207,43 @@ msgstr "Standardvärdet är 3 dagar"
 
 #: config.tt:154
 msgid "Save"
-msgstr "Spara"
+msgstr "Spar"
 
 #: config.tt:180
 msgid ""
 "Please select values for both Koha Default Categorycode and Koha Default "
 "Branchcode"
 msgstr ""
-"Välj värden för både Koha Default Categorycode och Koha Default Branchcode"
+"Välj värden för både Koha Default Kontorskod och Koha Default Kontorskod"
+
+#: ExportUsers.pm:60
+msgid "This plugin implements export users from SS12000"
+msgstr "Detta plugin implementerar exportanvändare från SS12000"
+
+#: config.tt:149
+msgid "Plugin Interface Language"
+msgstr "Språk för gränssnitt för plugin"
+
+#: ExportUsers.pm:299
+msgid "Configuration successfully updated"
+msgstr "Konfigurationen har uppdaterats framgångsrikt"
+
+#: error.tt:23
+msgid "An error was detected"
+msgstr "Ett fel har upptäckts"
+
+#: error.tt:15
+msgid "KohaSS12000 &rsaquo; Error"
+msgstr "KohaSS12000 &rsaquo; Fel"
+
+#: ExportUsers.pm:175
+msgid "Missing required module"
+msgstr "Saknar obligatorisk modul"
+
+#: ExportUsers.pm:176
+msgid "Run in the server command line"
+msgstr "Kör i serverns kommandorad"
+
+#: ExportUsers.pm:187
+msgid "Text copied to clipboard"
+msgstr "Text kopierad till urklipp"

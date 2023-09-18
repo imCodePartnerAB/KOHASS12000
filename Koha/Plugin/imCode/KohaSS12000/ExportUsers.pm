@@ -51,13 +51,13 @@ our $VERSION = "1.1";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
-    author          => 'imCode',
+    author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2023-08-08',
+    date_updated    => '2023-09-18',
     minimum_version => '20.05.00.000',
     maximum_version => undef,
     version         => $VERSION,
-    description     => 'This plugin implements export users from SS12000'
+    description     => getTranslation('This plugin implements export users from SS12000')
 };
 
 our $config_table     = 'imcode_config';
@@ -111,6 +111,7 @@ sub install {
     qq{INSERT INTO $config_table (name,value) VALUES ('cardnumberPlugin','civicNo');},
     qq{INSERT INTO $config_table (name,value) VALUES ('useridPlugin','civicNo');},
     qq{INSERT INTO $config_table (name,value) VALUES ('logs_limit','3');},
+    qq{INSERT INTO $config_table (name,value) VALUES ('language','');},
     );
 
     eval {
@@ -170,15 +171,9 @@ sub configure {
 
     if ($missing_modules) {
         my $template = $self->get_template({ file => 'error.tt' });
-        warn "Lang: ".C4::Languages::getlanguage($cgi);
         $template->param(
-            language => C4::Languages::getlanguage($cgi) || 'en',
-            mbf_path => abs_path( $self->mbf_path('translations') ),
-        );
-
-        $template->param(
-            error => "<div class='alert alert-warning'>Missing required module: URI::Encode qw(uri_encode)</div><br/><br/>" .
-                     "Run at command line:<br/>" .
+            error => "<div class='alert alert-warning'>".getTranslation('Missing required module').": URI::Encode qw(uri_encode)</div><br/><br/>" .
+                     " ".getTranslation('Run in the server command line').":<br/>" .
                      "<a href='javascript:void(0);' id='copy-command'>cpan URI::Encode</a>" .
                      "<script>" .
                      "document.getElementById('copy-command').addEventListener('click', function() {" .
@@ -189,10 +184,13 @@ sub configure {
                      "  textArea.select();" .
                      "  document.execCommand('copy');" .
                      "  document.body.removeChild(textArea);" .
-                     "  alert('Text copied to clipboard: ' + textToCopy);" .
+                     "  alert('".getTranslation('Text copied to clipboard').": ' + textToCopy);" .
                      "});" .
-                     "</script>"
+                     "</script>",
+            language => C4::Languages::getlanguage($cgi) || 'en',
+            mbf_path => abs_path( $self->mbf_path('translations') )
         );
+
         print $cgi->header(-type => 'text/html', -charset => 'utf-8');
         print $template->output();
         return 0;
@@ -202,8 +200,7 @@ sub configure {
 
     if ($op eq 'save-config') {
         my $client_id     = $cgi->param('client_id');
-        my $client_secret = $cgi->param('client_secret');
-        $client_secret    = xor_encrypt($client_secret, $skey);
+        my $client_secret = xor_encrypt($cgi->param('client_secret'), $skey);
         my $customerId    = $cgi->param('customerId');
         my $api_url       = $cgi->param('api_url');
         my $oauth_url     = $cgi->param('oauth_url');
@@ -214,6 +211,7 @@ sub configure {
         my $cardnumberPlugin    = $cgi->param('cardnumberPlugin');
         my $useridPlugin        = $cgi->param('useridPlugin');
         my $logs_limit          = int($cgi->param('logs_limit'));
+        my $language            = $cgi->param('language');
 
         my $select_check_query = qq{
             SELECT name, value 
@@ -263,6 +261,7 @@ sub configure {
                 WHEN name = 'cardnumberPlugin' THEN ?
                 WHEN name = 'useridPlugin' THEN ?
                 WHEN name = 'logs_limit' THEN ?
+                WHEN name = 'language' THEN ?
             END
             WHERE name IN (
                 'ist_client_id', 
@@ -276,7 +275,8 @@ sub configure {
                 'api_limit',
                 'cardnumberPlugin',
                 'useridPlugin',
-                'logs_limit'
+                'logs_limit',
+                'language'
                 )
         };
 
@@ -295,9 +295,10 @@ sub configure {
                 $api_limit,
                 $cardnumberPlugin,
                 $useridPlugin,
-                $logs_limit
+                $logs_limit,
+                $language
                 );
-            $template->param(success => "Configuration successfully updated");
+            $template->param(success => getTranslation('Configuration successfully updated'));
         };
 
         if ($@) {
@@ -351,6 +352,8 @@ sub configure {
         cardnumberPlugin    => $config_data->{cardnumberPlugin} || 'civicNo',
         useridPlugin        => $config_data->{useridPlugin} || 'civicNo',
         logs_limit          => int($config_data->{logs_limit}) || 3,
+        language            => $config_data->{language} || C4::Languages::getlanguage($cgi) || 'en',
+        mbf_path            => abs_path( $self->mbf_path('translations') )
         );
 
     print $cgi->header(-type => 'text/html', -charset => 'utf-8');
@@ -378,22 +381,27 @@ sub tool {
 
     my $op          = $cgi->param('op') || q{};
 
-    if ($op eq 'show-logs') {
-        my $dbh = C4::Context->dbh; # Get a database connection object
+    my $dbh = C4::Context->dbh; # Get a database connection object
 
-        my $select_query = qq{SELECT value FROM $config_table WHERE name = 'debug_mode'};
-        my $debug_mode = '';
+    my $select_query = qq{SELECT name, value FROM $config_table WHERE name IN ('debug_mode', 'language')};
+    my %config_values; 
 
-        eval {
-            my $sth = $dbh->prepare($select_query);
-            $sth->execute();
-            ($debug_mode) = $sth->fetchrow_array if $sth->rows;
-        };
-
-        if ($@) {
-            warn "Error fetching debug_mode configuration: $@";
+    eval {
+        my $sth = $dbh->prepare($select_query);
+        $sth->execute();
+        while (my ($name, $value) = $sth->fetchrow_array) {
+            $config_values{$name} = $value;
         }
+    };
 
+    if ($@) {
+        warn "Error fetching configuration values: $@";
+    }
+
+    my $debug_mode = $config_values{'debug_mode'} || '';
+    my $language = $config_values{'language'} || '';
+
+    if ($op eq 'show-logs') {
         my @logs;
 
         # Execute a query on the database, selecting data from the $logs_table
@@ -421,7 +429,6 @@ sub tool {
 
 
     if ($op eq 'show-stat') {
-        my $dbh = C4::Context->dbh; # Get a database connection object
         my @stats;
 
         my $select_query = qq{SELECT
@@ -460,6 +467,11 @@ sub tool {
     }
 
     # $self->cronjob();
+
+    $template->param(
+            language => $language || C4::Languages::getlanguage($cgi) || 'en',
+            mbf_path => abs_path( $self->mbf_path('translations') ),
+    );
 
     print $cgi->header( -type => 'text/html', -charset => 'utf-8' );
     print $template->output();

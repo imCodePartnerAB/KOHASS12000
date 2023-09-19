@@ -22,8 +22,9 @@ while true; do
     fi
 
     echo "Running iteration $i"
-    output=$(sudo koha-foreach --chdir --enabled /usr/share/koha/bin/cronjobs/imcode_ss12000.pl 2>&1)
-
+    # output=$(sudo koha-foreach --chdir --enabled /usr/share/koha/bin/cronjobs/imcode_ss12000.pl 2>&1)
+    output=$(timeout 4h sudo koha-foreach --chdir --enabled /usr/share/koha/bin/cronjobs/imcode_ss12000.pl 2>&1)
+    
     if echo "$output" | grep -q "EndLastPageFromAPI"; then
         echo "Received 'EndLastPageFromAPI'. Exiting loop."
         break

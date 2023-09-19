@@ -68,6 +68,7 @@ our $categories_table = 'categories'; # Koha categories table
 our $branches_table   = 'branches'; # Koha branches table
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
+our $data_change_log  = 'imcode_data_change_log'
 
 sub new {
     my ( $class, $args ) = @_;
@@ -91,6 +92,14 @@ sub install {
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     value VARCHAR(255) NOT NULL);},
+    qq{CREATE TABLE IF NOT EXISTS $data_change_log (
+        log_id INT AUTO_INCREMENT PRIMARY KEY,
+        table_name VARCHAR(255),
+        record_id INT,
+        action VARCHAR(255),
+        change_description TEXT,
+        change_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );},
     qq{CREATE TABLE IF NOT EXISTS $logs_table (
     id INT AUTO_INCREMENT PRIMARY KEY,
     page_token_next VARCHAR(255) DEFAULT NULL,
@@ -124,6 +133,109 @@ sub install {
         warn "Install Error: $@";
         return 0;
     }
+
+    # LOG trigger in SQL
+    my $trigger_sql = qq{
+    DELIMITER //
+    CREATE TRIGGER log_user_changes
+    AFTER UPDATE ON $borrowers_table
+    FOR EACH ROW
+    BEGIN
+        DECLARE change_description TEXT;
+        
+        IF NEW.dateofbirth != OLD.dateofbirth THEN
+            SET change_description = CONCAT('field dateofbirth changed from "', OLD.dateofbirth, '" to "', NEW.dateofbirth, '"');
+        END IF;
+
+        IF NEW.phone != OLD.phone THEN
+            SET change_description = CONCAT('field phone changed from "', OLD.phone, '" to "', NEW.phone, '"');
+        END IF;
+
+        IF NEW.mobile != OLD.mobile THEN
+            SET change_description = CONCAT('field mobile changed from "', OLD.mobile, '" to "', NEW.mobile, '"');
+        END IF;
+
+        IF NEW.surname != OLD.surname THEN
+            SET change_description = CONCAT('field surname changed from "', OLD.surname, '" to "', NEW.surname, '"');
+        END IF;
+
+        IF NEW.firstname != OLD.firstname THEN
+            SET change_description = CONCAT('field firstname changed from "', OLD.firstname, '" to "', NEW.firstname, '"');
+        END IF;
+
+        IF NEW.categorycode != OLD.categorycode THEN
+            SET change_description = CONCAT('field categorycode changed from "', OLD.categorycode, '" to "', NEW.categorycode, '"');
+        END IF;
+
+        IF NEW.branchcode != OLD.branchcode THEN
+            SET change_description = CONCAT('field branchcode changed from "', OLD.branchcode, '" to "', NEW.branchcode, '"');
+        END IF;
+
+        IF NEW.address != OLD.address THEN
+            SET change_description = CONCAT('field address changed from "', OLD.address, '" to "', NEW.address, '"');
+        END IF;
+
+        IF NEW.city != OLD.city THEN
+            SET change_description = CONCAT('field city changed from "', OLD.city, '" to "', NEW.city, '"');
+        END IF;
+
+        IF NEW.zipcode != OLD.zipcode THEN
+            SET change_description = CONCAT('field zipcode changed from "', OLD.zipcode, '" to "', NEW.zipcode, '"');
+        END IF;
+
+        IF NEW.country != OLD.country THEN
+            SET change_description = CONCAT('field country changed from "', OLD.country, '" to "', NEW.country, '"');
+        END IF;
+
+        IF NEW.B_email != OLD.B_email THEN
+            SET change_description = CONCAT('field B_email changed from "', OLD.B_email, '" to "', NEW.B_email, '"');
+        END IF;
+
+        IF NEW.userid != OLD.userid THEN
+            SET change_description = CONCAT('field userid changed from "', OLD.userid, '" to "', NEW.userid, '"');
+        END IF;
+
+        IF NEW.cardnumber != OLD.cardnumber THEN
+            SET change_description = CONCAT('field cardnumber changed from "', OLD.cardnumber, '" to "', NEW.cardnumber, '"');
+        END IF;
+
+        IF NEW.borrowernumber != OLD.borrowernumber THEN
+            SET change_description = CONCAT('field borrowernumber changed from "', OLD.borrowernumber, '" to "', NEW.borrowernumber, '"');
+        END IF;        
+
+        IF NEW.sex != OLD.sex THEN
+            SET change_description = CONCAT('field sex changed from "', OLD.sex, '" to "', NEW.sex, '"');
+        END IF;
+        
+        IF NEW.email != OLD.email THEN
+            SET change_description = CONCAT(change_description, '; Email changed from "', OLD.email, '" to "', NEW.email, '"');
+        END IF;
+        
+        IF change_description IS NOT NULL THEN
+            INSERT INTO $data_change_log (table_name, record_id, action, change_description)
+            VALUES ('$borrowers_table', NEW.id, 'update', change_description);
+        END IF;
+    END;
+    //
+    DELIMITER ;
+    };
+
+    eval {
+        for (@installer_statements) {
+            my $sth = C4::Context->dbh->prepare($_);
+            $sth->execute or die C4::Context->dbh->errstr;
+        }
+
+        # Виконайте SQL-запит для створення тригера
+        my $trigger_sth = C4::Context->dbh->prepare($trigger_sql);
+        $trigger_sth->execute or die C4::Context->dbh->errstr;
+    };
+
+    if ($@) {
+        warn "Install Error: $@";
+        return 0;
+    }
+
 
     return 1;
 }

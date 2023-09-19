@@ -111,7 +111,6 @@ sub install {
     qq{INSERT INTO $config_table (name,value) VALUES ('cardnumberPlugin','civicNo');},
     qq{INSERT INTO $config_table (name,value) VALUES ('useridPlugin','civicNo');},
     qq{INSERT INTO $config_table (name,value) VALUES ('logs_limit','3');},
-    qq{INSERT INTO $config_table (name,value) VALUES ('language','');},
     );
 
     eval {
@@ -172,21 +171,7 @@ sub configure {
     if ($missing_modules) {
         my $template = $self->get_template({ file => 'error.tt' });
         $template->param(
-            error => "<div class='alert alert-warning'>".getTranslation('Missing required module').": URI::Encode qw(uri_encode)</div><br/><br/>" .
-                     " ".getTranslation('Run in the server command line').":<br/>" .
-                     "<a href='javascript:void(0);' id='copy-command'>cpan URI::Encode</a>" .
-                     "<script>" .
-                     "document.getElementById('copy-command').addEventListener('click', function() {" .
-                     "  var textToCopy = 'cpan URI::Encode';" .
-                     "  var textArea = document.createElement('textarea');" .
-                     "  textArea.value = textToCopy;" .
-                     "  document.body.appendChild(textArea);" .
-                     "  textArea.select();" .
-                     "  document.execCommand('copy');" .
-                     "  document.body.removeChild(textArea);" .
-                     "  alert('".getTranslation('Text copied to clipboard').": ' + textToCopy);" .
-                     "});" .
-                     "</script>",
+            error    => "missing_modules",
             language => C4::Languages::getlanguage($cgi) || 'en',
             mbf_path => abs_path( $self->mbf_path('translations') )
         );
@@ -211,7 +196,6 @@ sub configure {
         my $cardnumberPlugin    = $cgi->param('cardnumberPlugin');
         my $useridPlugin        = $cgi->param('useridPlugin');
         my $logs_limit          = int($cgi->param('logs_limit'));
-        my $language            = $cgi->param('language');
 
         my $select_check_query = qq{
             SELECT name, value 
@@ -261,7 +245,6 @@ sub configure {
                 WHEN name = 'cardnumberPlugin' THEN ?
                 WHEN name = 'useridPlugin' THEN ?
                 WHEN name = 'logs_limit' THEN ?
-                WHEN name = 'language' THEN ?
             END
             WHERE name IN (
                 'ist_client_id', 
@@ -276,7 +259,6 @@ sub configure {
                 'cardnumberPlugin',
                 'useridPlugin',
                 'logs_limit',
-                'language'
                 )
         };
 
@@ -296,9 +278,8 @@ sub configure {
                 $cardnumberPlugin,
                 $useridPlugin,
                 $logs_limit,
-                $language
                 );
-            $template->param(success => getTranslation('Configuration successfully updated'));
+            $template->param(success => 'success');
         };
 
         if ($@) {
@@ -352,7 +333,7 @@ sub configure {
         cardnumberPlugin    => $config_data->{cardnumberPlugin} || 'civicNo',
         useridPlugin        => $config_data->{useridPlugin} || 'civicNo',
         logs_limit          => int($config_data->{logs_limit}) || 3,
-        language            => $config_data->{language} || C4::Languages::getlanguage($cgi) || 'en',
+        language            => C4::Languages::getlanguage($cgi) || 'en',
         mbf_path            => abs_path( $self->mbf_path('translations') )
         );
 
@@ -383,7 +364,7 @@ sub tool {
 
     my $dbh = C4::Context->dbh; # Get a database connection object
 
-    my $select_query = qq{SELECT name, value FROM $config_table WHERE name IN ('debug_mode', 'language')};
+    my $select_query = qq{SELECT name, value FROM $config_table WHERE name IN ('debug_mode')};
     my %config_values; 
 
     eval {
@@ -399,7 +380,6 @@ sub tool {
     }
 
     my $debug_mode = $config_values{'debug_mode'} || '';
-    my $language = $config_values{'language'} || '';
 
     if ($op eq 'show-logs') {
         my @logs;
@@ -469,7 +449,7 @@ sub tool {
     # $self->cronjob();
 
     $template->param(
-            language => $language || C4::Languages::getlanguage($cgi) || 'en',
+            language => C4::Languages::getlanguage($cgi) || 'en',
             mbf_path => abs_path( $self->mbf_path('translations') ),
     );
 

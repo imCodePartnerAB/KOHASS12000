@@ -209,10 +209,6 @@ msgstr ""
 msgid "This plugin implements export users from SS12000"
 msgstr ""
 
-#: config.tt:149
-msgid "Plugin Interface Language"
-msgstr ""
-
 #: ExportUsers.pm:299
 msgid "Configuration successfully updated"
 msgstr ""
@@ -225,14 +221,14 @@ msgstr ""
 msgid "KohaSS12000 &rsaquo; Error"
 msgstr ""
 
-#: ExportUsers.pm:175
+#: error.pm:26
 msgid "Missing required module"
 msgstr ""
 
-#: ExportUsers.pm:176
+#: error.pm:27
 msgid "Run in the server command line"
 msgstr ""
 
-#: ExportUsers.pm:187
+#: error.pm:38
 msgid "Text copied to clipboard"
 msgstr ""

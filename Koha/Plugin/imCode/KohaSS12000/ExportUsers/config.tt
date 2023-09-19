@@ -145,22 +145,6 @@
                 </div>
             </div>
 
-            <div class="form-group row">
-                <label for="oauth_url" class="col-sm-2 col-form-label">[% 'Plugin Interface Language' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="language">
-                        [% FOREACH lang IN [ 'en', 'sv', 'fi'] %]
-                            <option value="[% lang %]" [% IF lang == language %]selected="selected"[% END %]>
-                                [% IF lang == 'en' %]English
-                                [% ELSIF lang == 'sv' %]Svenska
-                                [% ELSIF lang == 'fi' %]Suomi
-                                [% END %]
-                            </option>
-                        [% END %]
-                    </select>
-                </div>
-            </div>
-
             <input type="hidden" name="class" value="[% CLASS %]" />
             <input type="hidden" name="method" value="[% METHOD %]" />
 
@@ -174,7 +158,7 @@
         </form>
 
         [% IF success %]
-        <div class="alert alert-success">[% success %]</div>
+        <div class="alert alert-success">[% 'Configuration successfully updated' | gettext %]</div>
         [% END %]
 
       </main>

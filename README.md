@@ -20,3 +20,5 @@ Sep 13 2023:
 
 # KohaSS12000 › Configuration
 ![Configuration](Doc/KohaSS12000Configuration.png)
+
+![Configuration](Doc/KohaSS12000Configuration_sv.png)

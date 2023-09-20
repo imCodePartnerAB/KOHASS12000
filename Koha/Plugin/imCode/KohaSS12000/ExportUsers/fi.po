@@ -248,3 +248,11 @@ msgstr "Leikepöydälle kopioitu teksti"
 #: tool.tt:33
 msgid "Show users data update"
 msgstr "Näytä käyttäjien tietojen päivitys"
+
+#: config.tt:149
+msgid "Update on INSERT or UPDATE"
+msgstr "Päivitys INSERT- tai UPDATE-toiminnolla"
+
+#: config.tt:156
+msgid "Update <b>Koha Default Categorycode</b> and <b>Koha Default Branchcode</b> always, or only when adding a user"
+msgstr "Päivitä <b>Koha Default Categorycode</b> ja <b>Koha Default Branchcode</b> aina tai vain käyttäjän lisäämisen yhteydessä"

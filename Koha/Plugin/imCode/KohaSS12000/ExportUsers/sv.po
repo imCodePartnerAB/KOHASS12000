@@ -247,3 +247,11 @@ msgstr "Text kopierad till urklipp"
 #: tool.tt:33
 msgid "Show users data update"
 msgstr "Visa användardatauppdatering"
+
+#: config.tt:149
+msgid "Update on INSERT or UPDATE"
+msgstr "Uppdatering vid INSERT eller UPDATE"
+
+#: config.tt:156
+msgid "Update <b>Koha Default Categorycode</b> and <b>Koha Default Branchcode</b> always, or only when adding a user"
+msgstr "Uppdatera <b>Koha Default Categorycode</b> och <b>Koha Default Branchcode</b> alltid, eller bara när du lägger till en användare"

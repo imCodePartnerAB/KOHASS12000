@@ -236,3 +236,11 @@ msgstr ""
 #: tool.tt:33
 msgid "Show users data update"
 msgstr ""
+
+#: config.tt:149
+msgid "Update on INSERT or UPDATE"
+msgstr ""
+
+#: config.tt:156
+msgid "Update <b>Koha Default Categorycode</b> and <b>Koha Default Branchcode</b> always, or only when adding a user"
+msgstr ""

@@ -120,6 +120,7 @@ sub install {
     qq{INSERT INTO $config_table (name,value) VALUES ('cardnumberPlugin','civicNo');},
     qq{INSERT INTO $config_table (name,value) VALUES ('useridPlugin','civicNo');},
     qq{INSERT INTO $config_table (name,value) VALUES ('logs_limit','3');},
+    qq{INSERT INTO $config_table (name,value) VALUES ('update_on','INSERT');},
     );
 
     eval {
@@ -302,6 +303,7 @@ sub configure {
         my $cardnumberPlugin    = $cgi->param('cardnumberPlugin');
         my $useridPlugin        = $cgi->param('useridPlugin');
         my $logs_limit          = int($cgi->param('logs_limit'));
+        my $update_on           = $cgi->param('update_on');
 
         my $select_check_query = qq{
             SELECT name, value 
@@ -351,6 +353,7 @@ sub configure {
                 WHEN name = 'cardnumberPlugin' THEN ?
                 WHEN name = 'useridPlugin' THEN ?
                 WHEN name = 'logs_limit' THEN ?
+                WHEN name = 'update_on' THEN ?                
             END
             WHERE name IN (
                 'ist_client_id', 
@@ -365,6 +368,7 @@ sub configure {
                 'cardnumberPlugin',
                 'useridPlugin',
                 'logs_limit',
+                'update_on',
                 )
         };
 
@@ -384,6 +388,7 @@ sub configure {
                 $cardnumberPlugin,
                 $useridPlugin,
                 $logs_limit,
+                $update_on,
                 );
             $template->param(success => 'success');
         };
@@ -444,7 +449,8 @@ sub configure {
         useridPlugin        => $config_data->{useridPlugin} || 'civicNo',
         logs_limit          => int($config_data->{logs_limit}) || 3,
         language            => C4::Languages::getlanguage($cgi) || 'en',
-        mbf_path            => abs_path( $self->mbf_path('translations') )
+        mbf_path            => abs_path( $self->mbf_path('translations') ),
+        update_on           => $config_data->{update_on} || '',
         );
 
     print $cgi->header(-type => 'text/html', -charset => 'utf-8');
@@ -663,6 +669,7 @@ sub fetchDataFromAPI {
     my $cardnumberPlugin    = $config_data->{cardnumberPlugin} || 'civicNo';
     my $useridPlugin        = $config_data->{useridPlugin} || 'civicNo';
     my $logs_limit          = int($config_data->{logs_limit}) || 3;
+    my $update_on           = $config_data->{update_on} || 'INSERT';
     
     # Request to API IST
     my $ua = LWP::UserAgent->new;
@@ -881,7 +888,8 @@ sub fetchDataFromAPI {
                             $userid,
                             $useridPlugin,
                             $cardnumberPlugin,
-                            $externalIdentifier
+                            $externalIdentifier,
+                            $update_on
                         );
                     if ($result) { $j++; }
                 } 
@@ -990,7 +998,8 @@ sub addOrUpdateBorrower {
         $userid,
         $useridPlugin,
         $cardnumberPlugin,
-        $externalIdentifier
+        $externalIdentifier,
+        $update_on
         ) = @_;
 
     # use utf8;
@@ -1020,6 +1029,7 @@ sub addOrUpdateBorrower {
 
     if ($existing_borrower) {
         # If the user exists, update their data
+
         my $update_query = qq{
             UPDATE $borrowers_table
             SET 
@@ -1030,8 +1040,6 @@ sub addOrUpdateBorrower {
                 mobile = ?, 
                 surname = ?, 
                 firstname = ?,
-                categorycode = ?,
-                branchcode = ?,
                 address = ?,
                 city = ?,
                 zipcode = ?,
@@ -1039,10 +1047,24 @@ sub addOrUpdateBorrower {
                 B_email = ?,
                 userid = ?,
                 cardnumber = ?
+        };
+
+        if ($update_on eq "UPDATE") {
+            $update_query .= qq{,
+                categorycode = ?,
+                branchcode = ?
+            };
+        }
+
+        $update_query .= qq{
             WHERE borrowernumber = ?
         };
+
         my $update_sth = $dbh->prepare($update_query);
-        $update_sth->execute(
+
+        # $update_on == "UPDATE", categorycode and branchcode will be updated
+        if ($update_on eq "UPDATE") {
+            $update_sth->execute(
                 $birthdate, 
                 $email, 
                 $sex, 
@@ -1050,8 +1072,27 @@ sub addOrUpdateBorrower {
                 $mobile_phone, 
                 $surname, 
                 $firstname, 
+                $streetAddress,
+                $locality,
+                $postalCode,
+                $country,
+                $B_email,
+                $newUserID,
+                $newCardnumber,
                 $categorycode, 
-                $branchcode, 
+                $branchcode,
+                $existing_borrower->{'borrowernumber'}
+            );
+        } else {
+            # $update_on == "INSERT", categorycode and branchcode will NOT BE updated
+            $update_sth->execute(
+                $birthdate, 
+                $email, 
+                $sex, 
+                $phone, 
+                $mobile_phone, 
+                $surname, 
+                $firstname, 
                 $streetAddress,
                 $locality,
                 $postalCode,
@@ -1061,7 +1102,51 @@ sub addOrUpdateBorrower {
                 $newCardnumber,
                 $existing_borrower->{'borrowernumber'}
             );
-            $updated_count++;
+        }
+
+        # my $update_query = qq{
+        #     UPDATE $borrowers_table
+        #     SET 
+        #         dateofbirth = ?, 
+        #         email = ?, 
+        #         sex = ?, 
+        #         phone = ?, 
+        #         mobile = ?, 
+        #         surname = ?, 
+        #         firstname = ?,
+        #         categorycode = ?,
+        #         branchcode = ?,
+        #         address = ?,
+        #         city = ?,
+        #         zipcode = ?,
+        #         country = ?,
+        #         B_email = ?,
+        #         userid = ?,
+        #         cardnumber = ?
+        #     WHERE borrowernumber = ?
+        # };
+        # my $update_sth = $dbh->prepare($update_query);
+        # $update_sth->execute(
+        #         $birthdate, 
+        #         $email, 
+        #         $sex, 
+        #         $phone, 
+        #         $mobile_phone, 
+        #         $surname, 
+        #         $firstname, 
+        #         $categorycode, 
+        #         $branchcode, 
+        #         $streetAddress,
+        #         $locality,
+        #         $postalCode,
+        #         $country,
+        #         $B_email,
+        #         $newUserID,
+        #         $newCardnumber,
+        #         $existing_borrower->{'borrowernumber'}
+        #     );
+
+        $updated_count++;
     } else {
         # If the user doesn't exist, insert their data
         my $insert_query = qq{

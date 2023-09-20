@@ -220,10 +220,6 @@ msgstr ""
 msgid "This plugin implements export users from SS12000"
 msgstr "Detta plugin implementerar exportanvändare från SS12000"
 
-#: config.tt:149
-msgid "Plugin Interface Language"
-msgstr "Språk för gränssnitt för plugin"
-
 #: ExportUsers.pm:299
 msgid "Configuration successfully updated"
 msgstr "Konfigurationen har uppdaterats framgångsrikt"
@@ -247,3 +243,7 @@ msgstr "Kör i serverns kommandorad"
 #: ExportUsers.pm:187
 msgid "Text copied to clipboard"
 msgstr "Text kopierad till urklipp"
+
+#: tool.tt:33
+msgid "Show users data update"
+msgstr "Visa användardatauppdatering"

@@ -28,12 +28,12 @@
                 <label for="client_id" class="col-sm-2 col-form-label">[% 'Action' | gettext %]:</label>
                 <div class="col-sm-4">
                     <select class="form-control" name="op">
-                        <option value="show-logs">[% 'Show user export log' | gettext %]</option>
-                        <option value="show-stat">[% 'Show user export statistics' | gettext %]</option>
+                        <option value="show-logs" [% IF logs %]SELECTED[% END %]>[% 'Show user export log' | gettext %]</option>
+                        <option value="show-stat" [% IF stats %]SELECTED[% END %]>[% 'Show user export statistics' | gettext %]</option>
+                        <option value="show-updates" [% IF updates %]SELECTED[% END %]>[% 'Show users data update' | gettext %]</option>
                     </select>
                 </div>
             </div>
-
 
             <input type="hidden" name="class" value="[% CLASS %]" />
             <input type="hidden" name="method" value="[% METHOD %]" />
@@ -100,6 +100,30 @@
             </tbody>
         </table>
         [% END %]
+
+        [% IF updates.size > 0 %]
+        <br/>
+        <h2>[% 'Last 20 Updates Lines' | gettext %]</h2>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>[% 'User' | gettext %]</th>
+                    <th>[% 'Change Description' | gettext %]</th>
+                    <th>[% 'Change Timestamp' | gettext %]</th>
+                </tr>
+            </thead>
+            <tbody>
+                [% FOREACH update IN updates %]
+                    <tr>
+                        <td><a target="_blank" href="/cgi-bin/koha/members/moremember.pl?borrowernumber=[% update.record_id %]">[% update.firstname %] [% update.surname %] (id: [% update.record_id %])</a></td>
+                        <td>[% update.change_description %]</td>
+                        <td>[% update.change_timestamp %]</td>
+                    </tr>
+                [% END %]
+            </tbody>
+        </table>
+        [% END %]
+
 
       </main>
     </div>

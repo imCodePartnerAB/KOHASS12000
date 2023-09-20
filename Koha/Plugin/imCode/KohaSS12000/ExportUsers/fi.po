@@ -221,10 +221,6 @@ msgstr ""
 msgid "This plugin implements export users from SS12000"
 msgstr "Tämä lisäosa toteuttaa käyttäjien viennin SS12000:sta"
 
-#: config.tt:149
-msgid "Plugin Interface Language"
-msgstr "Liitännäisen käyttöliittymäkieli"
-
 #: ExportUsers.pm:299
 msgid "Configuration successfully updated"
 msgstr "Konfiguraatio päivitetty onnistuneesti"
@@ -248,3 +244,7 @@ msgstr "Suorita palvelimen komentorivillä"
 #: ExportUsers.pm:187
 msgid "Text copied to clipboard"
 msgstr "Leikepöydälle kopioitu teksti"
+
+#: tool.tt:33
+msgid "Show users data update"
+msgstr "Näytä käyttäjien tietojen päivitys"

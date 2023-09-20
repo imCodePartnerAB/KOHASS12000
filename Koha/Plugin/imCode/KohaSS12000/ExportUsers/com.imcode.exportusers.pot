@@ -232,3 +232,7 @@ msgstr ""
 #: error.pm:38
 msgid "Text copied to clipboard"
 msgstr ""
+
+#: tool.tt:33
+msgid "Show users data update"
+msgstr ""

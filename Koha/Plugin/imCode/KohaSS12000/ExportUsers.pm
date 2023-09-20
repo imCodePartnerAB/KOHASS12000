@@ -68,7 +68,7 @@ our $categories_table = 'categories'; # Koha categories table
 our $branches_table   = 'branches'; # Koha branches table
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
-our $data_change_log  = 'imcode_data_change_log'
+our $data_change_log  = 'imcode_data_change_log';
 
 sub new {
     my ( $class, $args ) = @_;
@@ -399,18 +399,36 @@ sub configure {
     my $select_categorycode_query = qq{SELECT categorycode FROM $categories_table};
     my $select_branchcode_query = qq{SELECT branchcode FROM $branches_table};
 
-    my $categorycode;
-    my $branchcode;
+    # my $categorycode;
+    # my $branchcode;
+
+    my @categories;
+    my @branches;
 
     eval {
         my $sth_categorycode = $dbh->prepare($select_categorycode_query);
         $sth_categorycode->execute();
-        ($categorycode) = $sth_categorycode->fetchrow_array;
+        while (my ($category) = $sth_categorycode->fetchrow_array) {
+            push @categories, $category;
+        }
 
         my $sth_branchcode = $dbh->prepare($select_branchcode_query);
         $sth_branchcode->execute();
-        ($branchcode) = $sth_branchcode->fetchrow_array;
+        while (my ($branch) = $sth_branchcode->fetchrow_array) {
+            push @branches, $branch;
+        }
     };
+
+
+    # eval {
+    #     my $sth_categorycode = $dbh->prepare($select_categorycode_query);
+    #     $sth_categorycode->execute();
+    #     ($categorycode) = $sth_categorycode->fetchrow_array;
+
+    #     my $sth_branchcode = $dbh->prepare($select_branchcode_query);
+    #     $sth_branchcode->execute();
+    #     ($branchcode) = $sth_branchcode->fetchrow_array;
+    # };
 
     eval {
         my $sth = $dbh->prepare($select_query);
@@ -430,8 +448,8 @@ sub configure {
         customerId    => $config_data->{ist_customer_id} || '',
         api_url       => $config_data->{ist_api_url} || '',
         oauth_url     => $config_data->{ist_oauth_url} || '',
-        categories    => $categorycode || '',
-        branches      => $branchcode || '',
+        categories    => \@categories,
+        branches      => \@branches,
         debug_mode    => $config_data->{debug_mode} || '',
         api_limit     => int($config_data->{api_limit}) || 30,
         koha_default_categorycode => $config_data->{koha_default_categorycode} || '',
@@ -487,6 +505,39 @@ sub tool {
 
     my $debug_mode = $config_values{'debug_mode'} || '';
 
+    if ($op eq 'show-updates') {
+        my @updates;
+
+        my $select_query = qq{SELECT
+                    l.log_id,
+                    l.record_id,
+                    l.change_description,
+                    l.change_timestamp,
+                    b.firstname,
+                    b.surname
+                FROM
+                    $data_change_log l
+                JOIN
+                    $borrowers_table b ON l.record_id = b.borrowernumber ORDER BY l.log_id DESC LIMIT 20};
+
+        eval {
+            my $sth = $dbh->prepare($select_query);
+            $sth->execute();
+                while (my $row = $sth->fetchrow_hashref()) {
+                    push @updates, $row;
+                }
+            };
+
+        if ($@) {
+            warn "Error fetching, info about users data update: $@";
+        }
+
+        # Pass the data to the template for display
+        $template->param(
+            updates => \@updates
+        );
+    }
+
     if ($op eq 'show-logs') {
         my @logs;
 
@@ -512,7 +563,6 @@ sub tool {
             debug_mode  => $debug_mode || ''
         );
     }
-
 
     if ($op eq 'show-stat') {
         my @stats;

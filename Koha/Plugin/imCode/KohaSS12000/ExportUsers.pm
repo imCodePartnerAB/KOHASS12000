@@ -399,9 +399,6 @@ sub configure {
     my $select_categorycode_query = qq{SELECT categorycode FROM $categories_table};
     my $select_branchcode_query = qq{SELECT branchcode FROM $branches_table};
 
-    # my $categorycode;
-    # my $branchcode;
-
     my @categories;
     my @branches;
 
@@ -418,17 +415,6 @@ sub configure {
             push @branches, $branch;
         }
     };
-
-
-    # eval {
-    #     my $sth_categorycode = $dbh->prepare($select_categorycode_query);
-    #     $sth_categorycode->execute();
-    #     ($categorycode) = $sth_categorycode->fetchrow_array;
-
-    #     my $sth_branchcode = $dbh->prepare($select_branchcode_query);
-    #     $sth_branchcode->execute();
-    #     ($branchcode) = $sth_branchcode->fetchrow_array;
-    # };
 
     eval {
         my $sth = $dbh->prepare($select_query);
@@ -1009,9 +995,6 @@ sub addOrUpdateBorrower {
 
     # use utf8;
 
-    # IMPORTANT INFORMATION:  
-    # verification of user availability is possible only by cardnumber, surname and firstname can be empty and come filled with updates
-    # 
     my $dbh = C4::Context->dbh;
     
     my $newUserID;
@@ -1025,14 +1008,13 @@ sub addOrUpdateBorrower {
         $newCardnumber = ($cardnumberPlugin eq "civicNo") ? $cardnumber : $externalIdentifier;
     }
 
-    ## Check if a user with the specified cardnumber (surname, and firstname) already exists in the database
+    ## Check if a user with the specified cardnumber already exists in the database
     my $select_query = qq{
         SELECT borrowernumber 
         FROM $borrowers_table 
         WHERE cardnumber = ? OR cardnumber = ?
     };
     my $select_sth = $dbh->prepare($select_query);
-    ## $select_sth->execute($cardnumber, encode('utf8', $surname), encode('utf8', $firstname));
     $select_sth->execute($cardnumber, $externalIdentifier);
     my $existing_borrower = $select_sth->fetchrow_hashref;
 

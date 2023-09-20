@@ -213,7 +213,7 @@ sub install {
         
         IF change_description IS NOT NULL THEN
             INSERT INTO $data_change_log (table_name, record_id, action, change_description)
-            VALUES ('$borrowers_table', NEW.id, 'update', change_description);
+            VALUES ('$borrowers_table', NEW.borrowernumber, 'update', change_description);
         END IF;
     END;
     //
@@ -221,18 +221,12 @@ sub install {
     };
 
     eval {
-        for (@installer_statements) {
-            my $sth = C4::Context->dbh->prepare($_);
-            $sth->execute or die C4::Context->dbh->errstr;
-        }
-
-        # Виконайте SQL-запит для створення тригера
         my $trigger_sth = C4::Context->dbh->prepare($trigger_sql);
         $trigger_sth->execute or die C4::Context->dbh->errstr;
     };
 
     if ($@) {
-        warn "Install Error: $@";
+        warn "Install, CREATE TRIGGER log_user_changes, Error: $@";
         return 0;
     }
 

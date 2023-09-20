@@ -150,9 +150,7 @@ msgid "Select a category"
 msgstr "Valitse luokka"
 
 #: config.tt:71 config.tt:84
-msgid ""
-"If Update on UPDATE, then - When you change a parameter, it will be changed for all existing users in "
-"the next data update cycle"
+msgid "If Update on UPDATE, then - When you change a parameter, it will be changed for all existing users in the next data update cycle"
 msgstr ""
 "Jos Update on UPDATE, niin - Kun muutat parametria, se muuttuu kaikkien nykyisten käyttäjien osalta "
 "seuraavassa tietojen päivityssyklissä"

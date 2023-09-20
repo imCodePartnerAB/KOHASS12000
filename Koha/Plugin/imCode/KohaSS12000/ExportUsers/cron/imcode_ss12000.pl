@@ -8,7 +8,7 @@ use C4::Context;
 use C4::Log;
 use Koha::Logger;
 use Koha::Plugins;
-use Koha::Script -cron;
+#use Koha::Script -cron;
 
 use Koha::Plugin::imCode::KohaSS12000::ExportUsers;
 

@@ -68,7 +68,7 @@
                             <option value="[% category %]" [% IF category == koha_default_categorycode %]selected="selected"[% END %]>[% category %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">[% 'When you change a parameter, it will be changed for all existing users in the next data update cycle' | gettext %].</p>
+                    <p class="text-info">[% 'If Update on UPDATE, then - When you change a parameter, it will be changed for all existing users in the next data update cycle' | gettext %].</p>
                 </div>
             </div>
 
@@ -81,7 +81,7 @@
                             <option value="[% branch %]" [% IF branch == koha_default_branchcode %]selected="selected"[% END %]>[% branch %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">[% 'When you change a parameter, it will be changed for all existing users in the next data update cycle' | gettext %].</p>
+                    <p class="text-info">[% 'If Update on UPDATE, then - When you change a parameter, it will be changed for all existing users in the next data update cycle' | gettext %].</p>
                 </div>
             </div>
 

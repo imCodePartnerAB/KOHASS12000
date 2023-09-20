@@ -150,7 +150,7 @@ msgid "Select a category"
 msgstr ""
 
 #: config.tt:71 config.tt:84
-msgid "When you change a parameter, it will be changed for all existing users in the next data update cycle"
+msgid "If Update on UPDATE, then - When you change a parameter, it will be changed for all existing users in the next data update cycle"
 msgstr ""
 
 #: config.tt:76

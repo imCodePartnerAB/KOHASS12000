@@ -151,10 +151,10 @@ msgstr "Välj en kategori"
 
 #: config.tt:71 config.tt:84
 msgid ""
-"When you change a parameter, it will be changed for all existing users in "
+"If Update on UPDATE, then - When you change a parameter, it will be changed for all existing users in "
 "the next data update cycle"
 msgstr ""
-"När du ändrar en parameter kommer den att ändras för alla befintliga "
+"Om Uppdatering på UPDATE, då - När du ändrar en parameter kommer den att ändras för alla befintliga "
 "användare i nästa datauppdateringscykel"
 
 #: config.tt:76

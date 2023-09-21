@@ -198,11 +198,7 @@ sub install {
 
         IF NEW.cardnumber != OLD.cardnumber THEN
             SET change_description = CONCAT('field cardnumber changed from "', OLD.cardnumber, '" to "', NEW.cardnumber, '"');
-        END IF;
-
-        IF NEW.borrowernumber != OLD.borrowernumber THEN
-            SET change_description = CONCAT('field borrowernumber changed from "', OLD.borrowernumber, '" to "', NEW.borrowernumber, '"');
-        END IF;        
+        END IF;      
 
         IF NEW.sex != OLD.sex THEN
             SET change_description = CONCAT('field sex changed from "', OLD.sex, '" to "', NEW.sex, '"');

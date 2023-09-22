@@ -537,19 +537,19 @@ sub tool {
         };
 
         my $total_pages = int(($total_rows + $per_page - 1) / $per_page);
-        my $prev_page_url;
+        my $prev_page;
         if ($page > 1) {
-            $prev_page_url = "&op=show-updates&page=" . ($page - 1);
+            $prev_page = $page - 1;
         }
-        my $next_page_url;
+        my $next_page;
         if ($page < $total_pages) {
-            $next_page_url = "&op=show-updates&page=" . ($page + 1);
+            $next_page = $page + 1;
         }
         # Pass the data to the template for display
         $template->param(
             updates => \@updates,
-            prev_page_url  => $prev_page_url,
-            next_page_url  => $next_page_url,
+            prev_page => $prev_page,
+            next_page => $next_page,
             total_pages => $total_pages,
             current_page => $page,
             search => $search,
@@ -585,21 +585,21 @@ sub tool {
         };
 
         my $total_pages = int(($total_rows + $per_page - 1) / $per_page);
-        my $prev_page_url;
+        my $prev_page;
         if ($page > 1) {
-            $prev_page_url = "&op=show-logs&page=" . ($page - 1);
+            $prev_page = $page - 1;
         }
-        my $next_page_url;
+        my $next_page;
         if ($page < $total_pages) {
-            $next_page_url = "&op=show-logs&page=" . ($page + 1);
+            $next_page = $page + 1;
         }
 
         # Pass the data to the template for display
         $template->param(
             logs => \@logs,
-            debug_mode  => $debug_mode || '',
-            prev_page_url  => $prev_page_url,
-            next_page_url  => $next_page_url,
+            debug_mode => $debug_mode || '',
+            prev_page => $prev_page,
+            next_page => $next_page,
             total_pages => $total_pages,
             current_page => $page,
         );

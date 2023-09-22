@@ -66,8 +66,8 @@ msgid "Ok"
 msgstr "Okej"
 
 #: tool.tt:51
-msgid "Last 10 Logs Lines"
-msgstr "Senaste 10 logglinjer"
+msgid "Logs Lines"
+msgstr "Loggar linjer"
 
 #: tool.tt:56
 msgid "Page token Next"

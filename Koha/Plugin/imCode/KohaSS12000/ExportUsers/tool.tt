@@ -48,7 +48,7 @@
 
         [% IF logs.size > 0 %]
         <br/>
-        <h2>[% 'Last 10 Logs Lines' | gettext %]</h2>
+        <h2>[% 'Logs Lines' | gettext %]</h2>
         <table class="table table-striped">
             <thead>
                 <tr>
@@ -76,6 +76,40 @@
                 [% END %]
             </tbody>
         </table>
+
+        <script>
+            // Get the current URL
+            var currentUrl = window.location.href;
+
+            // Remove the "#" character from the end of the URL, if present
+            if (currentUrl.charAt(currentUrl.length - 1) === '#') {
+                currentUrl = currentUrl.slice(0, -1);
+            }
+
+            // Remove the 'op' and 'page' query parameters
+            currentUrl = currentUrl.replace(/[?&]op=[^&]+/g, '');
+            currentUrl = currentUrl.replace(/[?&]page=[^&]+/g, '');
+
+            var next_page_url = '[% next_page_url %]';
+            var prev_page_url = '[% prev_page_url %]';
+
+            var updatedNextUrl = currentUrl + next_page_url;
+            var updatedPrevUrl = currentUrl + prev_page_url;
+
+            if (prev_page_url || next_page_url) {
+                document.write('<nav aria-label="Page navigation example">');
+                document.write('<ul class="pagination">');
+                if (prev_page_url) {
+                    document.write('<li class="page-item"><a class="page-link" href="' + updatedPrevUrl + '">Previous page</a></li>');
+                }
+                if (next_page_url) {
+                    document.write('<li class="page-item"><a class="page-link" href="' + updatedNextUrl + '">Next page</a></li>');
+                }
+                document.write('</ul>');
+                document.write('</nav>');
+            }
+        </script>
+
         [% END %]
 
         [% IF stats.size > 0 %]
@@ -103,7 +137,7 @@
 
         [% IF updates.size > 0 %]
         <br/>
-        <h2>[% 'Last 20 Updates Lines' | gettext %]</h2>
+        <h2>[% 'Updates Lines' | gettext %]</h2>
         <table class="table table-striped">
             <thead>
                 <tr>
@@ -115,13 +149,47 @@
             <tbody>
                 [% FOREACH update IN updates %]
                     <tr>
-                        <td><a target="_blank" href="/cgi-bin/koha/members/moremember.pl?borrowernumber=[% update.record_id %]">[% update.firstname %] [% update.surname %] (id: [% update.record_id %])</a></td>
+                        <td><a target="_blank" href="/cgi-bin/koha/members/moremember.pl?borrowernumber=[% update.record_id %]">[% update.firstname %] [% update.surname %] (borrowernumber: [% update.record_id %])</a></td>
                         <td>[% update.change_description %]</td>
                         <td>[% update.change_timestamp %]</td>
                     </tr>
                 [% END %]
             </tbody>
         </table>
+
+        <script>
+            // Get the current URL
+            var currentUrl = window.location.href;
+
+            // Remove the "#" character from the end of the URL, if present
+            if (currentUrl.charAt(currentUrl.length - 1) === '#') {
+                currentUrl = currentUrl.slice(0, -1);
+            }
+
+            // Remove the 'op' and 'page' query parameters
+            currentUrl = currentUrl.replace(/[?&]op=[^&]+/g, '');
+            currentUrl = currentUrl.replace(/[?&]page=[^&]+/g, '');
+
+            var next_page_url = '[% next_page_url %]';
+            var prev_page_url = '[% prev_page_url %]';
+
+            var updatedNextUrl = currentUrl + next_page_url;
+            var updatedPrevUrl = currentUrl + prev_page_url;
+
+            if (prev_page_url || next_page_url) {
+                document.write('<nav aria-label="Page navigation example">');
+                document.write('<ul class="pagination">');
+                if (prev_page_url) {
+                    document.write('<li class="page-item"><a class="page-link" href="' + updatedPrevUrl + '">Previous page</a></li>');
+                }
+                if (next_page_url) {
+                    document.write('<li class="page-item"><a class="page-link" href="' + updatedNextUrl + '">Next page</a></li>');
+                }
+                document.write('</ul>');
+                document.write('</nav>');
+            }
+        </script>
+
         [% END %]
 
 

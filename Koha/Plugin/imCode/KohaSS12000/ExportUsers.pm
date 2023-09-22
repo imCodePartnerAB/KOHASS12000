@@ -474,6 +474,12 @@ sub tool {
 
     my $op          = $cgi->param('op') || q{};
 
+    # For pagination 
+    my $page      = $cgi->param('page') || 1; # Current page
+    my $per_page  = 20; # Number of entries per page
+    my $start_row = ($page - 1) * $per_page;
+    my $total_rows = 0;
+
     my $dbh = C4::Context->dbh; # Get a database connection object
 
     my $select_query = qq{SELECT name, value FROM $config_table WHERE name IN ('debug_mode')};
@@ -506,7 +512,7 @@ sub tool {
                 FROM
                     $data_change_log l
                 JOIN
-                    $borrowers_table b ON l.record_id = b.borrowernumber ORDER BY l.log_id DESC LIMIT 20};
+                    $borrowers_table b ON l.record_id = b.borrowernumber ORDER BY l.log_id DESC LIMIT $per_page OFFSET $start_row};
 
         eval {
             my $sth = $dbh->prepare($select_query);
@@ -520,9 +526,30 @@ sub tool {
             warn "Error fetching, info about users data update: $@";
         }
 
+        my $count_query = qq{SELECT COUNT(*) FROM $data_change_log};
+
+        eval {
+            my $sth = $dbh->prepare($count_query);
+            $sth->execute();
+            ($total_rows) = $sth->fetchrow_array();
+        };
+
+        my $total_pages = int(($total_rows + $per_page - 1) / $per_page);
+        my $prev_page_url;
+        if ($page > 1) {
+            $prev_page_url = "&op=show-updates&page=" . ($page - 1);
+        }
+        my $next_page_url;
+        if ($page < $total_pages) {
+            $next_page_url = "&op=show-updates&page=" . ($page + 1);
+        }
         # Pass the data to the template for display
         $template->param(
-            updates => \@updates
+            updates => \@updates,
+            prev_page_url  => $prev_page_url,
+            next_page_url  => $next_page_url,
+            total_pages => $total_pages,
+            current_page => $page,
         );
     }
 
@@ -530,7 +557,8 @@ sub tool {
         my @logs;
 
         # Execute a query on the database, selecting data from the $logs_table
-        my $query = "SELECT * FROM $logs_table ORDER BY created_at DESC LIMIT 10";
+        my $query = "SELECT * FROM $logs_table ORDER BY created_at DESC LIMIT $per_page OFFSET $start_row";
+        
         eval {
             my $sth = $dbh->prepare($query);
             $sth->execute();
@@ -545,10 +573,32 @@ sub tool {
             warn "Error fetching data from $logs_table, details: $@";
         }
 
+        my $count_query = qq{SELECT COUNT(*) FROM $logs_table};
+
+        eval {
+            my $sth = $dbh->prepare($count_query);
+            $sth->execute();
+            ($total_rows) = $sth->fetchrow_array();
+        };
+
+        my $total_pages = int(($total_rows + $per_page - 1) / $per_page);
+        my $prev_page_url;
+        if ($page > 1) {
+            $prev_page_url = "&op=show-logs&page=" . ($page - 1);
+        }
+        my $next_page_url;
+        if ($page < $total_pages) {
+            $next_page_url = "&op=show-logs&page=" . ($page + 1);
+        }
+
         # Pass the data to the template for display
         $template->param(
             logs => \@logs,
-            debug_mode  => $debug_mode || ''
+            debug_mode  => $debug_mode || '',
+            prev_page_url  => $prev_page_url,
+            next_page_url  => $next_page_url,
+            total_pages => $total_pages,
+            current_page => $page,
         );
     }
 
@@ -702,6 +752,13 @@ sub fetchDataFromAPI {
             # The result string is not empty, and you can use the values from the database.
             $api_url = $api_url."&pageToken=$page_token_next";
         } 
+
+        # currently this only for test
+        my $try_api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/duties?limit=1";
+        # limit, duties, pageToken
+        my $try_result = getApiResponse($try_api_url, $access_token);
+        # warn "try: ".Dumper($try_result);
+        warn "try dutyRole: ".$try_result->{data}[0]{dutyRole};
 
         # Setting headers with an access token to connect to the API
         my $api_request = HTTP::Request->new(GET => $api_url);
@@ -1192,6 +1249,31 @@ sub addOrUpdateBorrower {
 sub getTranslation {
     my ($string) = @_;
     return Encode::decode( 'UTF-8', gettext($string) );
+}
+
+sub getApiResponse {
+    my (
+        $api_url, 
+        $access_token
+        ) = @_;
+
+    # Request to API IST
+    my $ua = LWP::UserAgent->new;
+
+    # Setting headers with an access token to connect to the API
+    my $api_request = HTTP::Request->new(GET => $api_url);
+    $api_request->header('Content-Type' => 'application/json');
+    $api_request->header('Authorization' => "Bearer $access_token");
+    my $api_response = $ua->request($api_request);
+
+    if ($api_response->is_success) {
+        my $api_content = $api_response->decoded_content;
+        my $response_data = decode_json($api_content);
+        return $response_data;  
+    } else {
+        return undef;  # if error return undef
+    }
+
 }
 
 1;

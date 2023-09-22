@@ -23,27 +23,20 @@
         <h1>[% 'Tool' | gettext %]</h1>
         <br/>
         <form method="post" action="#">
-
-            <div class="form-group row">
-                <label for="client_id" class="col-sm-2 col-form-label">[% 'Action' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="op">
-                        <option value="show-logs" [% IF logs %]SELECTED[% END %]>[% 'Show user export log' | gettext %]</option>
-                        <option value="show-stat" [% IF stats %]SELECTED[% END %]>[% 'Show user export statistics' | gettext %]</option>
-                        <option value="show-updates" [% IF updates %]SELECTED[% END %]>[% 'Show users data update' | gettext %]</option>
-                    </select>
-                </div>
-            </div>
-
-            <input type="hidden" name="class" value="[% CLASS %]" />
-            <input type="hidden" name="method" value="[% METHOD %]" />
-
-            <div class="form-group row">
-                <div class="col-sm-4">
-                    <input type="submit" value="[% 'Ok' | gettext %]" />
-                </div>
-            </div>
-
+            <table><tr>
+            <td>
+                <select class="form-control" name="op">
+                    <option value="show-logs" [% IF logs %]SELECTED[% END %]>[% 'Show user export log' | gettext %]</option>
+                    <option value="show-stat" [% IF stats %]SELECTED[% END %]>[% 'Show user export statistics' | gettext %]</option>
+                    <option value="show-updates" [% IF updates %]SELECTED[% END %]>[% 'Show users data update' | gettext %]</option>
+                </select>
+                <input type="hidden" name="class" value="[% CLASS %]" />
+                <input type="hidden" name="method" value="[% METHOD %]" />
+            </td>
+            <td>
+                <input type="submit" value="[% 'Ok' | gettext %]" />
+            </td>
+            </tr></table>
         </form>
 
         [% IF logs.size > 0 %]
@@ -138,6 +131,18 @@
         [% IF updates.size > 0 %]
         <br/>
         <h2>[% 'Updates Lines' | gettext %]</h2>
+
+        <form method="post" action="#">
+                <input type="hidden" name="op" value="show-updates">
+                <input type="hidden" name="class" value="[% CLASS %]" />
+                <input type="hidden" name="method" value="[% METHOD %]" />
+                <table><tr>
+                <td><input type="search" name="search" class="form-control" id="datatable-search-input" placeholder="Search" value="[% search %]"></td>
+                <td><input type="submit" value="Search" /></td>
+                </tr></table>
+            <br/>
+        </form>
+
         <table class="table table-striped">
             <thead>
                 <tr>

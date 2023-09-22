@@ -502,6 +502,8 @@ sub tool {
     if ($op eq 'show-updates') {
         my @updates;
 
+        my $search = $cgi->param('search') || q{};
+
         my $select_query = qq{SELECT
                     l.log_id,
                     l.record_id,
@@ -550,6 +552,7 @@ sub tool {
             next_page_url  => $next_page_url,
             total_pages => $total_pages,
             current_page => $page,
+            search => $search,
         );
     }
 

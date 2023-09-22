@@ -95,7 +95,7 @@
                     [% IF page_number >= 1 && page_number <= total_pages %] 
                         [% SET is_current = (page_number == current_page) %]
                         <li class="page-item [% IF is_current %]active[% END %]">
-                            <a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% page_number %]">
+                            <a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% page_number %]">
                                 [% page_number %]
                             </a>
                         </li>

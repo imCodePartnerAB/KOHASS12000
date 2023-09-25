@@ -34,8 +34,8 @@ use Locale::Messages qw(:locale_h :libintl_h);
 use POSIX qw(setlocale);
 use Encode;
 
-use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Categorycode;
-use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Branchcode;
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::CategoryCode;
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::BranchCode;
 
 # set locale settings for gettext
 my $self = new('Koha::Plugin::imCode::KohaSS12000::ExportUsers');

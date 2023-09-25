@@ -8,13 +8,13 @@
 # Author:   Tkachuk Serge, https://github.com/fly304625, <tkachuk.serge@gmail.com>
 # License:  https://www.gnu.org/licenses/gpl-3.0.html GNU General Public License v3.0
 #
-package Koha::Plugin::imCode::KohaSS12000::ExportUsers::Branchcode;
+package Koha::Plugin::imCode::KohaSS12000::ExportUsers::BranchCode;
 
-sub fetchBranchcode {
+sub fetchBranchCode {
 
 }
 
-sub addOrUpdateBranchcode {
+sub addOrUpdateBranchCode {
     
 }
 

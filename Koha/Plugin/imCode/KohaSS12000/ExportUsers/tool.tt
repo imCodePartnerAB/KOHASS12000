@@ -185,8 +185,12 @@
             <tbody>
                 [% FOREACH update IN updates %]
                     <tr>
-                        <td><a target="_blank" href="/cgi-bin/koha/members/moremember.pl?borrowernumber=[% update.record_id %]">[% update.firstname %] [% update.surname %] (borrowernumber: [% update.record_id %])</a></td>
-                        <td>[% update.change_description %]</td>
+                        <td>
+                            <span class="js-update" title="Add to search">[% update.firstname %]</span> 
+                            <span class="js-update" title="Add to search">[% update.surname %]</span> 
+                            (borrowernumber: <a target="_blank" href="/cgi-bin/koha/members/moremember.pl?borrowernumber=[% update.record_id %]">[% update.record_id %])</a>
+                        </td>
+                        <td class="update">[% update.change_description %]</td>
                         <td>[% update.change_timestamp %]</td>
                     </tr>
                 [% END %]
@@ -262,8 +266,46 @@
       td.setAttribute("title", originalText);
     }
   });
+
+var tdElementsWithClass = document.querySelectorAll('td.update');
+tdElementsWithClass.forEach(function(td) {
+    var text = td.innerHTML.trim();
+    text = text.replace(/("[^"]*")/g, function(match, group) {
+        if (group) {
+            if (group === '""' || group === '"";') {
+                return group;
+            } else {
+                return '<span class="js-update">' + group + '</span>';
+            }
+        } else {
+            return match;
+        }
+    });
+    td.innerHTML = text;
+});
+
+var updateElements = document.querySelectorAll('.js-update');
+    updateElements.forEach(function(element) {
+        element.addEventListener('click', function() {
+            var clickedText = element.textContent.trim();
+            var searchInput = document.querySelector('input[name="search"]');
+            searchInput.value = clickedText;
+        });
+});
+
 </script>
 
+<style>
+    .js-update {
+        cursor: pointer; 
+        text-decoration: underline; 
+        color: #004d99; 
+    }
+    .js-update:hover {
+        text-decoration: none; 
+        color: #538200;
+    }
+</style>
 
 [% INCLUDE 'intranet-bottom.inc' %]
 

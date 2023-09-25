@@ -34,6 +34,9 @@ use Locale::Messages qw(:locale_h :libintl_h);
 use POSIX qw(setlocale);
 use Encode;
 
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Categorycode;
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Branchcode;
+
 # set locale settings for gettext
 my $self = new('Koha::Plugin::imCode::KohaSS12000::ExportUsers');
 my $cgi  = $self->{'cgi'};
@@ -503,38 +506,99 @@ sub tool {
         my @updates;
 
         my $search = $cgi->param('search') || q{};
+        $search = substr($search, 0, 50); # Limit to 50 characters for searching
+        my @search_terms = split(/\s+/, $search);
 
-        my $select_query = qq{SELECT
-                    l.log_id,
-                    l.record_id,
-                    l.change_description,
-                    l.change_timestamp,
-                    b.firstname,
-                    b.surname
-                FROM
-                    $data_change_log l
-                JOIN
-                    $borrowers_table b ON l.record_id = b.borrowernumber ORDER BY l.log_id DESC LIMIT $per_page OFFSET $start_row};
+        my $select_query = qq{
+            SELECT
+                l.log_id,
+                l.record_id,
+                l.change_description,
+                l.change_timestamp,
+                b.firstname,
+                b.surname
+            FROM
+                $data_change_log l
+            JOIN
+                $borrowers_table b ON l.record_id = b.borrowernumber
+            WHERE
+                1=1
+        };
+
+        # Add search terms for each word
+        if ($search) {
+            my @search_conditions;
+            foreach my $term (@search_terms) {
+                push @search_conditions, qq{
+                    (
+                        l.change_description LIKE ? OR
+                        l.change_timestamp LIKE ? OR
+                        b.firstname LIKE ? OR
+                        b.surname LIKE ?
+                    )
+                };
+            }
+            my $search_condition = join(" AND ", @search_conditions);
+            $select_query .= " AND ($search_condition)";
+        }
+
+        $select_query .= qq{ ORDER BY l.log_id DESC LIMIT $per_page OFFSET $start_row};
 
         eval {
             my $sth = $dbh->prepare($select_query);
-            $sth->execute();
-                while (my $row = $sth->fetchrow_hashref()) {
-                    push @updates, $row;
-                }
-            };
+            if ($search) {
+                my @search_params = map { '%' . $_ . '%' } @search_terms;
+                $sth->execute(@search_params, @search_params, @search_params, @search_params);
+            } else {
+                $sth->execute();
+            }
+            while (my $row = $sth->fetchrow_hashref()) {
+                push @updates, $row;
+            }
+        };
 
         if ($@) {
             warn "Error fetching, info about users data update: $@";
         }
 
-        my $count_query = qq{SELECT COUNT(*) FROM $data_change_log};
+        my $count_query = qq{
+            SELECT COUNT(*)
+            FROM
+                $data_change_log l
+            JOIN
+                $borrowers_table b ON l.record_id = b.borrowernumber
+            WHERE
+                1=1
+        };
+
+        # Add search conditions for the number of records
+        if ($search) {
+            my @search_conditions;
+            foreach my $term (@search_terms) {
+                push @search_conditions, qq{
+                    (
+                        l.change_description LIKE ? OR
+                        l.change_timestamp LIKE ? OR
+                        b.firstname LIKE ? OR
+                        b.surname LIKE ?
+                    )
+                };
+            }
+            my $search_condition = join(" AND ", @search_conditions);
+            $count_query .= " AND ($search_condition)";
+        }
 
         eval {
             my $sth = $dbh->prepare($count_query);
-            $sth->execute();
+            if ($search) {
+                my @search_params = map { '%' . $_ . '%' } @search_terms;
+                $sth->execute(@search_params, @search_params, @search_params, @search_params);
+            } else {
+                $sth->execute();
+            }
             ($total_rows) = $sth->fetchrow_array();
         };
+
 
         my $total_pages = int(($total_rows + $per_page - 1) / $per_page);
         my $prev_page;

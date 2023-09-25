@@ -70,44 +70,51 @@
             </tbody>
         </table>
 
-        <nav aria-label="Page navigation">
-            <ul class="pagination">
-                [% IF prev_page >0 %]
-                    <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% prev_page %]">Previous page</a></li>
-                [% END %]
-
-                [% SET max_pages = 10 %] 
-
-                [% SET start_page = current_page - 5 %]
-                [% SET end_page = current_page + 4 %]
-
-                [% IF start_page < 1 %]
-                    [% SET start_page = 1 %]
-                    [% SET end_page = 10 %]
-                [% ELSIF end_page > total_pages %]
-                    [% SET end_page = total_pages %]
-                    [% SET start_page = total_pages - 9 %]
-                [% END %]
-
-                [% SET page_number = start_page %] 
-
-                [% WHILE page_number <= end_page %]
-                    [% IF page_number >= 1 && page_number <= total_pages %] 
-                        [% SET is_current = (page_number == current_page) %]
-                        <li class="page-item [% IF is_current %]active[% END %]">
-                            <a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% page_number %]">
-                                [% page_number %]
-                            </a>
-                        </li>
+            [% IF total_pages>0 %]
+            <nav aria-label="Page navigation">
+                <ul class="pagination">
+                    [% IF prev_page >0 %]
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% prev_page %]">Previous page</a></li>
                     [% END %]
-                    [% SET page_number = page_number + 1 %] 
-                [% END %]
 
-                [% IF next_page >0 %]
-                    <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% next_page %]">Next page</a></li>
-                [% END %]
-            </ul>
-        </nav>
+                    [% SET max_pages = 10 %] 
+
+                    [% SET start_page = current_page - 5 %]
+                    [% SET end_page = current_page + 4 %]
+
+                    [% IF start_page < 1 %]
+                        [% SET start_page = 1 %]
+                        [% SET end_page = 10 %]
+                    [% ELSIF end_page > total_pages %]
+                        [% SET end_page = total_pages %]
+                        [% SET start_page = total_pages - 9 %]
+                    [% END %]
+
+                    [% SET page_number = start_page %] 
+
+                    [% WHILE page_number <= end_page %]
+                        [% IF page_number >= 1 && page_number <= total_pages %] 
+                            [% SET is_current = (page_number == current_page) %]
+                            <li class="page-item [% IF is_current %]active[% END %]">
+                                <a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% page_number %]">
+                                    [% page_number %]
+                                </a>
+                            </li>
+                        [% END %]
+                        [% SET page_number = page_number + 1 %] 
+                    [% END %]                   
+
+                    [% IF next_page >0 %]
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% next_page %]">Next page</a></li>
+                    [% END %]
+
+                    [% IF total_pages>10 && next_page < total_pages - 1 && page_number < total_pages %]
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% total_pages %]">Last page</a></li>
+                    [% END %] 
+
+                </ul>
+            </nav>
+            [% END %]
 
         [% END %]
 
@@ -132,6 +139,24 @@
                 [% END %]
             </tbody>
         </table>
+        [% END %]
+
+        [% IF search && !updates %]
+        <br/>
+        <h2>[% 'Updates Lines' | gettext %]</h2>
+        <form method="post" action="#">
+                <input type="hidden" name="op" value="show-updates">
+                <input type="hidden" name="class" value="[% CLASS %]" />
+                <input type="hidden" name="method" value="[% METHOD %]" />
+                <table><tr>
+                <td><input type="search" name="search" class="form-control" id="datatable-search-input" placeholder="Search" value="[% search %]"></td>
+                <td><input type="submit" value="Search" /></td>
+                </tr></table>
+            <br/>
+        </form>            
+        <div class="alert alert-warning" role="alert">
+            Nothing was found for your request
+        </div>
         [% END %]
 
         [% IF updates.size > 0 %]
@@ -168,44 +193,51 @@
             </tbody>
         </table>
         
-        <nav aria-label="Page navigation">
-            <ul class="pagination">
-                [% IF prev_page >0 %]
-                    <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% prev_page %]">Previous page</a></li>
-                [% END %]
-
-                [% SET max_pages = 10 %] 
-
-                [% SET start_page = current_page - 5 %]
-                [% SET end_page = current_page + 4 %]
-
-                [% IF start_page < 1 %]
-                    [% SET start_page = 1 %]
-                    [% SET end_page = 10 %]
-                [% ELSIF end_page > total_pages %]
-                    [% SET end_page = total_pages %]
-                    [% SET start_page = total_pages - 9 %]
-                [% END %]
-
-                [% SET page_number = start_page %] 
-
-                [% WHILE page_number <= end_page %]
-                    [% IF page_number >= 1 && page_number <= total_pages %] 
-                        [% SET is_current = (page_number == current_page) %]
-                        <li class="page-item [% IF is_current %]active[% END %]">
-                            <a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% page_number %]">
-                                [% page_number %]
-                            </a>
-                        </li>
+            [% IF total_pages>0 %]
+            <nav aria-label="Page navigation">
+                <ul class="pagination">
+                    [% IF prev_page >0 %]
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% prev_page %]&search=[% search %]">Previous page</a></li>
                     [% END %]
-                    [% SET page_number = page_number + 1 %] 
-                [% END %]
 
-                [% IF next_page >0 %]
-                    <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% next_page %]">Next page</a></li>
-                [% END %]
-            </ul>
-        </nav>
+                    [% SET max_pages = 10 %] 
+
+                    [% SET start_page = current_page - 5 %]
+                    [% SET end_page = current_page + 4 %]
+
+                    [% IF start_page < 1 %]
+                        [% SET start_page = 1 %]
+                        [% SET end_page = 10 %]
+                    [% ELSIF end_page > total_pages %]
+                        [% SET end_page = total_pages %]
+                        [% SET start_page = total_pages - 9 %]
+                    [% END %]
+
+                    [% SET page_number = start_page %] 
+
+                    [% WHILE page_number <= end_page %]
+                        [% IF page_number >= 1 && page_number <= total_pages %] 
+                            [% SET is_current = (page_number == current_page) %]
+                            <li class="page-item [% IF is_current %]active[% END %]">
+                                <a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% page_number %]&search=[% search %]">
+                                    [% page_number %]
+                                </a>
+                            </li>
+                        [% END %]
+                        [% SET page_number = page_number + 1 %] 
+                    [% END %]
+
+                    [% IF next_page >0 %]
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% next_page %]&search=[% search %]">Next page</a></li>
+                    [% END %]
+
+                    [% IF total_pages>10 && next_page < total_pages - 1 && page_number < total_pages %]
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% total_pages %]&search=[% search %]">Last page</a></li>
+                    [% END %]
+                    
+                </ul>
+            </nav>
+            [% END %]
 
         [% END %]
 

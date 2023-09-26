@@ -13,7 +13,7 @@ use Koha::Plugins;
 use Koha::Plugin::imCode::KohaSS12000::ExportUsers;
 
 my $plugin = Koha::Plugin::imCode::KohaSS12000::ExportUsers->new;
-$plugin->cronjob();
+$plugin->cronjob("persons");
 print "Cron job completed.\n";
 
 

@@ -288,6 +288,7 @@ var updateElements = document.querySelectorAll('.js-update');
     updateElements.forEach(function(element) {
         element.addEventListener('click', function() {
             var clickedText = element.textContent.trim();
+            //var clickedText = element.textContent.trim().replace(/"/g, '');
             var searchInput = document.querySelector('input[name="search"]');
             searchInput.value = clickedText;
         });

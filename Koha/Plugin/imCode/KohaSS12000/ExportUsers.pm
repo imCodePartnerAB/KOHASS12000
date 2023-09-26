@@ -109,6 +109,7 @@ sub install {
     response text COLLATE utf8mb4_unicode_ci,
     record_count int(11) DEFAULT NULL,
     is_processed tinyint(1) DEFAULT NULL,
+    data_endpoint varchar(255) DEFAULT NULL,
     data_hash varchar(255) DEFAULT NULL,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP);},
     qq{INSERT INTO $config_table (name,value) VALUES ('ist_client_id','your_client_id');},
@@ -230,6 +231,7 @@ sub install {
         return 0;
     }
 
+    $self->store_data( { plugin_version => $VERSION } );
 
     return 1;
 }
@@ -721,13 +723,13 @@ sub tool {
 
 sub cronjob {
     # script for run in cron here cron/imcode_ss12000.pl
-    my ($self) = @_;
-    $self->fetchDataFromAPI();
+    my ($self, $data_endpoint) = @_;
+    $self->fetchDataFromAPI($data_endpoint);
     return;
 }
 
 sub fetchDataFromAPI {
-    my ($self, $args) = @_;
+    my ($self, $data_endpoint) = @_;
 
     my $cgi = $self->{'cgi'};
 
@@ -787,7 +789,8 @@ sub fetchDataFromAPI {
     # Request to API IST
     my $ua = LWP::UserAgent->new;
     my $pageToken = '';
-    my $api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/persons?limit=$api_limit";
+    # my $data_endpoint = "persons";
+    my $api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/$data_endpoint?limit=$api_limit";
 
     # Setting headers for get access_token
     my $request = POST $oauth_url, [
@@ -820,12 +823,12 @@ sub fetchDataFromAPI {
             $api_url = $api_url."&pageToken=$page_token_next";
         } 
 
-        # currently this only for test
-        my $try_api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/duties?limit=1";
-        # limit, duties, pageToken
+        # start currently this only for test
+        my $try_api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/duties?limit=$api_limit";
         my $try_result = getApiResponse($try_api_url, $access_token);
-        # warn "try: ".Dumper($try_result);
-        warn "try dutyRole: ".$try_result->{data}[0]{dutyRole};
+        my $MyBranchCode = Koha::Plugin::imCode::KohaSS12000::ExportUsers::BranchCode::fetchBranchCode($try_result,$api_limit);
+        warn "MyBranchCode: $MyBranchCode";
+        # end currently this only for test
 
         # Setting headers with an access token to connect to the API
         my $api_request = HTTP::Request->new(GET => $api_url);
@@ -871,8 +874,8 @@ sub fetchDataFromAPI {
 
                 # Perform INSERT of a new record
                 my $insert_query = qq{
-                    INSERT INTO $logs_table (page_token_next, response, record_count, data_hash)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO $logs_table (page_token_next, response, record_count, data_hash, data_endpoint)
+                    VALUES (?, ?, ?, ?, ?)
                 };
 
                 my $sth_insert = $dbh->prepare($insert_query);
@@ -882,7 +885,7 @@ sub fetchDataFromAPI {
                 }
 
                 eval {
-                    if ($sth_insert->execute($response_page_token, $api_content, $api_limit, $data_hash)) {
+                    if ($sth_insert->execute($response_page_token, $api_content, $api_limit, $data_hash, $data_endpoint)) {
                         warn "Data from the API successfully inserted into $logs_table.\n";
                     } else {
                         die "Error inserting data into $logs_table: " . $dbh->errstr . "\n";
@@ -938,20 +941,23 @@ sub fetchDataFromAPI {
                     my $countyCode = "";
                     my $municipalityCode = "";
                     my $realEstateDesignation = "";
+                    my $type = "";
                     if (defined $addresses && ref $addresses eq 'ARRAY') {
                        foreach my $selectedAddresses (@$addresses) {
-                            # $type = $selectedAddresses->{type};             
-                            if (defined $selectedAddresses->{streetAddress}) {               
-                                $streetAddress = ucfirst(lc($selectedAddresses->{streetAddress})); # field 'addresses' in DB
+                            $type = $selectedAddresses->{type};
+                            if (defined $type && length($type) > 1 && $type =~ /Folkbokf/) {
+                                if (defined $selectedAddresses->{streetAddress}) {               
+                                    $streetAddress = ucfirst(lc($selectedAddresses->{streetAddress})); # field 'addresses' in DB
+                                }
+                                if (defined $selectedAddresses->{locality}) {
+                                    $locality = ucfirst(lc($selectedAddresses->{locality})); # field 'city' ?
+                                }
+                                $postalCode = $selectedAddresses->{postalCode}; # field 'zipcode'
+                                $country = $selectedAddresses->{country}; # field 'country'
+                                $countyCode = $selectedAddresses->{countyCode}; # now not use
+                                $municipalityCode = $selectedAddresses->{municipalityCode}; # now not use
+                                $realEstateDesignation = $selectedAddresses->{realEstateDesignation}; # now not use
                             }
-                            if (defined $selectedAddresses->{locality}) {
-                                $locality = ucfirst(lc($selectedAddresses->{locality})); # field 'city' ?
-                            }
-                            $postalCode = $selectedAddresses->{postalCode}; # field 'zipcode'
-                            $country = $selectedAddresses->{country}; # field 'country'
-                            $countyCode = $selectedAddresses->{countyCode}; # now not use
-                            $municipalityCode = $selectedAddresses->{municipalityCode}; # now not use
-                            $realEstateDesignation = $selectedAddresses->{realEstateDesignation}; # now not use
                         }
                     }
 

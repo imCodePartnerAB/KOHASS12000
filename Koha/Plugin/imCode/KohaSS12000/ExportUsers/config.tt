@@ -73,19 +73,6 @@
             </div>
 
             <div class="form-group row">
-                <label for="koha_default_branchcode" class="col-sm-2 col-form-label">[% 'Koha Default Branchcode' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="koha_default_branchcode" id="koha_default_branchcode">
-                        <option value="">[% 'Choose a branch' | gettext %]</option>
-                        [% FOREACH branch IN branches %]
-                            <option value="[% branch %]" [% IF branch == koha_default_branchcode %]selected="selected"[% END %]>[% branch %]</option>
-                        [% END %]
-                    </select>
-                    <p class="text-info">[% 'If Update on UPDATE, then - When you change a parameter, it will be changed for all existing users in the next data update cycle' | gettext %].</p>
-                </div>
-            </div>
-
-            <div class="form-group row">
                 <label for="debug_mode" class="col-sm-2 col-form-label">[% 'Debug Mode' | gettext %]:</label>
                 <div class="col-sm-4">
                     <select class="form-control" name="debug_mode">

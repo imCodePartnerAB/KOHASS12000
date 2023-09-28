@@ -34,9 +34,6 @@ use Locale::Messages qw(:locale_h :libintl_h);
 use POSIX qw(setlocale);
 use Encode;
 
-use Koha::Plugin::imCode::KohaSS12000::ExportUsers::CategoryCode;
-use Koha::Plugin::imCode::KohaSS12000::ExportUsers::BranchCode;
-
 # set locale settings for gettext
 my $self = new('Koha::Plugin::imCode::KohaSS12000::ExportUsers');
 my $cgi  = $self->{'cgi'};
@@ -69,9 +66,11 @@ our $skey             = 'Uq9crAvPDNkkQcXAwsEHkjGwBwnSvDPC';  # Encryption key fo
 our $borrowers_table  = 'borrowers'; # Koha users table
 our $categories_table = 'categories'; # Koha categories table
 our $branches_table   = 'branches'; # Koha branches table
-our $added_count      = 0; # to count added
-our $updated_count    = 0; # to count updated
 our $data_change_log  = 'imcode_data_change_log';
+
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::CategoryCode;
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::BranchCode;
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Borrowers;
 
 sub new {
     my ( $class, $args ) = @_;
@@ -90,6 +89,8 @@ sub new {
 
 sub install {
     my ( $self, $args ) = @_;
+
+    $self->store_data( { plugin_version => $VERSION } );
 
     my @installer_statements = (qq{CREATE TABLE IF NOT EXISTS $config_table (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -124,7 +125,6 @@ sub install {
     qq{INSERT INTO $config_table (name,value) VALUES ('cardnumberPlugin','civicNo');},
     qq{INSERT INTO $config_table (name,value) VALUES ('useridPlugin','civicNo');},
     qq{INSERT INTO $config_table (name,value) VALUES ('logs_limit','3');},
-    qq{INSERT INTO $config_table (name,value) VALUES ('update_on','INSERT');},
     );
 
     eval {
@@ -231,8 +231,6 @@ sub install {
         return 0;
     }
 
-    $self->store_data( { plugin_version => $VERSION } );
-
     return 1;
 }
 
@@ -304,7 +302,6 @@ sub configure {
         my $cardnumberPlugin    = $cgi->param('cardnumberPlugin');
         my $useridPlugin        = $cgi->param('useridPlugin');
         my $logs_limit          = int($cgi->param('logs_limit'));
-        my $update_on           = $cgi->param('update_on');
 
         my $select_check_query = qq{
             SELECT name, value 
@@ -354,7 +351,6 @@ sub configure {
                 WHEN name = 'cardnumberPlugin' THEN ?
                 WHEN name = 'useridPlugin' THEN ?
                 WHEN name = 'logs_limit' THEN ?
-                WHEN name = 'update_on' THEN ?                
             END
             WHERE name IN (
                 'ist_client_id', 
@@ -369,7 +365,6 @@ sub configure {
                 'cardnumberPlugin',
                 'useridPlugin',
                 'logs_limit',
-                'update_on',
                 )
         };
 
@@ -389,7 +384,6 @@ sub configure {
                 $cardnumberPlugin,
                 $useridPlugin,
                 $logs_limit,
-                $update_on,
                 );
             $template->param(success => 'success');
         };
@@ -451,7 +445,6 @@ sub configure {
         logs_limit          => int($config_data->{logs_limit}) || 3,
         language            => C4::Languages::getlanguage($cgi) || 'en',
         mbf_path            => abs_path( $self->mbf_path('translations') ),
-        update_on           => $config_data->{update_on} || '',
         );
 
     print $cgi->header(-type => 'text/html', -charset => 'utf-8');
@@ -784,7 +777,6 @@ sub fetchDataFromAPI {
     my $cardnumberPlugin    = $config_data->{cardnumberPlugin} || 'civicNo';
     my $useridPlugin        = $config_data->{useridPlugin} || 'civicNo';
     my $logs_limit          = int($config_data->{logs_limit}) || 3;
-    my $update_on           = $config_data->{update_on} || 'INSERT';
     
     # Request to API IST
     my $ua = LWP::UserAgent->new;
@@ -810,11 +802,12 @@ sub fetchDataFromAPI {
             SELECT page_token_next
             FROM $logs_table
             WHERE is_processed = 1
+            AND data_endpoint = ?
             ORDER BY created_at DESC
             LIMIT 1
         };
         my $sth_select_tokens = $dbh->prepare($select_tokens_query);
-        $sth_select_tokens->execute();
+        $sth_select_tokens->execute($data_endpoint);
 
         my ($page_token_next) = $sth_select_tokens->fetchrow_array;
 
@@ -824,10 +817,10 @@ sub fetchDataFromAPI {
         } 
 
         # start currently this only for test
-        my $try_api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/duties?limit=$api_limit";
-        my $try_result = getApiResponse($try_api_url, $access_token);
-        my $MyBranchCode = Koha::Plugin::imCode::KohaSS12000::ExportUsers::BranchCode::fetchBranchCode($try_result,$api_limit);
-        warn "MyBranchCode: $MyBranchCode";
+        # my $try_api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/organisations?limit=$api_limit";
+        # my $try_result = getApiResponse($try_api_url, $access_token);
+        # my $MyBranchCode = Koha::Plugin::imCode::KohaSS12000::ExportUsers::BranchCode::fetchBranchCode($try_result,$api_limit);
+        # warn "MyBranchCode: $MyBranchCode";
         # end currently this only for test
 
         # Setting headers with an access token to connect to the API
@@ -836,15 +829,16 @@ sub fetchDataFromAPI {
         $api_request->header('Authorization' => "Bearer $access_token");
         my $api_response = $ua->request($api_request);
 
-        if ($api_response->is_success) {
-            my $api_content = $api_response->decoded_content;
+        # $api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/$data_endpoint?limit=$api_limit";
+        my $response_data = getApiResponse($api_url, $access_token);
 
-            my $response_data = decode_json($api_content);
+        if ($response_data && $data_endpoint eq "persons") {
+            my $api_content = $response_data;
             my $response_page_token = $response_data->{pageToken};
 
             my $md5 = Digest::MD5->new;
             $md5->add($api_content);
-
+            
             # Generate a hash for checking
             my $data_hash = $md5->hexdigest;
 
@@ -897,161 +891,17 @@ sub fetchDataFromAPI {
                 }
             }
 
-            my $j = 1;
-            for my $i (1..$api_limit) {
-                my $response_page_data = $response_data->{data}[$i-1];
-                if ($response_page_data) {
-                    my $id = $response_page_data->{id};
-                    my $givenName = $response_page_data->{givenName};
-                    my $familyName = $response_page_data->{familyName};
-                    my $birthDate = $response_page_data->{birthDate};
-                    my $sex = $response_page_data->{sex};
-                    if (defined $sex) {
-                        if ($sex eq "Man") {
-                            $sex = "M";
-                        } elsif ($sex eq "Kvinna") {
-                            $sex = "F";
-                        }
-                    }
-
-                    my $emails = $response_page_data->{emails}; # we get an array
-                    my $email = "";
-                    my $B_email = ""; # field B_email in DB
-                    if (defined $emails && ref $emails eq 'ARRAY') {
-                        foreach my $selectedEmail (@$emails) {
-                            my $email_value = $selectedEmail->{value};
-                            my $email_type  = $selectedEmail->{type};
-                            if ($email_type eq "Privat") {
-                                if (defined $email_value) {
-                                    $email = lc($email_value);
-                                }
-                            } elsif ($email_type eq "Skola personal") {
-                                if (defined $email_value) {
-                                    $B_email = lc($email_value);
-                                }
-                            }
-                        }
-                    }
-
-                    my $addresses = $response_page_data->{addresses}; # we get an array
-                    my $streetAddress = "";
-                    my $locality = "";
-                    my $postalCode = "";
-                    my $country = "";
-                    my $countyCode = "";
-                    my $municipalityCode = "";
-                    my $realEstateDesignation = "";
-                    my $type = "";
-                    if (defined $addresses && ref $addresses eq 'ARRAY') {
-                       foreach my $selectedAddresses (@$addresses) {
-                            $type = $selectedAddresses->{type};
-                            if (defined $type && length($type) > 1 && $type =~ /Folkbokf/) {
-                                if (defined $selectedAddresses->{streetAddress}) {               
-                                    $streetAddress = ucfirst(lc($selectedAddresses->{streetAddress})); # field 'addresses' in DB
-                                }
-                                if (defined $selectedAddresses->{locality}) {
-                                    $locality = ucfirst(lc($selectedAddresses->{locality})); # field 'city' ?
-                                }
-                                $postalCode = $selectedAddresses->{postalCode}; # field 'zipcode'
-                                $country = $selectedAddresses->{country}; # field 'country'
-                                $countyCode = $selectedAddresses->{countyCode}; # now not use
-                                $municipalityCode = $selectedAddresses->{municipalityCode}; # now not use
-                                $realEstateDesignation = $selectedAddresses->{realEstateDesignation}; # now not use
-                            }
-                        }
-                    }
-
-                    my $phoneNumbers = $response_page_data->{phoneNumbers};
-                    my $phone = "";
-                    my $mobile_phone = "";
-                    if (defined $phoneNumbers && ref $phoneNumbers eq 'ARRAY') {
-                        foreach my $selectedPhone (@$phoneNumbers) {
-                            my $phone_value = $selectedPhone->{value};
-                            my $is_mobile = $selectedPhone->{mobile};
-                            if ($is_mobile) {
-                                $mobile_phone = $phone_value;
-                            } else {
-                                $phone = $phone_value;
-                            }
-                        }
-                    }
-
-                    my $cardnumber;
-                    my $civicNo = $response_page_data->{civicNo};
-                    if (defined $civicNo && ref $civicNo eq 'HASH') {
-                            # $nationality = $civicNo->{nationality};
-                            $cardnumber = $civicNo->{value}; 
-                    }
-
-                    my $externalIdentifier;
-                    my $externalIdentifiers = $response_page_data->{externalIdentifiers};
-                    if (defined $externalIdentifiers && ref $externalIdentifiers eq 'ARRAY') {
-                        foreach my $selectedIdentifier (@$externalIdentifiers) {
-                            $externalIdentifier = $selectedIdentifier->{value}; 
-                            # warn $givenName. " - ".$externalIdentifier;
-                        }
-                    }
-
-                    my $userid = $cardnumber;
-
-                    if (!defined $email || $email eq "") { $email = undef; }
-                    my $result = addOrUpdateBorrower(
-                            $cardnumber, 
-                            $familyName, 
-                            $givenName, 
-                            $birthDate, 
-                            $email, 
-                            $sex, 
-                            $phone, 
-                            $mobile_phone, 
-                            $koha_default_categorycode, 
-                            $koha_default_branchcode,
-                            $streetAddress,
-                            $locality,
-                            $postalCode,
-                            $country,
-                            $B_email,
-                            $userid,
-                            $useridPlugin,
-                            $cardnumberPlugin,
-                            $externalIdentifier,
-                            $update_on
-                        );
-                    if ($result) { $j++; }
-                } 
-            }
-
-            if ($j == $api_limit) {
-                if ($debug_mode eq "No") { 
-                    my $update_query = qq{
-                        UPDATE $logs_table
-                        SET is_processed = 1,
-                            response = ?
-                        WHERE data_hash = ?
-                    };
-                    my $update_response = "Added: $added_count, Updated: $updated_count";
-                    my $sth_update = $dbh->prepare($update_query);
-                    unless ($sth_update->execute($update_response, $data_hash)) {
-                        die "An error occurred while executing the request: " . $sth_update->errstr;
-                    }
-                    $sth_update->finish();
-                } elsif ($debug_mode eq "Yes") {
-                    my $update_query = qq{
-                        UPDATE $logs_table
-                        SET is_processed = 1
-                        WHERE data_hash = ?
-                    };
-                    my $sth_update = $dbh->prepare($update_query);
-                    unless ($sth_update->execute($data_hash)) {
-                        die "An error occurred while executing the request: " . $sth_update->errstr;
-                    }
-                    $sth_update->finish();
-                }
-            }
-
-            if (!defined $response_page_token || $response_page_token eq "") {
-                warn "EndLastPageFromAPI"; # last page from API, flag for bash script Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run.sh
-            }
+        my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::Borrowers::fetchBorrowers(
+            $response_data, 
+            $api_limit, 
+            $debug_mode, 
+            $koha_default_categorycode, 
+            $koha_default_branchcode,
+            $cardnumberPlugin,
+            $useridPlugin,
+            $response_page_token,
+            $data_hash
+            );
 
         } else {
             my $error_message = "Error from API: " . $api_response->status_line . "\n";
@@ -1062,12 +912,12 @@ sub fetchDataFromAPI {
             if ($api_response->code == 410) {
                 # "code": "NEW_DATA_RESTART_FROM_FIRST_PAGE"
                 my $insert_query = qq{
-                    INSERT INTO $logs_table (page_token_next, is_processed)
-                    VALUES (?, ?)
+                    INSERT INTO $logs_table (page_token_next, is_processed, data_endpoint)
+                    VALUES (?, ?, ?)
                 };
                 my $sth_insert = $dbh->prepare($insert_query);
                 eval {
-                    if ($sth_insert->execute("", 1)) {
+                    if ($sth_insert->execute("", 1, $data_endpoint)) {
                         warn "Pagination error: There is new data since the previous page load and you need to restart from the first page.\n";
                     } else {
                         die "Error inserting data into $logs_table: " . $dbh->errstr . "\n";
@@ -1101,222 +951,6 @@ sub fetchDataFromAPI {
     }
 
     return;
-}
-
-# Function to add or update user data in the borrowers table
-sub addOrUpdateBorrower {
-    my (
-        $cardnumber, 
-        $surname, 
-        $firstname, 
-        $birthdate, 
-        $email, 
-        $sex, 
-        $phone, 
-        $mobile_phone, 
-        $categorycode, 
-        $branchcode, 
-        $streetAddress,
-        $locality,
-        $postalCode,
-        $country,
-        $B_email,
-        $userid,
-        $useridPlugin,
-        $cardnumberPlugin,
-        $externalIdentifier,
-        $update_on
-        ) = @_;
-
-    # use utf8;
-
-    my $dbh = C4::Context->dbh;
-    
-    my $newUserID;
-    my $newCardnumber;
-
-    if ($useridPlugin eq "civicNo" || $useridPlugin eq "externalIdentifier") {
-        $newUserID = ($useridPlugin eq "civicNo") ? $userid : $externalIdentifier;
-    }
-
-    if ($cardnumberPlugin eq "civicNo" || $cardnumberPlugin eq "externalIdentifier") {
-        $newCardnumber = ($cardnumberPlugin eq "civicNo") ? $cardnumber : $externalIdentifier;
-    }
-
-    ## Check if a user with the specified cardnumber already exists in the database
-    my $select_query = qq{
-        SELECT borrowernumber 
-        FROM $borrowers_table 
-        WHERE cardnumber = ? OR cardnumber = ?
-    };
-    my $select_sth = $dbh->prepare($select_query);
-    $select_sth->execute($cardnumber, $externalIdentifier);
-    my $existing_borrower = $select_sth->fetchrow_hashref;
-
-    if ($existing_borrower) {
-        # If the user exists, update their data
-
-        my $update_query = qq{
-            UPDATE $borrowers_table
-            SET 
-                dateofbirth = ?, 
-                email = ?, 
-                sex = ?, 
-                phone = ?, 
-                mobile = ?, 
-                surname = ?, 
-                firstname = ?,
-                address = ?,
-                city = ?,
-                zipcode = ?,
-                country = ?,
-                B_email = ?,
-                userid = ?,
-                cardnumber = ?
-        };
-
-        if ($update_on eq "UPDATE") {
-            $update_query .= qq{,
-                categorycode = ?,
-                branchcode = ?
-            };
-        }
-
-        $update_query .= qq{
-            WHERE borrowernumber = ?
-        };
-
-        my $update_sth = $dbh->prepare($update_query);
-
-        # $update_on == "UPDATE", categorycode and branchcode will be updated
-        if ($update_on eq "UPDATE") {
-            $update_sth->execute(
-                $birthdate, 
-                $email, 
-                $sex, 
-                $phone, 
-                $mobile_phone, 
-                $surname, 
-                $firstname, 
-                $streetAddress,
-                $locality,
-                $postalCode,
-                $country,
-                $B_email,
-                $newUserID,
-                $newCardnumber,
-                $categorycode, 
-                $branchcode,
-                $existing_borrower->{'borrowernumber'}
-            );
-        } else {
-            # $update_on == "INSERT", categorycode and branchcode will NOT BE updated
-            $update_sth->execute(
-                $birthdate, 
-                $email, 
-                $sex, 
-                $phone, 
-                $mobile_phone, 
-                $surname, 
-                $firstname, 
-                $streetAddress,
-                $locality,
-                $postalCode,
-                $country,
-                $B_email,
-                $newUserID,
-                $newCardnumber,
-                $existing_borrower->{'borrowernumber'}
-            );
-        }
-
-        # my $update_query = qq{
-        #     UPDATE $borrowers_table
-        #     SET 
-        #         dateofbirth = ?, 
-        #         email = ?, 
-        #         sex = ?, 
-        #         phone = ?, 
-        #         mobile = ?, 
-        #         surname = ?, 
-        #         firstname = ?,
-        #         categorycode = ?,
-        #         branchcode = ?,
-        #         address = ?,
-        #         city = ?,
-        #         zipcode = ?,
-        #         country = ?,
-        #         B_email = ?,
-        #         userid = ?,
-        #         cardnumber = ?
-        #     WHERE borrowernumber = ?
-        # };
-        # my $update_sth = $dbh->prepare($update_query);
-        # $update_sth->execute(
-        #         $birthdate, 
-        #         $email, 
-        #         $sex, 
-        #         $phone, 
-        #         $mobile_phone, 
-        #         $surname, 
-        #         $firstname, 
-        #         $categorycode, 
-        #         $branchcode, 
-        #         $streetAddress,
-        #         $locality,
-        #         $postalCode,
-        #         $country,
-        #         $B_email,
-        #         $newUserID,
-        #         $newCardnumber,
-        #         $existing_borrower->{'borrowernumber'}
-        #     );
-
-        $updated_count++;
-    } else {
-        # If the user doesn't exist, insert their data
-        my $insert_query = qq{
-            INSERT INTO $borrowers_table (
-                    cardnumber,
-                    surname,
-                    firstname,
-                    dateofbirth,
-                    email,
-                    sex,
-                    phone,
-                    mobile,
-                    categorycode,
-                    branchcode,
-                    address,
-                    city,
-                    zipcode,
-                    country,
-                    B_email,
-                    userid
-                )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        };
-        my $insert_sth = $dbh->prepare($insert_query);
-        $insert_sth->execute(
-                $newCardnumber,
-                $surname,
-                $firstname,
-                $birthdate,
-                $email,
-                $sex,
-                $phone,
-                $mobile_phone,
-                $categorycode,
-                $branchcode,
-                $streetAddress,
-                $locality,
-                $postalCode,
-                $country,
-                $B_email,
-                $newUserID
-            );
-            $added_count++;
-    }
 }
 
 sub getTranslation {

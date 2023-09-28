@@ -109,7 +109,7 @@
                     [% END %]
 
                     [% IF total_pages>10 && next_page < total_pages - 1 && page_number < total_pages %]
-                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% total_pages %]">Last page</a></li>
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% total_pages %]">Last, [% total_pages %] page</a></li>
                     [% END %] 
 
                 </ul>
@@ -236,7 +236,7 @@
                     [% END %]
 
                     [% IF total_pages>10 && next_page < total_pages - 1 && page_number < total_pages %]
-                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% total_pages %]&search=[% search %]">Last page</a></li>
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% total_pages %]&search=[% search %]">Last, [% total_pages %] page</a></li>
                     [% END %]
                     
                 </ul>

@@ -32,6 +32,8 @@ sub fetchCategoryCode {
         $data_hash  
         ) = @_;
 
+        my $dbh = C4::Context->dbh;
+
         my $j = 1;
         for my $i (1..$api_limit) {
             my $response_page_data = $response_data->{data}[$i-1];
@@ -134,7 +136,7 @@ sub addOrUpdateCategoryCode {
         $insert_sth->execute(
                 $dutyRole
             );
-            $added_count++;
+        $added_count++;
     }
 }
 

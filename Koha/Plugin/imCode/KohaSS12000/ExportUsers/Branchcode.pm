@@ -41,7 +41,7 @@ sub fetchBranchCode {
                         my $municipalityCode = $response_page_data->{municipalityCode};
 
                         my $address = $response_page_data->{address}; # array: type, streetAddress, locality, postalCode
-                        warn "address: $address";
+                        # warn "address: $address";
                         # "type": "Besöksadress",
                         # "type": "Postadress",
                         my $streetAddress = "";
@@ -50,7 +50,7 @@ sub fetchBranchCode {
                         my $type = "";
                         if (defined $address && ref $address eq 'HASH') {
                                 $type = $address->{type};
-                                warn "fetchBranchCode type : $type";
+                                # warn "fetchBranchCode type : $type";
                                 if (defined $type && length($type) > 1 && $type =~ /Bes.?ksadress/) {
                                     if (defined $address->{streetAddress}) {               
                                         $streetAddress = ucfirst(lc($address->{streetAddress})); # field 'branchaddress1' in DB

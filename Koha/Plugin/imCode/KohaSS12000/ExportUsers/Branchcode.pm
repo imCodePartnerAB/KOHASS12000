@@ -11,7 +11,7 @@
 # $data_endpoint = organisations
 # https://imcode.slack.com/archives/D04FC5N9C2W/p1695215674248579
 # 
-package Koha::Plugin::imCode::KohaSS12000::ExportUsers::BranchCode;
+package Koha::Plugin::imCode::KohaSS12000::ExportUsers::Branchcode;
 
 our $borrowers_table  = 'borrowers'; # Koha users table
 our $categories_table = 'categories'; # Koha categories table

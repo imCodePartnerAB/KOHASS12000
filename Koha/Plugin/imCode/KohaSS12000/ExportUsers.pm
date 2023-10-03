@@ -69,8 +69,8 @@ our $branches_table   = 'branches'; # Koha branches table
 our $data_change_log  = 'imcode_data_change_log';
 
 use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Borrowers;
-use Koha::Plugin::imCode::KohaSS12000::ExportUsers::BranchCode;
-use Koha::Plugin::imCode::KohaSS12000::ExportUsers::CategoryCode;
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Branchcode;
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Categorycode;
 
 sub new {
     my ( $class, $args ) = @_;
@@ -905,7 +905,7 @@ sub fetchDataFromAPI {
         } 
         elsif ($response_data && $data_endpoint eq "organisations") {
             # warn "data_endpoint: $data_endpoint";
-            my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::BranchCode::fetchBranchCode(
+            my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::Branchcode::fetchBranchCode(
                 $response_data, 
                 $api_limit, 
                 $debug_mode, 
@@ -915,7 +915,7 @@ sub fetchDataFromAPI {
         }
         elsif ($response_data && $data_endpoint eq "duties") {
             # warn "data_endpoint: $data_endpoint";
-            my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::CategoryCode::fetchCategoryCode(
+            my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::Categorycode::fetchCategoryCode(
                 $response_data, 
                 $api_limit, 
                 $debug_mode, 

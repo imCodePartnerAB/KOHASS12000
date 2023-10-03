@@ -14,7 +14,7 @@
 # So dutyRole should be mapable to categorycode.
 # However if the person is not in duty, there has to be a default wich in this case is ELEV (Pupil) but it should be configurable.
 # 
-package Koha::Plugin::imCode::KohaSS12000::ExportUsers::CategoryCode;
+package Koha::Plugin::imCode::KohaSS12000::ExportUsers::Categorycode;
 
 our $borrowers_table  = 'borrowers'; # Koha users table
 our $categories_table = 'categories'; # Koha categories table

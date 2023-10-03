@@ -68,9 +68,9 @@ our $categories_table = 'categories'; # Koha categories table
 our $branches_table   = 'branches'; # Koha branches table
 our $data_change_log  = 'imcode_data_change_log';
 
-use Koha::Plugin::imCode::KohaSS12000::ExportUsers::CategoryCode;
-use Koha::Plugin::imCode::KohaSS12000::ExportUsers::BranchCode;
 use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Borrowers;
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::BranchCode;
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::CategoryCode;
 
 sub new {
     my ( $class, $args ) = @_;
@@ -364,7 +364,7 @@ sub configure {
                 'api_limit',
                 'cardnumberPlugin',
                 'useridPlugin',
-                'logs_limit',
+                'logs_limit'
                 )
         };
 
@@ -383,7 +383,7 @@ sub configure {
                 $api_limit,
                 $cardnumberPlugin,
                 $useridPlugin,
-                $logs_limit,
+                $logs_limit
                 );
             $template->param(success => 'success');
         };
@@ -816,53 +816,56 @@ sub fetchDataFromAPI {
             $api_url = $api_url."&pageToken=$page_token_next";
         } 
 
-        # start currently this only for test
-        # my $try_api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/organisations?limit=$api_limit";
-        # my $try_result = getApiResponse($try_api_url, $access_token);
-        # my $MyBranchCode = Koha::Plugin::imCode::KohaSS12000::ExportUsers::BranchCode::fetchBranchCode($try_result,$api_limit);
-        # warn "MyBranchCode: $MyBranchCode";
-        # end currently this only for test
-
         # Setting headers with an access token to connect to the API
-        my $api_request = HTTP::Request->new(GET => $api_url);
-        $api_request->header('Content-Type' => 'application/json');
-        $api_request->header('Authorization' => "Bearer $access_token");
-        my $api_response = $ua->request($api_request);
+        # my $api_request = HTTP::Request->new(GET => $api_url);
+        # $api_request->header('Content-Type' => 'application/json');
+        # $api_request->header('Authorization' => "Bearer $access_token");
+        # my $api_response = $ua->request($api_request);
 
         # $api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/$data_endpoint?limit=$api_limit";
+
         my $response_data = getApiResponse($api_url, $access_token);
 
-        if ($response_data && $data_endpoint eq "persons") {
-            my $api_content = $response_data;
-            my $response_page_token = $response_data->{pageToken};
+        my $response = $response_data; 
+        if ($debug_mode eq "No") { 
+            $response = "Debug Mode OFF"; 
+        } 
 
-            my $md5 = Digest::MD5->new;
-            $md5->add($api_content);
-            
-            # Generate a hash for checking
-            my $data_hash = $md5->hexdigest;
+        eval {
+            $response_data = decode_json($response_data);
+        };
+        if ($@) {
+            die "Error when decoding JSON: $@";
+        }
+        
+        my $response_page_token = $response_data->{pageToken};
 
-            # Check if a record with the same $data_hash and is_processed flag exists
-            my $select_existing_query = qq{
-                SELECT is_processed
-                FROM $logs_table
-                WHERE data_hash = ?
-                ORDER BY created_at DESC
-                LIMIT 1
-            };
+        my $md5 = Digest::MD5->new;
+        $md5->add($response_data);
+        # Generate a hash for checking
+        my $data_hash = $md5->hexdigest;
 
-            my $sth_select = $dbh->prepare($select_existing_query);
-            $sth_select->execute($data_hash);
+        # Check if a record with the same $data_hash and is_processed flag exists
+        my $select_existing_query = qq{
+                    SELECT is_processed
+                    FROM $logs_table
+                    WHERE data_hash = ?
+                    ORDER BY created_at DESC
+                    LIMIT 1
+        };
 
-            if (my ($is_processed) = $sth_select->fetchrow_array) {
-                if ($is_processed) {
+        my $sth_select = $dbh->prepare($select_existing_query);
+        $sth_select->execute($data_hash);
+
+        if (my ($is_processed) = $sth_select->fetchrow_array) {
+            if ($is_processed) {
                     # Record with data_hash=$data_hash already processed
                     warn "Record with data_hash=$data_hash has already been processed.\n";
-                } else {
+            } else {
                     # Record with data_hash=$data_hash exists but not processed
                     warn "Record with data_hash=$data_hash exists but has not been processed.\n";
-                }
-            } else {
+            }
+        } else {
                 # Record with data_hash=$data_hash not found
                 warn "Record with data_hash=$data_hash not found in the database.\n";
 
@@ -874,12 +877,8 @@ sub fetchDataFromAPI {
 
                 my $sth_insert = $dbh->prepare($insert_query);
 
-                if ($debug_mode eq "No") { 
-                    $api_content = "Debug Mode OFF"; 
-                }
-
                 eval {
-                    if ($sth_insert->execute($response_page_token, $api_content, $api_limit, $data_hash, $data_endpoint)) {
+                    if ($sth_insert->execute($response_page_token, $response, $api_limit, $data_hash, $data_endpoint)) {
                         warn "Data from the API successfully inserted into $logs_table.\n";
                     } else {
                         die "Error inserting data into $logs_table: " . $dbh->errstr . "\n";
@@ -889,27 +888,48 @@ sub fetchDataFromAPI {
                 if ($@) {
                     warn "Database error: $@\n";
                 }
-            }
+        }
 
-        my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::Borrowers::fetchBorrowers(
-            $response_data, 
-            $api_limit, 
-            $debug_mode, 
-            $koha_default_categorycode, 
-            $koha_default_branchcode,
-            $cardnumberPlugin,
-            $useridPlugin,
-            $response_page_token,
-            $data_hash
+        if ($response_data && $data_endpoint eq "persons") {
+            my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::Borrowers::fetchBorrowers(
+                $response_data, 
+                $api_limit, 
+                $debug_mode, 
+                $koha_default_categorycode, 
+                $koha_default_branchcode,
+                $cardnumberPlugin,
+                $useridPlugin,
+                $response_page_token,
+                $data_hash
+                );
+        } 
+        elsif ($response_data && $data_endpoint eq "organisations") {
+            # warn "data_endpoint: $data_endpoint";
+            my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::BranchCode::fetchBranchCode(
+                $response_data, 
+                $api_limit, 
+                $debug_mode, 
+                $response_page_token,
+                $data_hash                
             );
-
-        } else {
-            my $error_message = "Error from API: " . $api_response->status_line . "\n";
+        }
+        elsif ($response_data && $data_endpoint eq "duties") {
+            # warn "data_endpoint: $data_endpoint";
+            my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::CategoryCode::fetchCategoryCode(
+                $response_data, 
+                $api_limit, 
+                $debug_mode, 
+                $response_page_token,
+                $data_hash                
+            );            
+        }        
+        else {
+            my $error_message = "Error from API: " . $response->status_line . "\n";
             warn $error_message;
             # Insert the error message into the $logs_table
             my $sth_insert_error = $dbh->prepare($insert_error_query);
             $sth_insert_error->execute('API Error', $error_message);
-            if ($api_response->code == 410) {
+            if ($response->code == 410) {
                 # "code": "NEW_DATA_RESTART_FROM_FIRST_PAGE"
                 my $insert_query = qq{
                     INSERT INTO $logs_table (page_token_next, is_processed, data_endpoint)
@@ -975,8 +995,7 @@ sub getApiResponse {
 
     if ($api_response->is_success) {
         my $api_content = $api_response->decoded_content;
-        my $response_data = decode_json($api_content);
-        return $response_data;  
+        return $api_content;
     } else {
         return undef;  # if error return undef
     }

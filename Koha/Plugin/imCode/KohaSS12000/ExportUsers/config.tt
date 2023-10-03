@@ -68,7 +68,20 @@
                             <option value="[% category %]" [% IF category == koha_default_categorycode %]selected="selected"[% END %]>[% category %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">[% 'If Update on UPDATE, then - When you change a parameter, it will be changed for all existing users in the next data update cycle' | gettext %].</p>
+                    <p class="text-info">[% 'When you change a parameter, it will be changed for all existing users in the next data update cycle' | gettext %].</p>
+                </div>
+            </div>
+
+            <div class="form-group row">
+                <label for="koha_default_branchcode" class="col-sm-2 col-form-label">[% 'Koha Default Branchcode' | gettext %]:</label>
+                <div class="col-sm-4">
+                    <select class="form-control" name="koha_default_branchcode" id="koha_default_branchcode">
+                        <option value="">[% 'Choose a branch' | gettext %]</option>
+                        [% FOREACH branch IN branches %]
+                            <option value="[% branch %]" [% IF branch == koha_default_branchcode %]selected="selected"[% END %]>[% branch %]</option>
+                        [% END %]
+                    </select>
+                    <p class="text-info">[% 'When you change a parameter, it will be changed for all existing users in the next data update cycle' | gettext %].</p>
                 </div>
             </div>
 
@@ -130,19 +143,7 @@
                     </select>
                     <p class="text-info">[% 'The default value is 3 days' | gettext %]</p>
                 </div>
-            </div>
-
-            <div class="form-group row">
-                <label for="debug_mode" class="col-sm-2 col-form-label">[% 'Update on INSERT or UPDATE' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="update_on">
-                        [% FOREACH mode IN ["INSERT", "UPDATE"] %]
-                            <option value="[% mode %]" [% IF update_on == mode %]selected="selected"[% END %]>[% mode %]</option>
-                        [% END %]
-                    </select>
-                    <p class="text-info">[% 'Update <b>Koha Default Categorycode</b> and <b>Koha Default Branchcode</b> always, or only when adding a user' | gettext %].</p>
-                </div>
-            </div>   
+            </div> 
 
             <input type="hidden" name="class" value="[% CLASS %]" />
             <input type="hidden" name="method" value="[% METHOD %]" />

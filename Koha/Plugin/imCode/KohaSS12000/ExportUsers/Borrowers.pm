@@ -8,6 +8,9 @@
 # Author:   Tkachuk Serge, https://github.com/fly304625, <tkachuk.serge@gmail.com>
 # License:  https://www.gnu.org/licenses/gpl-3.0.html GNU General Public License v3.0
 #
+# $data_endpoint = persons
+# 
+# 
 package Koha::Plugin::imCode::KohaSS12000::ExportUsers::Borrowers;
 
 our $borrowers_table  = 'borrowers'; # Koha users table
@@ -29,6 +32,8 @@ sub fetchBorrowers {
         $response_page_token,
         $data_hash
         ) = @_;
+
+    # warn "Borrowers api_limit: $api_limit";
 
     my $dbh = C4::Context->dbh;
 
@@ -241,31 +246,6 @@ sub addOrUpdateBorrower {
 
     if ($existing_borrower) {
         # If the user exists, update their data
-
-        my $update_query = qq{
-            UPDATE $borrowers_table
-            SET 
-                dateofbirth = ?, 
-                email = ?, 
-                sex = ?, 
-                phone = ?, 
-                mobile = ?, 
-                surname = ?, 
-                firstname = ?,
-                address = ?,
-                city = ?,
-                zipcode = ?,
-                country = ?,
-                B_email = ?,
-                userid = ?,
-                cardnumber = ?
-                categorycode = ?,
-                branchcode = ?
-            WHERE borrowernumber = ?
-        };
-
-        my $update_sth = $dbh->prepare($update_query);
-
         my $update_query = qq{
             UPDATE $borrowers_table
             SET 

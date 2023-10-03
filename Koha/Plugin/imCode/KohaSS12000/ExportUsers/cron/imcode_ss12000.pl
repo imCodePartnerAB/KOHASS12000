@@ -14,8 +14,13 @@ use Koha::Plugin::imCode::KohaSS12000::ExportUsers;
 
 my $plugin = Koha::Plugin::imCode::KohaSS12000::ExportUsers->new;
 $plugin->cronjob("persons");
-print "Cron job completed.\n";
+print "Cron job, persons, completed.\n";
 
+$plugin->cronjob("organisations");
+print "Cron job, organisations, completed.\n";
+
+$plugin->cronjob("duties");
+print "Cron job, duties, completed.\n";
 
 =head1 NAME
 

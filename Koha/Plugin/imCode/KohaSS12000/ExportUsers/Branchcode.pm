@@ -143,12 +143,10 @@ sub addOrUpdateBranchCode {
             $marcorgcode
         ) = @_;
 
-    # use utf8;
-
     my $branchnotes = "$organisationType : $municipalityCode : $organisationNumber : $schoolUnitCode";
     my $dbh = C4::Context->dbh;
 
-    ## Check if a user with the specified cardnumber already exists in the database
+    ## Check if a branch with the specified branchcode already exists in the database
     my $select_query = qq{
         SELECT branchcode 
         FROM $branches_table 

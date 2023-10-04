@@ -44,7 +44,7 @@ sub fetchCategoryCode {
                         my $startDate = $response_page_data->{startDate};
                         my $endDate = $response_page_data->{endDate};
 
-            }
+            warn "dutyRole: $dutyRole";
             
             my $result = addOrUpdateCategoryCode(
                     uc($dutyRole),
@@ -53,6 +53,8 @@ sub fetchCategoryCode {
                     $endDate
                     );
             if ($result) { $j++; } 
+
+            }
         }
 
         if ($j == $api_limit) {
@@ -90,6 +92,8 @@ sub fetchCategoryCode {
 }
 
 sub addOrUpdateCategoryCode {
+    #   `category_type` varchar(1) NOT NULL DEFAULT 'A' COMMENT 'type of Koha patron (Adult, Child, Professional, Organizational, Statistical, Staff)',
+
     my (
         $dutyRole,
         $signature,
@@ -99,7 +103,7 @@ sub addOrUpdateCategoryCode {
 
     my $dbh = C4::Context->dbh;
 
-    ## Check if a user with the specified cardnumber already exists in the database
+    ## Check if a category with the specified categorycode already exists in the database
     my $select_query = qq{
         SELECT categorycode 
         FROM $categories_table 
@@ -109,38 +113,42 @@ sub addOrUpdateCategoryCode {
     $select_sth->execute($dutyRole);
     my $existing_category = $select_sth->fetchrow_hashref;
 
+    warn "AddOrUpdate dutyRole: $dutyRole, existing_category: $existing_category";
+
     if ($existing_category) {
-        # If the branch exists, update their data
-        my $update_query = qq{
-            UPDATE $categories_table 
-            SET 
-                categorycode = ?
-            WHERE categorycode = ?
-        };
-        my $update_sth = $dbh->prepare($update_query);
-        $update_sth->execute(
-                $dutyRole,
-                $existing_branche->{'categorycode'}
-            );
+        # If the category exists, update their data
+        # my $update_query = qq{
+        #     UPDATE $categories_table 
+        #     SET 
+        #         categorycode = ?
+        #     WHERE categorycode = ?
+        # };
+        # my $update_sth = $dbh->prepare($update_query);
+        # $update_sth->execute(
+        #         $dutyRole,
+        #         $existing_category->{'categorycode'}
+        #     );
 
         $updated_count++;
     } else {
-        # If the branch doesn't exist, insert their data
-        my $insert_query = qq{
-            INSERT INTO $categories_table  (
-                categorycode
-                )
-            VALUES (?)
-        };
+        my $locale = $ENV{'LANG'};
+        # If the category doesn't exist, insert their data
+        # Adding the IGNORE keyword to the query if locale is empty to avoid errors when adding a new entry
+        my $insert_query = qq{INSERT } . ($locale ? "" : "IGNORE ") . qq{INTO $categories_table (categorycode, description) VALUES (?, ?)};
+        # 
+        # more duties.json | grep dutyRole - many duplicates on this field :(
+        # 
+
         my $insert_sth = $dbh->prepare($insert_query);
         $insert_sth->execute(
+                $dutyRole,
                 $dutyRole
             );
         $added_count++;
     }
 }
 
-sub addOrUpdateCategoryCode2 {
+sub addOrUpdateCategoryCodeDoc {
 
 # INSERT INTO `categories` (
 #     `categorycode`, `description`, `enrolmentperiod`, `enrolmentperioddate`, `upperagelimit`, `dateofbirthrequired`, 
@@ -149,8 +157,6 @@ sub addOrUpdateCategoryCode2 {
 #     `require_strong_password`, `exclude_from_local_holds_priority`)
 # VALUES
 # 	('PERSONAL', 'Personal', 999, NULL, NULL, NULL, NULL, NULL, 0.000000, 1, NULL, 0.000000, 0, 'S', -1, 'default', 'no', NULL, NULL, NULL, NULL, NULL);
-
-
 
 }
 

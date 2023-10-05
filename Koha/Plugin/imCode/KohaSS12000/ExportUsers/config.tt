@@ -85,6 +85,28 @@
                 </div>
             </div>
 
+            <!-- updates 5oct2023 -->
+
+            <div class="form-group row">
+                <label for="koha_default_branchcode" class="col-sm-2 col-form-label">categories_mapping:</label>
+                <div class="col-sm-4">
+                    [% FOREACH category_mapping IN categories_mapping %]
+                        <p>categorycode: [% category_mapping.categorycode %], dutyRole: [% category_mapping.dutyRole %]</p>
+                    [% END %]
+                </div>
+            </div>
+
+            <div class="form-group row">
+                <label for="koha_default_branchcode" class="col-sm-2 col-form-label">branches_mapping:</label>
+                <div class="col-sm-4">
+                    [% FOREACH branch_mapping IN branches_mapping %]
+                        <p>branchcode: [% branch_mapping.branchcode %], organisationCode: [% branch_mapping.organisationCode %]</p>
+                    [% END %]
+                </div>
+            </div>
+
+            <!-- /updates 5oct2023 -->
+
             <div class="form-group row">
                 <label for="debug_mode" class="col-sm-2 col-form-label">[% 'Debug Mode' | gettext %]:</label>
                 <div class="col-sm-4">

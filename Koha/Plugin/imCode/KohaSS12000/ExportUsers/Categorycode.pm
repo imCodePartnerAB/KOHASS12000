@@ -44,7 +44,7 @@ sub fetchCategoryCode {
                         my $startDate = $response_page_data->{startDate};
                         my $endDate = $response_page_data->{endDate};
 
-            warn "dutyRole: $dutyRole";
+            # warn "dutyRole: $dutyRole";
             
             my $result = addOrUpdateCategoryCode(
                     uc($dutyRole),
@@ -113,7 +113,7 @@ sub addOrUpdateCategoryCode {
     $select_sth->execute($dutyRole);
     my $existing_category = $select_sth->fetchrow_hashref;
 
-    warn "AddOrUpdate dutyRole: $dutyRole, existing_category: $existing_category";
+    # warn "AddOrUpdate dutyRole: $dutyRole, existing_category: $existing_category";
 
     if ($existing_category) {
         # If the category exists, update their data
@@ -131,13 +131,15 @@ sub addOrUpdateCategoryCode {
 
         $updated_count++;
     } else {
-        my $locale = $ENV{'LANG'};
+        # my $locale = $ENV{'LANG'};
         # If the category doesn't exist, insert their data
-        # Adding the IGNORE keyword to the query if locale is empty to avoid errors when adding a new entry
-        my $insert_query = qq{INSERT } . ($locale ? "" : "IGNORE ") . qq{INTO $categories_table (categorycode, description) VALUES (?, ?)};
-        # 
-        # more duties.json | grep dutyRole - many duplicates on this field :(
-        # 
+        my $insert_query = qq{
+            INSERT IGNORE INTO $categories_table  (
+                categorycode,
+                description
+            )
+            VALUES (?, ?)
+        };
 
         my $insert_sth = $dbh->prepare($insert_query);
         $insert_sth->execute(

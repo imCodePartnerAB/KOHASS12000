@@ -66,11 +66,13 @@ our $skey             = 'Uq9crAvPDNkkQcXAwsEHkjGwBwnSvDPC';  # Encryption key fo
 our $borrowers_table  = 'borrowers'; # Koha users table
 our $categories_table = 'categories'; # Koha categories table
 our $branches_table   = 'branches'; # Koha branches table
-our $data_change_log  = 'imcode_data_change_log';
+our $data_change_log_table    = 'imcode_data_change_log';
+our $categories_mapping_table = 'imcode_categories_mapping';
+our $branches_mapping_table   = 'imcode_branches_mapping';
 
 use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Borrowers;
-use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Branchcode;
-use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Categorycode;
+# use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Branchcode;
+# use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Categorycode;
 
 sub new {
     my ( $class, $args ) = @_;
@@ -92,11 +94,13 @@ sub install {
 
     $self->store_data( { plugin_version => $VERSION } );
 
-    my @installer_statements = (qq{CREATE TABLE IF NOT EXISTS $config_table (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    value VARCHAR(255) NOT NULL);},
-    qq{CREATE TABLE IF NOT EXISTS $data_change_log (
+    my @installer_statements = (
+    qq{CREATE TABLE IF NOT EXISTS $config_table (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        value VARCHAR(255) NOT NULL
+    );},
+    qq{CREATE TABLE IF NOT EXISTS $data_change_log_table (
         log_id INT AUTO_INCREMENT PRIMARY KEY,
         table_name VARCHAR(255),
         record_id INT,
@@ -104,15 +108,24 @@ sub install {
         change_description TEXT,
         change_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );},
+    qq{CREATE TABLE IF NOT EXISTS $categories_mapping_table (
+        categorycode VARCHAR(10) NOT NULL,
+        dutyRole VARCHAR(120) NOT NULL
+    );},
+    qq{CREATE TABLE IF NOT EXISTS $branches_mapping_table (
+        branchcode VARCHAR(10) NOT NULL,
+        organisationCode VARCHAR(120) NOT NULL
+    );},        
     qq{CREATE TABLE IF NOT EXISTS $logs_table (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    page_token_next VARCHAR(255) DEFAULT NULL,
-    response text COLLATE utf8mb4_unicode_ci,
-    record_count int(11) DEFAULT NULL,
-    is_processed tinyint(1) DEFAULT NULL,
-    data_endpoint varchar(255) DEFAULT NULL,
-    data_hash varchar(255) DEFAULT NULL,
-    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP);},
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        page_token_next VARCHAR(255) DEFAULT NULL,
+        response text COLLATE utf8mb4_unicode_ci,
+        record_count int(11) DEFAULT NULL,
+        is_processed tinyint(1) DEFAULT NULL,
+        data_endpoint varchar(255) DEFAULT NULL,
+        data_hash varchar(255) DEFAULT NULL,
+        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );},
     qq{INSERT INTO $config_table (name,value) VALUES ('ist_client_id','your_client_id');},
     qq{INSERT INTO $config_table (name,value) VALUES ('ist_client_secret','');},
     qq{INSERT INTO $config_table (name,value) VALUES ('ist_customer_id','your_customerId');},
@@ -125,6 +138,11 @@ sub install {
     qq{INSERT INTO $config_table (name,value) VALUES ('cardnumberPlugin','civicNo');},
     qq{INSERT INTO $config_table (name,value) VALUES ('useridPlugin','civicNo');},
     qq{INSERT INTO $config_table (name,value) VALUES ('logs_limit','3');},
+    qq{INSERT INTO $categories_mapping_table (categorycode,dutyRole) VALUES ('SKOLA','Lärare');},
+    qq{INSERT INTO $categories_mapping_table (categorycode,dutyRole) VALUES ('PERSONAL','Kurator');},
+    qq{INSERT INTO $categories_mapping_table (categorycode,dutyRole) VALUES ('SKOLA','Rektor');},
+    qq{INSERT INTO $categories_mapping_table (categorycode,dutyRole) VALUES ('PERSONAL','Lärarassistent');},
+    qq{INSERT INTO $categories_mapping_table (categorycode,dutyRole) VALUES ('STANDARD','__default__');},
     );
 
     eval {
@@ -213,7 +231,7 @@ sub install {
         END IF;
         
         IF change_description IS NOT NULL THEN
-            INSERT INTO $data_change_log (table_name, record_id, action, change_description)
+            INSERT INTO $data_change_log_table (table_name, record_id, action, change_description)
             VALUES ('$borrowers_table', NEW.borrowernumber, 'update', change_description);
         END IF;
     END;
@@ -402,6 +420,12 @@ sub configure {
     my @categories;
     my @branches;
 
+    my $select_categories_mapping_query = qq{SELECT categorycode, dutyRole FROM $categories_mapping_table};
+    my $select_branches_mapping_query = qq{SELECT branchcode, organisationCode FROM $branches_mapping_table};
+
+    my @categories_mapping;
+    my @branches_mapping;
+
     eval {
         my $sth_categorycode = $dbh->prepare($select_categorycode_query);
         $sth_categorycode->execute();
@@ -414,9 +438,19 @@ sub configure {
         while (my ($branch) = $sth_branchcode->fetchrow_array) {
             push @branches, $branch;
         }
-    };
 
-    eval {
+        my $sth_categories_mapping = $dbh->prepare($select_categories_mapping_query);
+        $sth_categories_mapping->execute();
+        while (my ($category, $dutyRole) = $sth_categories_mapping->fetchrow_array) {
+            push @categories_mapping, { categorycode => $category, dutyRole => $dutyRole };
+        }
+
+        my $sth_branches_mapping = $dbh->prepare($select_branches_mapping_query);
+        $sth_branches_mapping->execute();
+        while (my ($branch, $organisationCode) = $sth_branches_mapping->fetchrow_array) {
+            push @branches_mapping, { branchcode => $branch, organisationCode => $organisationCode };
+        }
+
         my $sth = $dbh->prepare($select_query);
         $sth->execute();
         while (my ($name, $value) = $sth->fetchrow_array) {
@@ -436,6 +470,8 @@ sub configure {
         oauth_url     => $config_data->{ist_oauth_url} || '',
         categories    => \@categories,
         branches      => \@branches,
+        categories_mapping   => \@categories_mapping,
+        branches_mapping     => \@branches_mapping,        
         debug_mode    => $config_data->{debug_mode} || '',
         api_limit     => int($config_data->{api_limit}) || 30,
         koha_default_categorycode => $config_data->{koha_default_categorycode} || '',
@@ -513,7 +549,7 @@ sub tool {
                 b.firstname,
                 b.surname
             FROM
-                $data_change_log l
+                $data_change_log_table l
             JOIN
                 $borrowers_table b ON l.record_id = b.borrowernumber
             WHERE
@@ -559,7 +595,7 @@ sub tool {
         my $count_query = qq{
             SELECT COUNT(*)
             FROM
-                $data_change_log l
+                $data_change_log_table l
             JOIN
                 $borrowers_table b ON l.record_id = b.borrowernumber
             WHERE
@@ -903,26 +939,26 @@ sub fetchDataFromAPI {
                 $data_hash
                 );
         } 
-        elsif ($response_data && $data_endpoint eq "organisations") {
-            # warn "data_endpoint: $data_endpoint";
-            my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::Branchcode::fetchBranchCode(
-                $response_data, 
-                $api_limit, 
-                $debug_mode, 
-                $response_page_token,
-                $data_hash                
-            );
-        }
-        elsif ($response_data && $data_endpoint eq "duties") {
-            # warn "data_endpoint: $data_endpoint";
-            my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::Categorycode::fetchCategoryCode(
-                $response_data, 
-                $api_limit, 
-                $debug_mode, 
-                $response_page_token,
-                $data_hash                
-            );            
-        }        
+        # elsif ($response_data && $data_endpoint eq "organisations") {
+        #     # warn "data_endpoint: $data_endpoint";
+        #     my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::Branchcode::fetchBranchCode(
+        #         $response_data, 
+        #         $api_limit, 
+        #         $debug_mode, 
+        #         $response_page_token,
+        #         $data_hash                
+        #     );
+        # }
+        # elsif ($response_data && $data_endpoint eq "duties") {
+        #     # warn "data_endpoint: $data_endpoint";
+        #     my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::Categorycode::fetchCategoryCode(
+        #         $response_data, 
+        #         $api_limit, 
+        #         $debug_mode, 
+        #         $response_page_token,
+        #         $data_hash                
+        #     );            
+        # }        
         else {
             my $error_message = "Error from API: " . $response->status_line . "\n";
             warn $error_message;

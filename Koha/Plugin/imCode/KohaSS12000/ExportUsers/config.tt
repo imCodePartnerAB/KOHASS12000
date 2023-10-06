@@ -27,35 +27,35 @@
             <div class="form-group row">
                 <label for="client_id" class="col-sm-2 col-form-label">[% 'Client ID' | gettext %]:</label>
                 <div class="col-sm-4">
-                    <input type="text" class="form-control" name="client_id" value="[% client_id %]" />
+                    <input type="text" class="form-control" id="client_id" name="client_id" value="[% client_id %]" />
                 </div>
             </div>
 
             <div class="form-group row">
                 <label for="client_secret" class="col-sm-2 col-form-label">[% 'Client Secret' | gettext %]:</label>
                 <div class="col-sm-4">
-                    <input type="text" class="form-control" name="client_secret" value="[% client_secret %]" />
+                    <input type="text" class="form-control" id="client_secret" name="client_secret" value="[% client_secret %]" />
                 </div>
             </div>
 
             <div class="form-group row">
                 <label for="customerId" class="col-sm-2 col-form-label">[% 'Customer ID' | gettext %]:</label>
                 <div class="col-sm-4">
-                    <input type="text" class="form-control" name="customerId" value="[% customerId %]" />
+                    <input type="text" class="form-control" id="customerId" name="customerId" value="[% customerId %]" />
                 </div>
             </div>
 
             <div class="form-group row">
                 <label for="api_url" class="col-sm-2 col-form-label">[% 'API URL' | gettext %]:</label>
                 <div class="col-sm-4">
-                    <input type="text" class="form-control" name="api_url" value="[% api_url %]" />
+                    <input type="text" class="form-control" id="api_url" name="api_url" value="[% api_url %]" />
                 </div>
             </div>
 
             <div class="form-group row">
                 <label for="oauth_url" class="col-sm-2 col-form-label">[% 'OAUTH API URL' | gettext %]:</label>
                 <div class="col-sm-4">
-                    <input type="text" class="form-control" name="oauth_url" value="[% oauth_url %]" />
+                    <input type="text" class="form-control" id="oauth_url" name="oauth_url" value="[% oauth_url %]" />
                 </div>
             </div>
 
@@ -86,22 +86,65 @@
             </div>
 
             <!-- updates 5oct2023 -->
+            [% IF !verify_config  %] 
+            <div class="form-group row">
+                <div class="col-sm-6 alert alert-danger">
+                <b>WARNING:</b> Branches mapping and/or Categories mapping not configured correctly
+                </div>
+            </div>
+            [% END %]
 
             <div class="form-group row">
-                <label for="koha_default_branchcode" class="col-sm-2 col-form-label">categories_mapping:</label>
+                <label class="col-sm-2 col-form-label">Categories mapping:</label>
                 <div class="col-sm-4">
                     [% FOREACH category_mapping IN categories_mapping %]
-                        <p>categorycode: [% category_mapping.categorycode %], dutyRole: [% category_mapping.dutyRole %]</p>
+                        <p>
+                        <label for="category_del_[% category_mapping.id %]" style="font-weight:normal !important;" title="click here to mark this object for deletion">
+                        <input type="checkbox" name="category_mapping_del[]" value="[% category_mapping.id %]" title="Delete" id="category_del_[% category_mapping.id %]">
+                        &nbsp;categoryCode: [% category_mapping.categorycode %], dutyRole: [% category_mapping.dutyRole %] 
+                        </label>
+                        </p>
                     [% END %]
                 </div>
             </div>
 
+            <div class="form-group row" id="div_new_category_mapping">
+                <label for="new_dutyRole_mapping" class="col-sm-2 col-form-label">Add category mapping:</label>
+                <div class="col-sm-4">
+                    <p><input type="text" class="form-control" name="new_dutyRole_mapping" value="" placeholder="If need be added, enter existing dutyRole here" /></p>
+                    <select class="form-control" name="new_categories_mapping" id="new_categories_mapping">
+                        <option value="">[% 'Select a category' | gettext %]</option>
+                        [% FOREACH category IN categories %]
+                            <option value="[% category %]">[% category %]</option>
+                        [% END %]
+                    </select>
+                </div>
+            </div>
+
             <div class="form-group row">
-                <label for="koha_default_branchcode" class="col-sm-2 col-form-label">branches_mapping:</label>
+                <label class="col-sm-2 col-form-label">Branches mapping:</label>
                 <div class="col-sm-4">
                     [% FOREACH branch_mapping IN branches_mapping %]
-                        <p>branchcode: [% branch_mapping.branchcode %], organisationCode: [% branch_mapping.organisationCode %]</p>
+                        <p>
+                        <label for="branch_del_[% branch_mapping.id %]" style="font-weight:normal !important;" title="click here to mark this object for deletion">
+                        <input type="checkbox" name="branch_mapping_del[]" value="[% branch_mapping.id %]" title="Delete" id="branch_del_[% branch_mapping.id %]">
+                        &nbsp;branchcode: [% branch_mapping.branchcode %], organisationCode: [% branch_mapping.organisationCode %]
+                        </label>
+                        </p>
                     [% END %]
+                </div>
+            </div>
+
+            <div class="form-group row" id="div_new_branch_mapping">
+                <label for="new_organisationCode_mapping" class="col-sm-2 col-form-label">Add branch mapping:</label>
+                <div class="col-sm-4">
+                    <p><input type="text" class="form-control" name="new_organisationCode_mapping" value="" placeholder="If need be added, enter existing organisationCode here" /></p>
+                    <select class="form-control" name="new_branch_mapping" id="new_branch_mapping">
+                        <option value="">[% 'Choose a branch' | gettext %]</option>
+                        [% FOREACH branch IN branches %]
+                            <option value="[% branch %]">[% branch %]</option>
+                        [% END %]
+                    </select>    
                 </div>
             </div>
 

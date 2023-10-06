@@ -13,6 +13,7 @@ package Koha::Plugin::imCode::KohaSS12000::ExportUsers;
 use Modern::Perl;
 use C4::Auth;
 use C4::Matcher;
+my $dbh = C4::Context->dbh;
 
 use strict;
 use warnings;
@@ -54,7 +55,7 @@ our $metadata = {
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
     date_updated    => '2023-09-18',
-    minimum_version => '20.05.00.000',
+    minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
     description     => getTranslation('This plugin implements export users from SS12000')
@@ -93,6 +94,7 @@ sub install {
     my ( $self, $args ) = @_;
 
     $self->store_data( { plugin_version => $VERSION } );
+    $self->store_data({ '__INSTALLED_VERSION__' => $VERSION });
 
     my @installer_statements = (
     qq{CREATE TABLE IF NOT EXISTS $config_table (
@@ -109,10 +111,12 @@ sub install {
         change_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );},
     qq{CREATE TABLE IF NOT EXISTS $categories_mapping_table (
+        id INT AUTO_INCREMENT PRIMARY KEY,
         categorycode VARCHAR(10) NOT NULL,
         dutyRole VARCHAR(120) NOT NULL
     );},
     qq{CREATE TABLE IF NOT EXISTS $branches_mapping_table (
+        id INT AUTO_INCREMENT PRIMARY KEY,
         branchcode VARCHAR(10) NOT NULL,
         organisationCode VARCHAR(120) NOT NULL
     );},        
@@ -255,8 +259,6 @@ sub install {
 sub uninstall {
     my ( $self, $args ) = @_;
 
-    my $dbh = C4::Context->dbh;
-
     my @tables_to_delete = ($config_table, $logs_table); 
 
     eval {
@@ -278,9 +280,10 @@ sub configure {
     my ($self, $args) = @_;
 
     my $cgi = $self->{'cgi'};
-    my $dbh = C4::Context->dbh;
 
     my $op = $cgi->param('op') || '';
+
+    my $verify_config = $self->verify_categorycode_and_branchcode();
 
     my $missing_modules = 0;
     eval {
@@ -320,6 +323,57 @@ sub configure {
         my $cardnumberPlugin    = $cgi->param('cardnumberPlugin');
         my $useridPlugin        = $cgi->param('useridPlugin');
         my $logs_limit          = int($cgi->param('logs_limit'));
+
+        my $new_organisationCode_mapping = $cgi->param('new_organisationCode_mapping');
+        my $new_branch_mapping           = $cgi->param('new_branch_mapping');
+
+        my $new_categories_mapping       = $cgi->param('new_categories_mapping');
+        my $new_dutyRole_mapping         = $cgi->param('new_dutyRole_mapping');
+
+        my @category_mapping_del = $cgi->multi_param('category_mapping_del[]');
+        my @branch_mapping_del   = $cgi->multi_param('branch_mapping_del[]');
+        warn "get category_mapping_del: " . join(", ", @category_mapping_del);
+        warn "get branch_mapping_del: "  . join(", ", @branch_mapping_del);
+
+        if ($new_branch_mapping && $new_organisationCode_mapping) {
+            my $check_mapping_query = qq{
+                SELECT organisationCode 
+                FROM $branches_mapping_table 
+                WHERE organisationCode = ? 
+                AND branchcode = ?
+            };
+            my $sth_check_mapping = $dbh->prepare($check_mapping_query);
+            $sth_check_mapping->execute($new_organisationCode_mapping, $new_branch_mapping);
+
+            if (!$sth_check_mapping->fetchrow_array()) {
+                my $insert_mapping_query = qq{
+                    INSERT INTO $branches_mapping_table (organisationCode, branchcode) VALUES (?, ?)
+                };
+                my $sth_insert_mapping = $dbh->prepare($insert_mapping_query);
+                $sth_insert_mapping->execute($new_organisationCode_mapping, $new_branch_mapping);
+            }
+            $sth_check_mapping->finish();
+        }
+
+        if ($new_categories_mapping && $new_dutyRole_mapping) {
+            my $check_mapping_query = qq{
+                SELECT categorycode 
+                FROM $categories_mapping_table 
+                WHERE categorycode = ? 
+                AND dutyRole = ?
+            };
+            my $sth_check_mapping = $dbh->prepare($check_mapping_query);
+            $sth_check_mapping->execute($new_categories_mapping, $new_dutyRole_mapping);
+
+            if (!$sth_check_mapping->fetchrow_array()) {
+                my $insert_mapping_query = qq{
+                    INSERT INTO $categories_mapping_table (categorycode, dutyRole) VALUES (?, ?)
+                };
+                my $sth_insert_mapping = $dbh->prepare($insert_mapping_query);
+                $sth_insert_mapping->execute($new_categories_mapping, $new_dutyRole_mapping);
+            }
+            $sth_check_mapping->finish();
+        }
 
         my $select_check_query = qq{
             SELECT name, value 
@@ -420,8 +474,8 @@ sub configure {
     my @categories;
     my @branches;
 
-    my $select_categories_mapping_query = qq{SELECT categorycode, dutyRole FROM $categories_mapping_table};
-    my $select_branches_mapping_query = qq{SELECT branchcode, organisationCode FROM $branches_mapping_table};
+    my $select_categories_mapping_query = qq{SELECT id, categorycode, dutyRole FROM $categories_mapping_table};
+    my $select_branches_mapping_query = qq{SELECT id, branchcode, organisationCode FROM $branches_mapping_table};
 
     my @categories_mapping;
     my @branches_mapping;
@@ -441,14 +495,14 @@ sub configure {
 
         my $sth_categories_mapping = $dbh->prepare($select_categories_mapping_query);
         $sth_categories_mapping->execute();
-        while (my ($category, $dutyRole) = $sth_categories_mapping->fetchrow_array) {
-            push @categories_mapping, { categorycode => $category, dutyRole => $dutyRole };
+        while (my ($id, $category, $dutyRole) = $sth_categories_mapping->fetchrow_array) {
+            push @categories_mapping, { id => $id, categorycode => $category, dutyRole => $dutyRole };
         }
 
         my $sth_branches_mapping = $dbh->prepare($select_branches_mapping_query);
         $sth_branches_mapping->execute();
-        while (my ($branch, $organisationCode) = $sth_branches_mapping->fetchrow_array) {
-            push @branches_mapping, { branchcode => $branch, organisationCode => $organisationCode };
+        while (my ($id, $branch, $organisationCode) = $sth_branches_mapping->fetchrow_array) {
+            push @branches_mapping, { id => $id, branchcode => $branch, organisationCode => $organisationCode };
         }
 
         my $sth = $dbh->prepare($select_query);
@@ -481,6 +535,7 @@ sub configure {
         logs_limit          => int($config_data->{logs_limit}) || 3,
         language            => C4::Languages::getlanguage($cgi) || 'en',
         mbf_path            => abs_path( $self->mbf_path('translations') ),
+        verify_config       => $verify_config,
         );
 
     print $cgi->header(-type => 'text/html', -charset => 'utf-8');
@@ -513,8 +568,6 @@ sub tool {
     my $per_page  = 20; # Number of entries per page
     my $start_row = ($page - 1) * $per_page;
     my $total_rows = 0;
-
-    my $dbh = C4::Context->dbh; # Get a database connection object
 
     my $select_query = qq{SELECT name, value FROM $config_table WHERE name IN ('debug_mode')};
     my %config_values; 
@@ -760,6 +813,14 @@ sub cronjob {
 sub fetchDataFromAPI {
     my ($self, $data_endpoint) = @_;
 
+    if (!$self->verify_categorycode_and_branchcode()) {
+        warn "WARNING: branches mapping and/or categories mapping not configured correctly";
+        warn "ErrorVerifyCategorycodeBranchcode";
+        die "WARNING: branches mapping and/or categories mapping not configured correctly";
+    } else {
+        warn "INFO: branches mapping and/or categories mapping correctly configured";
+    }
+
     my $cgi = $self->{'cgi'};
 
     my $missing_modules = 0;
@@ -776,7 +837,6 @@ sub fetchDataFromAPI {
         return 0;
     }
 
-    my $dbh = C4::Context->dbh;
 
     my $select_query = qq{SELECT name, value FROM $config_table};
     my $config_data  = {};
@@ -938,6 +998,11 @@ sub fetchDataFromAPI {
                 $response_page_token,
                 $data_hash
                 );
+
+            if (!defined $response_page_token || $response_page_token eq "") {
+                    warn "EndLastPageFromAPI"; # last page from API, flag for bash script Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run.sh
+            }                
+
         } 
         # elsif ($response_data && $data_endpoint eq "organisations") {
         #     # warn "data_endpoint: $data_endpoint";
@@ -965,7 +1030,8 @@ sub fetchDataFromAPI {
             # Insert the error message into the $logs_table
             my $sth_insert_error = $dbh->prepare($insert_error_query);
             $sth_insert_error->execute('API Error', $error_message);
-            if ($response->code == 410) {
+            # if an API error, add this entry to the logs_table as well - to start a new playthrough cycle
+            # if ($response->code == 410) {
                 # "code": "NEW_DATA_RESTART_FROM_FIRST_PAGE"
                 my $insert_query = qq{
                     INSERT INTO $logs_table (page_token_next, is_processed, data_endpoint)
@@ -996,7 +1062,7 @@ sub fetchDataFromAPI {
                 if ($@) {
                     warn "Database error: $@\n";
                 }
-            }
+            # }
         }
     } else {
         my $oauth_error_message = "Error get access_token: " . $oauth_response->status_line . "\n";
@@ -1036,6 +1102,37 @@ sub getApiResponse {
         return undef;  # if error return undef
     }
 
+}
+
+
+sub verify_categorycode_and_branchcode {
+    my $select_categories_mapping_query = qq{SELECT categorycode, dutyRole FROM $categories_mapping_table};
+    my $select_branches_mapping_query = qq{SELECT branchcode, organisationCode FROM $branches_mapping_table};
+    my $categories_mapping_exists = $dbh->selectrow_array($select_categories_mapping_query);
+    my $branches_mapping_exists = $dbh->selectrow_array($select_branches_mapping_query);
+    if ($categories_mapping_exists && $branches_mapping_exists) {
+        my $select_categorycode_query = qq{SELECT categorycode FROM $categories_table};
+        my $select_branchcode_query = qq{SELECT branchcode FROM $branches_table};
+        my $categorycode_exists = $dbh->selectrow_array($select_categorycode_query);
+        my $branchcode_exists = $dbh->selectrow_array($select_branchcode_query);
+        my $categorycode_in_categories_table_query = qq{
+            SELECT categorycode FROM $categories_table
+            WHERE categorycode IN (SELECT categorycode FROM $categories_mapping_table)
+        };
+        my $categorycode_in_categories_table = $dbh->selectrow_array($categorycode_in_categories_table_query);
+        my $branchcode_in_branches_table_query = qq{
+            SELECT branchcode FROM $branches_table
+            WHERE branchcode IN (SELECT branchcode FROM $branches_mapping_table)
+        };
+        my $branchcode_in_branches_table = $dbh->selectrow_array($branchcode_in_branches_table_query);
+        if ($categorycode_exists && $branchcode_exists && $categorycode_in_categories_table && $branchcode_in_branches_table) {
+            return 1;  
+        } else {
+            return 0;  
+        }
+    } else {
+        return 0;  
+    }
 }
 
 1;

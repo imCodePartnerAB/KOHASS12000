@@ -29,6 +29,11 @@ while true; do
         break
     fi
 
+    if echo "$output" | grep -q "ErrorVerifyCategorycodeBranchcode"; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') : Received 'ErrorVerifyCategorycodeBranchcode'. Exiting loop."
+        break
+    fi
+
     echo "$(date '+%Y-%m-%d %H:%M:%S') : Iteration $i completed"
     i=$((i+1))
 done

@@ -189,10 +189,6 @@ sub fetchBorrowers {
                 }
             }
 
-            if (!defined $response_page_token || $response_page_token eq "") {
-                warn "EndLastPageFromAPI"; # last page from API, flag for bash script Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run.sh
-            }
-
 }
 
 # Function to add or update user data in the borrowers table

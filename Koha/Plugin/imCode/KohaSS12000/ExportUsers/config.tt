@@ -86,9 +86,10 @@
             </div>
 
             <!-- updates 5oct2023 -->
-            [% IF !verify_config  %] 
+            [% IF verify_config == "No" %] 
             <div class="form-group row">
                 <div class="col-sm-6 alert alert-danger">
+                [% verify_config %]
                 <b>WARNING:</b> Branches mapping and/or Categories mapping not configured correctly
                 </div>
             </div>

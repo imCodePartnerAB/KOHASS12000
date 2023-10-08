@@ -54,7 +54,7 @@ our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2023-09-18',
+    date_updated    => '2023-10-08',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -70,8 +70,10 @@ our $branches_table   = 'branches'; # Koha branches table
 our $data_change_log_table    = 'imcode_data_change_log';
 our $categories_mapping_table = 'imcode_categories_mapping';
 our $branches_mapping_table   = 'imcode_branches_mapping';
+our $added_count      = 0; # to count added
+our $updated_count    = 0; # to count updated
 
-use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Borrowers;
+# use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Borrowers;
 # use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Branchcode;
 # use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Categorycode;
 
@@ -122,7 +124,7 @@ sub install {
     );},        
     qq{CREATE TABLE IF NOT EXISTS $logs_table (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        page_token_next VARCHAR(255) DEFAULT NULL,
+        page_token_next text COLLATE utf8mb4_unicode_ci,
         response text COLLATE utf8mb4_unicode_ci,
         record_count int(11) DEFAULT NULL,
         is_processed tinyint(1) DEFAULT NULL,
@@ -283,8 +285,6 @@ sub configure {
 
     my $op = $cgi->param('op') || '';
 
-    my $verify_config = $self->verify_categorycode_and_branchcode();
-
     my $missing_modules = 0;
     eval {
             require URI::Encode;
@@ -332,8 +332,35 @@ sub configure {
 
         my @category_mapping_del = $cgi->multi_param('category_mapping_del[]');
         my @branch_mapping_del   = $cgi->multi_param('branch_mapping_del[]');
-        warn "get category_mapping_del: " . join(", ", @category_mapping_del);
-        warn "get branch_mapping_del: "  . join(", ", @branch_mapping_del);
+        # warn "get category_mapping_del: " . join(", ", @category_mapping_del);
+        # warn "get branch_mapping_del: "  . join(", ", @branch_mapping_del);
+
+        # delete
+        if (@category_mapping_del) {
+            my $delete_category_query = qq{
+                DELETE 
+                FROM $categories_mapping_table 
+                WHERE id = ? 
+            };
+
+            foreach my $category_id (@category_mapping_del) {
+                next if $category_id == 0; # skip ID = 0
+                $dbh->do($delete_category_query, undef, $category_id);
+            }
+        }
+        if (@branch_mapping_del) {
+            my $delete_branch_query = qq{
+                DELETE 
+                FROM $branches_mapping_table 
+                WHERE id = ? 
+            };
+
+            foreach my $branch_id (@branch_mapping_del) {
+                next if $branch_id == 0; # skip ID = 0
+                $dbh->do($delete_branch_query, undef, $branch_id);
+            }
+        }
+        # /delete
 
         if ($new_branch_mapping && $new_organisationCode_mapping) {
             my $check_mapping_query = qq{
@@ -516,6 +543,8 @@ sub configure {
         warn "Error fetching configuration: $@";
     }
 
+    # warn "verify_categorycode_and_branchcode: ".verify_categorycode_and_branchcode();
+
     $template->param(
         client_id     => $config_data->{ist_client_id} || '',
         client_secret => xor_encrypt($config_data->{ist_client_secret}, $skey) || '',
@@ -535,7 +564,7 @@ sub configure {
         logs_limit          => int($config_data->{logs_limit}) || 3,
         language            => C4::Languages::getlanguage($cgi) || 'en',
         mbf_path            => abs_path( $self->mbf_path('translations') ),
-        verify_config       => $verify_config,
+        verify_config       => verify_categorycode_and_branchcode(),
         );
 
     print $cgi->header(-type => 'text/html', -charset => 'utf-8');
@@ -813,13 +842,10 @@ sub cronjob {
 sub fetchDataFromAPI {
     my ($self, $data_endpoint) = @_;
 
-    if (!$self->verify_categorycode_and_branchcode()) {
+    if (verify_categorycode_and_branchcode() eq "No") {
         warn "WARNING: branches mapping and/or categories mapping not configured correctly";
-        warn "ErrorVerifyCategorycodeBranchcode";
-        die "WARNING: branches mapping and/or categories mapping not configured correctly";
-    } else {
-        warn "INFO: branches mapping and/or categories mapping correctly configured";
-    }
+        die "ErrorVerifyCategorycodeBranchcode";
+    } 
 
     my $cgi = $self->{'cgi'};
 
@@ -879,6 +905,7 @@ sub fetchDataFromAPI {
     my $pageToken = '';
     # my $data_endpoint = "persons";
     my $api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/$data_endpoint?limit=$api_limit";
+    my $api_url_base = "$ist_url/ss12000v2-api/source/$customerId/v2.0/";
 
     # Setting headers for get access_token
     my $request = POST $oauth_url, [
@@ -895,7 +922,7 @@ sub fetchDataFromAPI {
 
         # Take pageToken= from the database and append it to $api_url
         my $select_tokens_query = qq{
-            SELECT page_token_next
+            SELECT id, page_token_next
             FROM $logs_table
             WHERE is_processed = 1
             AND data_endpoint = ?
@@ -905,18 +932,12 @@ sub fetchDataFromAPI {
         my $sth_select_tokens = $dbh->prepare($select_tokens_query);
         $sth_select_tokens->execute($data_endpoint);
 
-        my ($page_token_next) = $sth_select_tokens->fetchrow_array;
+        my ($data_id, $page_token_next) = $sth_select_tokens->fetchrow_array;
 
         if (defined $page_token_next) {
             # The result string is not empty, and you can use the values from the database.
             $api_url = $api_url."&pageToken=$page_token_next";
         } 
-
-        # Setting headers with an access token to connect to the API
-        # my $api_request = HTTP::Request->new(GET => $api_url);
-        # $api_request->header('Content-Type' => 'application/json');
-        # $api_request->header('Authorization' => "Bearer $access_token");
-        # my $api_response = $ua->request($api_request);
 
         # $api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/$data_endpoint?limit=$api_limit";
 
@@ -931,9 +952,20 @@ sub fetchDataFromAPI {
             $response_data = decode_json($response_data);
         };
         if ($@) {
+            my $update_query = qq{
+                UPDATE $logs_table
+                SET is_processed = 1,
+                    page_token_next = ?
+                WHERE id = ?
+            };
+            my $sth_update = $dbh->prepare($update_query);
+            unless ($sth_update->execute("", $data_id)) {
+                die "An error occurred while executing the request: " . $sth_update->errstr;
+            }
+            $sth_update->finish();
             die "Error when decoding JSON: $@";
         }
-        
+
         my $response_page_token = $response_data->{pageToken};
 
         my $md5 = Digest::MD5->new;
@@ -987,20 +1019,23 @@ sub fetchDataFromAPI {
         }
 
         if ($response_data && $data_endpoint eq "persons") {
-            my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::Borrowers::fetchBorrowers(
-                $response_data, 
-                $api_limit, 
-                $debug_mode, 
-                $koha_default_categorycode, 
-                $koha_default_branchcode,
-                $cardnumberPlugin,
-                $useridPlugin,
-                $response_page_token,
-                $data_hash
+            # my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::Borrowers::fetchBorrowers(
+            my $result = fetchBorrowers(
+                    $response_data, 
+                    $api_limit, 
+                    $debug_mode, 
+                    $koha_default_categorycode, 
+                    $koha_default_branchcode,
+                    $cardnumberPlugin,
+                    $useridPlugin,
+                    $response_page_token,
+                    $data_hash,
+                    $access_token,
+                    $api_url_base
                 );
 
             if (!defined $response_page_token || $response_page_token eq "") {
-                    warn "EndLastPageFromAPI"; # last page from API, flag for bash script Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run.sh
+                    die "EndLastPageFromAPI"; # last page from API, flag for bash script Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run.sh
             }                
 
         } 
@@ -1106,32 +1141,367 @@ sub getApiResponse {
 
 
 sub verify_categorycode_and_branchcode {
-    my $select_categories_mapping_query = qq{SELECT categorycode, dutyRole FROM $categories_mapping_table};
-    my $select_branches_mapping_query = qq{SELECT branchcode, organisationCode FROM $branches_mapping_table};
-    my $categories_mapping_exists = $dbh->selectrow_array($select_categories_mapping_query);
-    my $branches_mapping_exists = $dbh->selectrow_array($select_branches_mapping_query);
-    if ($categories_mapping_exists && $branches_mapping_exists) {
+    my $select_categories_mapping_query = qq{SELECT categorycode FROM $categories_mapping_table};
+    my $select_branches_mapping_query = qq{SELECT branchcode FROM $branches_mapping_table};
+
+    my $categories_mapping_exists = $dbh->selectall_arrayref($select_categories_mapping_query);
+    my $branches_mapping_exists = $dbh->selectall_arrayref($select_branches_mapping_query);
+
+    if (@$categories_mapping_exists && @$branches_mapping_exists) {
         my $select_categorycode_query = qq{SELECT categorycode FROM $categories_table};
         my $select_branchcode_query = qq{SELECT branchcode FROM $branches_table};
-        my $categorycode_exists = $dbh->selectrow_array($select_categorycode_query);
-        my $branchcode_exists = $dbh->selectrow_array($select_branchcode_query);
+
+        my $categorycode_exists = $dbh->selectall_arrayref($select_categorycode_query);
+        my $branchcode_exists = $dbh->selectall_arrayref($select_branchcode_query);
+
         my $categorycode_in_categories_table_query = qq{
             SELECT categorycode FROM $categories_table
             WHERE categorycode IN (SELECT categorycode FROM $categories_mapping_table)
         };
-        my $categorycode_in_categories_table = $dbh->selectrow_array($categorycode_in_categories_table_query);
+
+        my $categorycode_in_categories_table = $dbh->selectall_arrayref($categorycode_in_categories_table_query);
+
         my $branchcode_in_branches_table_query = qq{
             SELECT branchcode FROM $branches_table
             WHERE branchcode IN (SELECT branchcode FROM $branches_mapping_table)
         };
-        my $branchcode_in_branches_table = $dbh->selectrow_array($branchcode_in_branches_table_query);
-        if ($categorycode_exists && $branchcode_exists && $categorycode_in_categories_table && $branchcode_in_branches_table) {
-            return 1;  
+
+        my $branchcode_in_branches_table = $dbh->selectall_arrayref($branchcode_in_branches_table_query);
+
+        if (@$categorycode_exists && @$branchcode_exists && @$categorycode_in_categories_table && @$branchcode_in_branches_table) {
+            return "Ok";
         } else {
-            return 0;  
+            return "No";
         }
     } else {
-        return 0;  
+        return "No";
+    }
+}
+
+sub fetchBorrowers {
+    my (
+            $response_data,
+            $api_limit,
+            $debug_mode,
+            $koha_default_categorycode, 
+            $koha_default_branchcode,
+            $cardnumberPlugin,
+            $useridPlugin,
+            $response_page_token,
+            $data_hash,
+            $access_token,
+            $api_url_base
+        ) = @_;
+
+
+            my $j = 1;
+            for my $i (1..$api_limit) {
+                my $response_page_data = $response_data->{data}[$i-1];
+                if ($response_page_data) {
+                    my $id = $response_page_data->{id};
+                    warn "person id: ".$id;
+                    # my $api_url_base = "$ist_url/ss12000v2-api/source/$customerId/v2.0/";
+                    # GET {{fullUrl}}/duties?person=c96089fb-6da1-48a4-9a9f-bdc77a26487e HTTP/1.1
+
+                    my $person_api_url = $api_url_base."duties?person=".$id;
+                    warn "get: ".getApiResponse($person_api_url, $access_token);
+
+                    # "enrolments": [
+                    #     {
+                    #         "startDate": "2023-08-04",
+                    #         "endDate": "2023-08-28",
+                    #         "schoolType": "GR",
+                    #         "cancelled": true,
+                    #         "schoolYear": 6,
+                    #         "enroledAt": {
+                    #             "id": "23fcdbfd-9a46-4a2e-a31f-f4aadf9fb38e"
+                    #         }
+                    #     }
+                    # ],
+                    # GET {{fullUrl}}/organisations/23fcdbfd-9a46-4a2e-a31f-f4aadf9fb38e
+
+                    my $givenName = $response_page_data->{givenName};
+                    my $familyName = $response_page_data->{familyName};
+                    my $birthDate = $response_page_data->{birthDate};
+                    my $sex = $response_page_data->{sex};
+                    if (defined $sex) {
+                        if ($sex eq "Man") {
+                            $sex = "M";
+                        } elsif ($sex eq "Kvinna") {
+                            $sex = "F";
+                        }
+                    }
+
+                    my $emails = $response_page_data->{emails}; # we get an array
+                    my $email = "";
+                    my $B_email = ""; # field B_email in DB
+                    if (defined $emails && ref $emails eq 'ARRAY') {
+                        foreach my $selectedEmail (@$emails) {
+                            my $email_value = $selectedEmail->{value};
+                            my $email_type  = $selectedEmail->{type};
+                            if ($email_type eq "Privat") {
+                                if (defined $email_value) {
+                                    $email = lc($email_value);
+                                }
+                            } elsif ($email_type eq "Skola personal") {
+                                if (defined $email_value) {
+                                    $B_email = lc($email_value);
+                                }
+                            }
+                        }
+                    }
+
+                    my $addresses = $response_page_data->{addresses}; # we get an array
+                    my $streetAddress = "";
+                    my $locality = "";
+                    my $postalCode = "";
+                    my $country = "";
+                    my $countyCode = "";
+                    my $municipalityCode = "";
+                    my $realEstateDesignation = "";
+                    my $type = "";
+                    if (defined $addresses && ref $addresses eq 'ARRAY') {
+                       foreach my $selectedAddresses (@$addresses) {
+                            $type = $selectedAddresses->{type};
+                            if (defined $type && length($type) > 1 && $type =~ /Folkbokf.?ring/) {
+                                if (defined $selectedAddresses->{streetAddress}) {               
+                                    $streetAddress = ucfirst(lc($selectedAddresses->{streetAddress})); # field 'addresses' in DB
+                                }
+                                if (defined $selectedAddresses->{locality}) {
+                                    $locality = ucfirst(lc($selectedAddresses->{locality})); # field 'city' ?
+                                }
+                                $postalCode = $selectedAddresses->{postalCode}; # field 'zipcode'
+                                $country = $selectedAddresses->{country}; # field 'country'
+                                $countyCode = $selectedAddresses->{countyCode}; # now not use
+                                $municipalityCode = $selectedAddresses->{municipalityCode}; # now not use
+                                $realEstateDesignation = $selectedAddresses->{realEstateDesignation}; # now not use
+                            }
+                        }
+                    }
+
+                    my $phoneNumbers = $response_page_data->{phoneNumbers};
+                    my $phone = "";
+                    my $mobile_phone = "";
+                    if (defined $phoneNumbers && ref $phoneNumbers eq 'ARRAY') {
+                        foreach my $selectedPhone (@$phoneNumbers) {
+                            my $phone_value = $selectedPhone->{value};
+                            my $is_mobile = $selectedPhone->{mobile};
+                            if ($is_mobile) {
+                                $mobile_phone = $phone_value;
+                            } else {
+                                $phone = $phone_value;
+                            }
+                        }
+                    }
+
+                    my $cardnumber;
+                    my $civicNo = $response_page_data->{civicNo};
+                    if (defined $civicNo && ref $civicNo eq 'HASH') {
+                            # $nationality = $civicNo->{nationality};
+                            $cardnumber = $civicNo->{value}; 
+                    }
+
+                    my $externalIdentifier;
+                    my $externalIdentifiers = $response_page_data->{externalIdentifiers};
+                    if (defined $externalIdentifiers && ref $externalIdentifiers eq 'ARRAY') {
+                        foreach my $selectedIdentifier (@$externalIdentifiers) {
+                            $externalIdentifier = $selectedIdentifier->{value}; 
+                            # warn $givenName. " - ".$externalIdentifier;
+                        }
+                    }
+
+                    my $userid = $cardnumber;
+
+                    if (!defined $email || $email eq "") { $email = undef; }
+
+                    my $result = addOrUpdateBorrower(
+                            $cardnumber, 
+                            $familyName, 
+                            $givenName, 
+                            $birthDate, 
+                            $email, 
+                            $sex, 
+                            $phone, 
+                            $mobile_phone, 
+                            $koha_default_categorycode, 
+                            $koha_default_branchcode,
+                            $streetAddress,
+                            $locality,
+                            $postalCode,
+                            $country,
+                            $B_email,
+                            $userid,
+                            $useridPlugin,
+                            $cardnumberPlugin,
+                            $externalIdentifier,
+                        );
+                    if ($result) { $j++; }
+                } 
+            }
+
+            if ($j == $api_limit) {
+                if ($debug_mode eq "No") { 
+                    my $update_query = qq{
+                        UPDATE $logs_table
+                        SET is_processed = 1,
+                            response = ?
+                        WHERE data_hash = ?
+                    };
+                    my $update_response = "Added: $added_count, Updated: $updated_count";
+                    my $sth_update = $dbh->prepare($update_query);
+                    unless ($sth_update->execute($update_response, $data_hash)) {
+                        die "An error occurred while executing the request: " . $sth_update->errstr;
+                    }
+                    $sth_update->finish();
+                } elsif ($debug_mode eq "Yes") {
+                    my $update_query = qq{
+                        UPDATE $logs_table
+                        SET is_processed = 1
+                        WHERE data_hash = ?
+                    };
+                    my $sth_update = $dbh->prepare($update_query);
+                    unless ($sth_update->execute($data_hash)) {
+                        die "An error occurred while executing the request: " . $sth_update->errstr;
+                    }
+                    $sth_update->finish();
+                }
+            }
+
+}
+
+# Function to add or update user data in the borrowers table
+sub addOrUpdateBorrower {
+    my (
+        $cardnumber, 
+        $surname, 
+        $firstname, 
+        $birthdate, 
+        $email, 
+        $sex, 
+        $phone, 
+        $mobile_phone, 
+        $categorycode, 
+        $branchcode, 
+        $streetAddress,
+        $locality,
+        $postalCode,
+        $country,
+        $B_email,
+        $userid,
+        $useridPlugin,
+        $cardnumberPlugin,
+        $externalIdentifier,
+        ) = @_;
+    
+    my $newUserID;
+    my $newCardnumber;
+
+    if ($useridPlugin eq "civicNo" || $useridPlugin eq "externalIdentifier") {
+        $newUserID = ($useridPlugin eq "civicNo") ? $userid : $externalIdentifier;
+    }
+
+    if ($cardnumberPlugin eq "civicNo" || $cardnumberPlugin eq "externalIdentifier") {
+        $newCardnumber = ($cardnumberPlugin eq "civicNo") ? $cardnumber : $externalIdentifier;
+    }
+
+    ## Check if a user with the specified cardnumber already exists in the database
+    my $select_query = qq{
+        SELECT borrowernumber 
+        FROM $borrowers_table 
+        WHERE cardnumber = ? OR cardnumber = ?
+    };
+    my $select_sth = $dbh->prepare($select_query);
+    $select_sth->execute($cardnumber, $externalIdentifier);
+    my $existing_borrower = $select_sth->fetchrow_hashref;
+
+    if ($existing_borrower) {
+        # If the user exists, update their data
+        my $update_query = qq{
+            UPDATE $borrowers_table
+            SET 
+                dateofbirth = ?, 
+                email = ?, 
+                sex = ?, 
+                phone = ?, 
+                mobile = ?, 
+                surname = ?, 
+                firstname = ?,
+                categorycode = ?,
+                branchcode = ?,
+                address = ?,
+                city = ?,
+                zipcode = ?,
+                country = ?,
+                B_email = ?,
+                userid = ?,
+                cardnumber = ?
+            WHERE borrowernumber = ?
+        };
+        my $update_sth = $dbh->prepare($update_query);
+        $update_sth->execute(
+                $birthdate, 
+                $email, 
+                $sex, 
+                $phone, 
+                $mobile_phone, 
+                $surname, 
+                $firstname, 
+                $categorycode, 
+                $branchcode, 
+                $streetAddress,
+                $locality,
+                $postalCode,
+                $country,
+                $B_email,
+                $newUserID,
+                $newCardnumber,
+                $existing_borrower->{'borrowernumber'}
+            );
+
+        $updated_count++;
+    } else {
+        # If the user doesn't exist, insert their data
+        my $insert_query = qq{
+            INSERT INTO $borrowers_table (
+                    cardnumber,
+                    surname,
+                    firstname,
+                    dateofbirth,
+                    email,
+                    sex,
+                    phone,
+                    mobile,
+                    categorycode,
+                    branchcode,
+                    address,
+                    city,
+                    zipcode,
+                    country,
+                    B_email,
+                    userid
+                )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        };
+        my $insert_sth = $dbh->prepare($insert_query);
+        $insert_sth->execute(
+                $newCardnumber,
+                $surname,
+                $firstname,
+                $birthdate,
+                $email,
+                $sex,
+                $phone,
+                $mobile_phone,
+                $categorycode,
+                $branchcode,
+                $streetAddress,
+                $locality,
+                $postalCode,
+                $country,
+                $B_email,
+                $newUserID
+            );
+            $added_count++;
     }
 }
 

@@ -10,6 +10,12 @@
 #
 package Koha::Plugin::imCode::KohaSS12000::ExportUsers;
 
+use utf8;
+$ENV{PERL_UNICODE} = "AS";
+
+binmode(STDOUT, ":utf8");
+binmode(STDIN, ":utf8");
+
 use Modern::Perl;
 use C4::Auth;
 use C4::Matcher;
@@ -1036,21 +1042,13 @@ sub fetchDataFromAPI {
             while (my ($id, $branch, $organisationCode) = $sth_branches_mapping->fetchrow_array) {
                 push @branches_mapping, { id => $id, branchcode => $branch, organisationCode => $organisationCode };
             }
-
-            my $sth = $dbh->prepare($select_query);
-            $sth->execute();
-            while (my ($name, $value) = $sth->fetchrow_array) {
-                $config_data->{$name} = $value;
-            }
         };
 
         if ($@) {
-            warn "Error fetching configuration: $@";
+            warn "Error fetching categories_mapping/branches_mapping: $@";
         }
 
-
         if ($response_data && $data_endpoint eq "persons") {
-            # my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::Borrowers::fetchBorrowers(
             my $result = fetchBorrowers(
                     $response_data, 
                     $api_limit, 
@@ -1071,27 +1069,7 @@ sub fetchDataFromAPI {
                     die "EndLastPageFromAPI"; # last page from API, flag for bash script Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run.sh
             }                
 
-        } 
-        # elsif ($response_data && $data_endpoint eq "organisations") {
-        #     # warn "data_endpoint: $data_endpoint";
-        #     my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::Branchcode::fetchBranchCode(
-        #         $response_data, 
-        #         $api_limit, 
-        #         $debug_mode, 
-        #         $response_page_token,
-        #         $data_hash                
-        #     );
-        # }
-        # elsif ($response_data && $data_endpoint eq "duties") {
-        #     # warn "data_endpoint: $data_endpoint";
-        #     my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::Categorycode::fetchCategoryCode(
-        #         $response_data, 
-        #         $api_limit, 
-        #         $debug_mode, 
-        #         $response_page_token,
-        #         $data_hash                
-        #     );            
-        # }        
+        }        
         else {
             my $error_message = "Error from API: " . $response->status_line . "\n";
             warn $error_message;
@@ -1231,13 +1209,16 @@ sub fetchBorrowers {
 
             my $j = 1;
             for my $i (1..$api_limit) {
+                my $koha_categorycode = $koha_default_categorycode;
+                my $koha_branchcode = $koha_default_branchcode;
+
                 my $response_page_data = $response_data->{data}[$i-1];
                 if ($response_page_data) {
                     my $id = $response_page_data->{id};
-                    warn "person id: ".$id;
-                    # my $api_url_base = "$ist_url/ss12000v2-api/source/$customerId/v2.0/";
-                    # GET {{fullUrl}}/duties?person=c96089fb-6da1-48a4-9a9f-bdc77a26487e HTTP/1.1
 
+                    # warn "person id: ".$id;
+                    # my $api_url_base = "$ist_url/ss12000v2-api/source/$customerId/v2.0/";
+                    # dutyRole @categories_mapping
                     my $person_api_url = $api_url_base."duties?person=".$id;
                     my $response_data_person;
                     my $duty_role;
@@ -1254,29 +1235,66 @@ sub fetchBorrowers {
                             @{$response_data_person->{data}}
                         ) {
                         $duty_role = $response_data_person->{data}[0]->{dutyRole};
-                        if (defined $duty_role) {
-                            warn "get dutyRole: $duty_role";
-                        } else {
-                            warn "dutyRole is empty";
-                        }
+                        # utf8::decode($duty_role); # utf8
                     } else {
-                        warn "dutyRole is empty, set default value";
+                        # warn "dutyRole is empty, set default value";
                     }
 
+                    warn "BEFORE koha_categorycode: $koha_categorycode";
+                    if ($duty_role) {
+                        foreach my $category_mapping (@categories_mapping) {
+                            if ($category_mapping->{dutyRole} && $category_mapping->{dutyRole} eq $duty_role) {
+                                warn "FOUND dutyRole! To use: ".$category_mapping->{categorycode};
+                                $koha_categorycode = $category_mapping->{categorycode};
+                                last; 
+                            }
+                        }
+                    }
+                    warn "AFTER koha_categorycode: $koha_categorycode";
+                    # /dutyRole
 
-                    # "enrolments": [
-                    #     {
-                    #         "startDate": "2023-08-04",
-                    #         "endDate": "2023-08-28",
-                    #         "schoolType": "GR",
-                    #         "cancelled": true,
-                    #         "schoolYear": 6,
-                    #         "enroledAt": {
-                    #             "id": "23fcdbfd-9a46-4a2e-a31f-f4aadf9fb38e"
-                    #         }
-                    #     }
-                    # ],
-                    # GET {{fullUrl}}/organisations/23fcdbfd-9a46-4a2e-a31f-f4aadf9fb38e
+                    # organisationCode @branches_mapping
+                    my $enrolments = $response_page_data->{enrolments}; 
+                    my $enroledAtId = "";
+
+                    if (defined $enrolments && ref $enrolments eq 'ARRAY') {
+                        foreach my $enrolment (@$enrolments) {
+                            my $enroledAt = $enrolment->{enroledAt}; 
+                            if (defined $enroledAt && ref $enroledAt eq 'HASH') {
+                                $enroledAtId = $enroledAt->{id}; 
+                                # warn "enroledAtId: $enroledAtId";
+                            }
+                        }
+                    }
+
+                    if ($enroledAtId) {
+                        my $person_api_url = $api_url_base."organisations/".$enroledAtId;
+                        my $organisationCode;
+
+                        eval {
+                            $response_data_person = decode_json(getApiResponse($person_api_url, $access_token));
+                        };
+
+                        if (defined $response_data_person && ref($response_data_person) eq 'HASH' && defined $response_data_person->{organisationCode}) {
+                            my $organisationCode = $response_data_person->{organisationCode};
+                            warn "get organisationCode: $organisationCode";
+                        } else {
+                            warn "organisationCode is empty";
+                        }
+
+                        warn "BEFORE koha_branchcode: $koha_branchcode";
+                        if ($organisationCode) {
+                            foreach my $branch_mapping (@branches_mapping) {
+                                if ($branch_mapping->{organisationCode} && $branch_mapping->{organisationCode} eq $organisationCode) {
+                                    warn "FOUND organisationCode! To use: ".$branch_mapping->{branchcode};
+                                    $koha_branchcode = $branch_mapping->{branchcode};
+                                    last; 
+                                }
+                            }
+                        }
+                        warn "AFTER koha_branchcode: $koha_branchcode";
+                        # /organisationCode
+                    }
 
                     my $givenName = $response_page_data->{givenName};
                     my $familyName = $response_page_data->{familyName};
@@ -1381,8 +1399,8 @@ sub fetchBorrowers {
                             $sex, 
                             $phone, 
                             $mobile_phone, 
-                            $koha_default_categorycode, 
-                            $koha_default_branchcode,
+                            $koha_categorycode, 
+                            $koha_branchcode,
                             $streetAddress,
                             $locality,
                             $postalCode,

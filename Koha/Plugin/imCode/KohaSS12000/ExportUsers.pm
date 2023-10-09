@@ -60,7 +60,7 @@ our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2023-10-08',
+    date_updated    => '2023-10-09',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -78,10 +78,6 @@ our $categories_mapping_table = 'imcode_categories_mapping';
 our $branches_mapping_table   = 'imcode_branches_mapping';
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
-
-# use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Borrowers;
-# use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Branchcode;
-# use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Categorycode;
 
 sub new {
     my ( $class, $args ) = @_;
@@ -338,8 +334,6 @@ sub configure {
 
         my @category_mapping_del = $cgi->multi_param('category_mapping_del[]');
         my @branch_mapping_del   = $cgi->multi_param('branch_mapping_del[]');
-        # warn "get category_mapping_del: " . join(", ", @category_mapping_del);
-        # warn "get branch_mapping_del: "  . join(", ", @branch_mapping_del);
 
         # delete
         if (@category_mapping_del) {
@@ -548,8 +542,6 @@ sub configure {
     if ($@) {
         warn "Error fetching configuration: $@";
     }
-
-    # warn "verify_categorycode_and_branchcode: ".verify_categorycode_and_branchcode();
 
     $template->param(
         client_id     => $config_data->{ist_client_id} || '',
@@ -945,7 +937,7 @@ sub fetchDataFromAPI {
             $api_url = $api_url."&pageToken=$page_token_next";
         } 
 
-        # $api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/$data_endpoint?limit=$api_limit";
+        # api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/$data_endpoint?limit=$api_limit";
 
         my $response_data = getApiResponse($api_url, $access_token);
 
@@ -1216,7 +1208,6 @@ sub fetchBorrowers {
                 if ($response_page_data) {
                     my $id = $response_page_data->{id};
 
-                    # warn "person id: ".$id;
                     # my $api_url_base = "$ist_url/ss12000v2-api/source/$customerId/v2.0/";
                     # dutyRole @categories_mapping
                     my $person_api_url = $api_url_base."duties?person=".$id;
@@ -1236,21 +1227,19 @@ sub fetchBorrowers {
                         ) {
                         $duty_role = $response_data_person->{data}[0]->{dutyRole};
                         # utf8::decode($duty_role); # utf8
-                    } else {
-                        # warn "dutyRole is empty, set default value";
-                    }
+                    } 
 
-                    warn "BEFORE koha_categorycode: $koha_categorycode";
+                    # warn "BEFORE koha_categorycode: $koha_categorycode";
                     if ($duty_role) {
                         foreach my $category_mapping (@categories_mapping) {
                             if ($category_mapping->{dutyRole} && $category_mapping->{dutyRole} eq $duty_role) {
-                                warn "FOUND dutyRole! To use: ".$category_mapping->{categorycode};
+                                # warn "FOUND dutyRole! To use: ".$category_mapping->{categorycode};
                                 $koha_categorycode = $category_mapping->{categorycode};
                                 last; 
                             }
                         }
                     }
-                    warn "AFTER koha_categorycode: $koha_categorycode";
+                    # warn "AFTER koha_categorycode: $koha_categorycode";
                     # /dutyRole
 
                     # organisationCode @branches_mapping
@@ -1277,22 +1266,19 @@ sub fetchBorrowers {
 
                         if (defined $response_data_person && ref($response_data_person) eq 'HASH' && defined $response_data_person->{organisationCode}) {
                             my $organisationCode = $response_data_person->{organisationCode};
-                            warn "get organisationCode: $organisationCode";
-                        } else {
-                            warn "organisationCode is empty";
                         }
 
-                        warn "BEFORE koha_branchcode: $koha_branchcode";
+                        # warn "BEFORE koha_branchcode: $koha_branchcode";
                         if ($organisationCode) {
                             foreach my $branch_mapping (@branches_mapping) {
                                 if ($branch_mapping->{organisationCode} && $branch_mapping->{organisationCode} eq $organisationCode) {
-                                    warn "FOUND organisationCode! To use: ".$branch_mapping->{branchcode};
+                                    # warn "FOUND organisationCode! To use: ".$branch_mapping->{branchcode};
                                     $koha_branchcode = $branch_mapping->{branchcode};
                                     last; 
                                 }
                             }
                         }
-                        warn "AFTER koha_branchcode: $koha_branchcode";
+                        # warn "AFTER koha_branchcode: $koha_branchcode";
                         # /organisationCode
                     }
 

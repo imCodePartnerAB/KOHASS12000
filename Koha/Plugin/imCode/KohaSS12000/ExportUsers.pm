@@ -1018,6 +1018,37 @@ sub fetchDataFromAPI {
                 }
         }
 
+        my $select_categories_mapping_query = qq{SELECT id, categorycode, dutyRole FROM $categories_mapping_table};
+        my $select_branches_mapping_query = qq{SELECT id, branchcode, organisationCode FROM $branches_mapping_table};
+
+        my @categories_mapping;
+        my @branches_mapping;
+
+        eval {
+            my $sth_categories_mapping = $dbh->prepare($select_categories_mapping_query);
+            $sth_categories_mapping->execute();
+            while (my ($id, $category, $dutyRole) = $sth_categories_mapping->fetchrow_array) {
+                push @categories_mapping, { id => $id, categorycode => $category, dutyRole => $dutyRole };
+            }
+
+            my $sth_branches_mapping = $dbh->prepare($select_branches_mapping_query);
+            $sth_branches_mapping->execute();
+            while (my ($id, $branch, $organisationCode) = $sth_branches_mapping->fetchrow_array) {
+                push @branches_mapping, { id => $id, branchcode => $branch, organisationCode => $organisationCode };
+            }
+
+            my $sth = $dbh->prepare($select_query);
+            $sth->execute();
+            while (my ($name, $value) = $sth->fetchrow_array) {
+                $config_data->{$name} = $value;
+            }
+        };
+
+        if ($@) {
+            warn "Error fetching configuration: $@";
+        }
+
+
         if ($response_data && $data_endpoint eq "persons") {
             # my $result = Koha::Plugin::imCode::KohaSS12000::ExportUsers::Borrowers::fetchBorrowers(
             my $result = fetchBorrowers(
@@ -1031,7 +1062,9 @@ sub fetchDataFromAPI {
                     $response_page_token,
                     $data_hash,
                     $access_token,
-                    $api_url_base
+                    $api_url_base,
+                    @categories_mapping,
+                    @branches_mapping
                 );
 
             if (!defined $response_page_token || $response_page_token eq "") {
@@ -1190,7 +1223,9 @@ sub fetchBorrowers {
             $response_page_token,
             $data_hash,
             $access_token,
-            $api_url_base
+            $api_url_base,
+            @categories_mapping,
+            @branches_mapping
         ) = @_;
 
 
@@ -1204,7 +1239,30 @@ sub fetchBorrowers {
                     # GET {{fullUrl}}/duties?person=c96089fb-6da1-48a4-9a9f-bdc77a26487e HTTP/1.1
 
                     my $person_api_url = $api_url_base."duties?person=".$id;
-                    warn "get: ".getApiResponse($person_api_url, $access_token);
+                    my $response_data_person;
+                    my $duty_role;
+
+                    eval {
+                        $response_data_person = decode_json(getApiResponse($person_api_url, $access_token));
+                    };
+
+                    if (
+                            $response_data_person && 
+                            ref($response_data_person) eq 'HASH' && 
+                            $response_data_person->{data} && 
+                            ref($response_data_person->{data}) eq 'ARRAY' && 
+                            @{$response_data_person->{data}}
+                        ) {
+                        $duty_role = $response_data_person->{data}[0]->{dutyRole};
+                        if (defined $duty_role) {
+                            warn "get dutyRole: $duty_role";
+                        } else {
+                            warn "dutyRole is empty";
+                        }
+                    } else {
+                        warn "dutyRole is empty, set default value";
+                    }
+
 
                     # "enrolments": [
                     #     {

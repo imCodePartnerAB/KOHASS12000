@@ -1,0 +1,314 @@
+# For package Koha::Plugin::imCode::KohaSS12000::ExportUsers
+# Copyright (C) 2023 imCode, https://www.imcode.com, <info@imcode.com>
+# This file is distributed under the same license as the imCode::KohaSS12000::ExportUsers package.
+# Tkachuk Serge <tkachuk.serge@gmail.com>, 2023.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: 1.1\n"
+"Report-Msgid-Bugs-To: <tkachuk.serge@gmail.com>\n"
+"Last-Translator: Tkachuk Serge <tkachuk.serge@gmail.com> \n"
+"Language-Team: imCode.com \n"
+"Language: sv\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+
+
+
+msgid "Export Users from SS12000"
+msgstr "Export av användare från SS12000"
+
+
+msgid "Configuration imCode SS12000"
+msgstr "Konfiguration imCode SS12000"
+
+
+msgid "Home"
+msgstr "Hem"
+
+
+msgid "Plugins"
+msgstr "Hantera plugins"
+
+
+msgid "KohaSS12000 &rsaquo; Tool"
+msgstr "KohaSS12000 &rsaquo; Verktyg"
+
+
+msgid "KohaSS12000 &rsaquo; Configuration"
+msgstr "KohaSS12000 &rsaquo; Konfiguration"
+
+
+msgid "Configuration Settings"
+msgstr "Konfigurationsinställningar"
+
+
+msgid "Tool"
+msgstr "Verktyg"
+
+
+msgid "Action"
+msgstr "Åtgärder"
+
+
+msgid "Show user export log"
+msgstr "Visa exportlogg för användare"
+
+
+msgid "Show user export statistics"
+msgstr "Visa statistik för användarexport"
+
+
+msgid "Ok"
+msgstr "Okej"
+
+
+msgid "Logs Lines"
+msgstr "Loggar linjer"
+
+
+msgid "Page token Next"
+msgstr "Page token Nästa"
+
+
+msgid "Record Count"
+msgstr "Antal inspelningar"
+
+
+msgid "Response"
+msgstr "Svar"
+
+
+msgid "Data Status"
+msgstr "Status för data"
+
+
+msgid "Created At"
+msgstr "Skapad vid"
+
+
+msgid "Is Processed"
+msgstr "Har bearbetats"
+
+
+msgid "Data Hash"
+msgstr "Hash för data"
+
+
+msgid "Last 10 Statistics Lines"
+msgstr "Senaste 10 statistiska linjer"
+
+
+msgid "Added"
+msgstr "Tillagd"
+
+
+msgid "Updated"
+msgstr "Uppdaterad"
+
+
+msgid "Date"
+msgstr "Datum"
+
+
+msgid "Yes"
+msgstr "Ja"
+
+
+msgid "No"
+msgstr "Nej"
+
+
+msgid "Client ID"
+msgstr "Client ID"
+
+
+msgid "Client Secret"
+msgstr "Client Secret"
+
+
+msgid "Customer ID"
+msgstr "Customer ID"
+
+
+msgid "API URL"
+msgstr "API URL"
+
+
+msgid "OAUTH API URL"
+msgstr "URL för åtkomsttoken för hämtning"
+
+
+msgid "Koha Default Categorycode"
+msgstr "Koha Standard Kategorikod"
+
+
+msgid "Select a category"
+msgstr "Välj en kategori"
+
+
+msgid "When you change a parameter, it will be changed for all existing users in the next data update cycle"
+msgstr "När du ändrar en parameter kommer den att ändras för alla befintliga användare i nästa datauppdateringscykel"
+
+
+msgid "Koha Default Branchcode"
+msgstr "Koha Default Kontorskod"
+
+
+msgid "Choose a branch"
+msgstr "Välj en bransch"
+
+
+msgid "Debug Mode"
+msgstr "Debuggläge"
+
+
+msgid "If this option is enabled, then there will be more data in the Tool tab and the Response from the API will be put into the database in full"
+msgstr "Om detta alternativ är aktiverat kommer det att finnas mer data på fliken Verktyg och svaret från API:et kommer att läggas in i databasen i sin helhet"
+
+
+msgid "SS12000 API limit per page"
+msgstr "SS12000 API gräns per sida"
+
+
+msgid "10 or 20 - fast, 30 - normal, 100 - very slowly"
+msgstr "10 eller 20 - snabbt, 30 - normalt, 100 - mycket långsamt"
+
+
+msgid "CardNumber for Koha"
+msgstr "Kortnummer för Koha"
+
+
+msgid "CivicNo is used by default"
+msgstr "CivicNo används som standard"
+
+
+msgid "UserID for Koha"
+msgstr "Användar-ID för Koha"
+
+
+msgid "How many days to keep plugin logs"
+msgstr "Hur många dagar ska plugin-loggar sparas"
+
+
+msgid "The default value is 3 days"
+msgstr "Standardvärdet är 3 dagar"
+
+
+msgid "Save"
+msgstr "Spar"
+
+
+msgid "Please select values for both Koha Default Categorycode and Koha Default Branchcode"
+msgstr "Välj värden för både Koha Default Kontorskod och Koha Default Kontorskod"
+
+
+msgid "This plugin implements export users from SS12000"
+msgstr "Detta plugin implementerar exportanvändare från SS12000"
+
+
+msgid "Configuration successfully updated"
+msgstr "Konfigurationen har uppdaterats framgångsrikt"
+
+
+msgid "An error was detected"
+msgstr "Ett fel har upptäckts"
+
+
+msgid "KohaSS12000 &rsaquo; Error"
+msgstr "KohaSS12000 &rsaquo; Fel"
+
+
+msgid "Missing required module"
+msgstr "Saknar obligatorisk modul"
+
+
+msgid "Run in the server command line"
+msgstr "Kör i serverns kommandorad"
+
+
+msgid "Text copied to clipboard"
+msgstr "Text kopierad till urklipp"
+
+
+msgid "Show users data update"
+msgstr "Visa användardatauppdatering"
+
+
+msgid "Branches mapping and/or Categories mapping not configured correctly"
+msgstr "Grenmappning och/eller kategorimappning är inte korrekt konfigurerad"
+
+
+msgid "WARNING"
+msgstr "VARNING"
+
+
+msgid "Categories mapping"
+msgstr "Kategorier kartläggning"
+
+
+msgid "click here to mark this object for deletion"
+msgstr "klicka här för att markera detta objekt för radering"
+
+
+msgid "Add category mapping"
+msgstr "Lägg till kategorimappning"
+
+
+msgid "If need be added, enter existing dutyRole here"
+msgstr "Om det behövs, skriv in befintlig dutyRole här"
+
+
+msgid "Branches mapping"
+msgstr "Grenskartläggning"
+
+
+msgid "Add branch mapping"
+msgstr "Lägg till grenmappning"
+
+
+msgid "If need be added, enter existing organisationCode here"
+msgstr "Om det behövs, skriv in befintlig organisationskod här"
+
+
+msgid "Updates Lines"
+msgstr "Uppdaterar linjer"
+
+
+msgid "Search"
+msgstr "Sök"
+
+
+msgid "Nothing was found for your request"
+msgstr "Inget hittades för din begäran"
+
+
+msgid "User"
+msgstr "Användare"
+
+
+msgid "Change Description"
+msgstr "Ändra beskrivning"
+
+
+msgid "Change Timestamp"
+msgstr "Ändra tidsstämpel"
+
+
+msgid "Previous page"
+msgstr "Föregående sida"
+
+
+msgid "Next page"
+msgstr "Nästa sida"
+
+
+msgid "Last"
+msgstr "Sista"
+
+
+msgid "page"
+msgstr "sidan"
+

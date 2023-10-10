@@ -5,10 +5,10 @@
 sudo koha-foreach /usr/share/koha/bin/cronjobs/imcode_ss12000.pl
 
 # Go through all the pages in the API
-/var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run.sh
+/var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.sh
 
 # Examples of use in cron:
-*/40 */8 * * * root /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run.sh >> /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run.log
+*/40 */12 * * * root /bin/timeout 4h /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.sh >> /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.log
 
 # Additional, MULTIPLE KOHA SUPPORT:
 PERL5LIB=/usr/share/koha/lib

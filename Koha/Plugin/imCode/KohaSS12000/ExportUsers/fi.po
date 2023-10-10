@@ -1,0 +1,314 @@
+# For package Koha::Plugin::imCode::KohaSS12000::ExportUsers
+# Copyright (C) 2023 imCode, https://www.imcode.com, <info@imcode.com>
+# This file is distributed under the same license as the imCode::KohaSS12000::ExportUsers package.
+# Tkachuk Serge <tkachuk.serge@gmail.com>, 2023.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: 1.1\n"
+"Report-Msgid-Bugs-To: <tkachuk.serge@gmail.com>\n"
+"Last-Translator: Tkachuk Serge <tkachuk.serge@gmail.com> \n"
+"Language-Team: imCode.com \n"
+"Language: fi_FI\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+
+
+
+msgid "Export Users from SS12000"
+msgstr "Käyttäjien vienti SS12000:sta"
+
+
+msgid "Configuration imCode SS12000"
+msgstr "Konfigurointi imCode SS12000"
+
+
+msgid "Home"
+msgstr "Etusivu"
+
+
+msgid "Plugins"
+msgstr "Liitännäiset"
+
+
+msgid "KohaSS12000 &rsaquo; Tool"
+msgstr "KohaSS12000 &rsaquo; Työkalu"
+
+
+msgid "KohaSS12000 &rsaquo; Configuration"
+msgstr "KohaSS12000 &rsaquo; Konfigurointi"
+
+
+msgid "Configuration Settings"
+msgstr "Konfigurointiasetukset"
+
+
+msgid "Tool"
+msgstr "Työkalu"
+
+
+msgid "Action"
+msgstr "Toiminta"
+
+
+msgid "Show user export log"
+msgstr "Näytä käyttäjän vientiloki"
+
+
+msgid "Show user export statistics"
+msgstr "Näytä käyttäjän vientitilastot"
+
+
+msgid "Ok"
+msgstr "Okei"
+
+
+msgid "Logs Lines"
+msgstr "Lokit Linjat"
+
+
+msgid "Page token Next"
+msgstr "Sivun merkki Seuraava"
+
+
+msgid "Record Count"
+msgstr "Tietueiden määrä"
+
+
+msgid "Response"
+msgstr "Vastaus"
+
+
+msgid "Data Status"
+msgstr "Tietojen tila"
+
+
+msgid "Created At"
+msgstr "Luonut"
+
+
+msgid "Is Processed"
+msgstr "Käsitellään"
+
+
+msgid "Data Hash"
+msgstr "Data Hash"
+
+
+msgid "Last 10 Statistics Lines"
+msgstr "Viimeiset 10 tilastoriviä"
+
+
+msgid "Added"
+msgstr "Lisätty"
+
+
+msgid "Updated"
+msgstr "Päivitetty"
+
+
+msgid "Date"
+msgstr "Päivämäärä"
+
+
+msgid "Yes"
+msgstr "Kyllä"
+
+
+msgid "No"
+msgstr "Ei"
+
+
+msgid "Client ID"
+msgstr "Client ID"
+
+
+msgid "Client Secret"
+msgstr "Client Secret"
+
+
+msgid "Customer ID"
+msgstr "Customer ID"
+
+
+msgid "API URL"
+msgstr "API URL"
+
+
+msgid "OAUTH API URL"
+msgstr "URL-osoite tunnisteiden hakua varten"
+
+
+msgid "Koha Default Categorycode"
+msgstr "Koha Default Categorycode"
+
+
+msgid "Select a category"
+msgstr "Valitse luokka"
+
+
+msgid "When you change a parameter, it will be changed for all existing users in the next data update cycle"
+msgstr "Kun muutat parametria, se muuttuu kaikkien nykyisten käyttäjien osalta seuraavassa tietojen päivityssyklissä"
+
+
+msgid "Koha Default Branchcode"
+msgstr "Koha Default Branchcode"
+
+
+msgid "Choose a branch"
+msgstr "Valitse haara"
+
+
+msgid "Debug Mode"
+msgstr "Vianmääritystila"
+
+
+msgid "If this option is enabled, then there will be more data in the Tool tab and the Response from the API will be put into the database in full"
+msgstr "Jos tämä vaihtoehto on käytössä, Työkalu-välilehdellä on enemmän tietoja ja API:n vastaus tallennetaan tietokantaan kokonaisuudessaan"
+
+
+msgid "SS12000 API limit per page"
+msgstr "SS12000 API-raja sivua kohti"
+
+
+msgid "10 or 20 - fast, 30 - normal, 100 - very slowly"
+msgstr "10 tai 20 - nopeasti, 30 - normaalisti, 100 - hyvin hitaasti"
+
+
+msgid "CardNumber for Koha"
+msgstr "CardNumber for Koha"
+
+
+msgid "CivicNo is used by default"
+msgstr "CivicNo on oletusarvoisesti käytössä"
+
+
+msgid "UserID for Koha"
+msgstr "UserID for Koha"
+
+
+msgid "How many days to keep plugin logs"
+msgstr "Kuinka monta päivää pitää säilyttää plugin-lokit"
+
+
+msgid "The default value is 3 days"
+msgstr "Oletusarvo on 3 päivää"
+
+
+msgid "Save"
+msgstr "Tallenna"
+
+
+msgid "Please select values for both Koha Default Categorycode and Koha Default Branchcode"
+msgstr "Valitse arvot sekä Koha Default Categorycode että Koha Default Branchcode - koodeille"
+
+
+msgid "This plugin implements export users from SS12000"
+msgstr "Tämä lisäosa toteuttaa käyttäjien viennin SS12000:sta"
+
+
+msgid "Configuration successfully updated"
+msgstr "Konfiguraatio päivitetty onnistuneesti"
+
+
+msgid "An error was detected"
+msgstr "Virhe havaittiin"
+
+
+msgid "KohaSS12000 &rsaquo; Error"
+msgstr "KohaSS12000 &rsaquo; Virhe"
+
+
+msgid "Missing required module"
+msgstr "Puuttuva vaadittu moduuli"
+
+
+msgid "Run in the server command line"
+msgstr "Suorita palvelimen komentorivillä"
+
+
+msgid "Text copied to clipboard"
+msgstr "Leikepöydälle kopioitu teksti"
+
+
+msgid "Show users data update"
+msgstr "Näytä käyttäjien tietojen päivitys"
+
+
+msgid "Branches mapping and/or Categories mapping not configured correctly"
+msgstr "Haarojen kartoitusta ja/tai kategorioiden kartoitusta ei ole määritetty oikein"
+
+
+msgid "WARNING"
+msgstr "VAROITUS"
+
+
+msgid "Categories mapping"
+msgstr "Luokkien kartoitus"
+
+
+msgid "click here to mark this object for deletion"
+msgstr "napsauta tästä merkitäksesi tämän objektin poistettavaksi"
+
+
+msgid "Add category mapping"
+msgstr "Lisää luokkakartoitus"
+
+
+msgid "If need be added, enter existing dutyRole here"
+msgstr "Jos on lisättävä, kirjoita olemassa oleva dutyRole tähän"
+
+
+msgid "Branches mapping"
+msgstr "Haarojen kartoitus"
+
+
+msgid "Add branch mapping"
+msgstr "Lisää haarakartoitus"
+
+
+msgid "If need be added, enter existing organisationCode here"
+msgstr "Jos on lisättävä, kirjoita olemassa oleva organisaatiokoodi tähän"
+
+
+msgid "Updates Lines"
+msgstr "Päivitykset Lines"
+
+
+msgid "Search"
+msgstr "Hae"
+
+
+msgid "Nothing was found for your request"
+msgstr "Pyyntöllesi ei löytynyt mitään"
+
+
+msgid "User"
+msgstr "Käyttäjä"
+
+
+msgid "Change Description"
+msgstr "Muuta kuvausta"
+
+
+msgid "Change Timestamp"
+msgstr "Muuta aikaleimaa"
+
+
+msgid "Previous page"
+msgstr "Edellinen sivu"
+
+
+msgid "Next page"
+msgstr "Seuraava sivu"
+
+
+msgid "Last"
+msgstr "Viimeinen"
+
+
+msgid "page"
+msgstr "sivu"
+

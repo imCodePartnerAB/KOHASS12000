@@ -1,0 +1,314 @@
+# For package Koha::Plugin::imCode::KohaSS12000::ExportUsers
+# Copyright (C) 2023 imCode, https://www.imcode.com, <info@imcode.com>
+# This file is distributed under the same license as the imCode::KohaSS12000::ExportUsers package.
+# Tkachuk Serge <tkachuk.serge@gmail.com>, 2023.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: 1.1\n"
+"Report-Msgid-Bugs-To: <tkachuk.serge@gmail.com>\n"
+"Last-Translator: Tkachuk Serge <tkachuk.serge@gmail.com> \n"
+"Language-Team: imCode.com \n"
+"Language: \n"
+"MIME-Version: \n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit"
+
+
+
+#: ExportUsers.pm:52
+msgid "Export Users from SS12000"
+msgstr ""
+
+#: config.tt:3 tool.tt:3 error.tt:3
+msgid "Configuration imCode SS12000"
+msgstr ""
+
+#: config.tt:13 tool.tt:13 error.tt:13
+msgid "Home"
+msgstr ""
+
+#: config.tt:14 tool.tt:14 error.tt:14
+msgid "Plugins"
+msgstr ""
+
+#: tool.tt:15
+msgid "KohaSS12000 &rsaquo; Tool"
+msgstr ""
+
+#: config.tt:15
+msgid "KohaSS12000 &rsaquo; Configuration"
+msgstr ""
+
+#: config.tt:23
+msgid "Configuration Settings"
+msgstr ""
+
+#: tool.tt:23
+msgid "Tool"
+msgstr ""
+
+#: tool.tt:28
+msgid "Action"
+msgstr ""
+
+#: tool.tt:31
+msgid "Show user export log"
+msgstr ""
+
+#: tool.tt:32
+msgid "Show user export statistics"
+msgstr ""
+
+#: tool.tt:43
+msgid "Ok"
+msgstr ""
+
+#: tool.tt:51
+msgid "Logs Lines"
+msgstr ""
+
+#: tool.tt:56
+msgid "Page token Next"
+msgstr ""
+
+#: tool.tt:57
+msgid "Record Count"
+msgstr ""
+
+#: tool.tt:58
+msgid "Response"
+msgstr ""
+
+#: tool.tt:59
+msgid "Data Status"
+msgstr ""
+
+#: tool.tt:60
+msgid "Created At"
+msgstr ""
+
+#: tool.tt:61
+msgid "Is Processed"
+msgstr ""
+
+#: tool.tt:62
+msgid "Data Hash"
+msgstr ""
+
+#: tool.tt:83
+msgid "Last 10 Statistics Lines"
+msgstr ""
+
+#: tool.tt:87
+msgid "Added"
+msgstr ""
+
+#: tool.tt:88
+msgid "Updated"
+msgstr ""
+
+#: tool.tt:89
+msgid "Date"
+msgstr ""
+
+#: tool.tt:73
+msgid "Yes"
+msgstr ""
+
+#: tool.tt:73
+msgid "No"
+msgstr ""
+
+#: config.tt:28
+msgid "Client ID"
+msgstr ""
+
+#: config.tt:35
+msgid "Client Secret"
+msgstr ""
+
+#: config.tt:42
+msgid "Customer ID"
+msgstr ""
+
+#: config.tt:49
+msgid "API URL"
+msgstr ""
+
+#: config.tt:56
+msgid "OAUTH API URL"
+msgstr ""
+
+#: config.tt:63
+msgid "Koha Default Categorycode"
+msgstr ""
+
+#: config.tt:66, config.tt:118
+msgid "Select a category"
+msgstr ""
+
+#: config.tt:71 config.tt:84
+msgid "When you change a parameter, it will be changed for all existing users in the next data update cycle"
+msgstr ""
+
+#: config.tt:76
+msgid "Koha Default Branchcode"
+msgstr ""
+
+#: config.tt:79, config.tt:145
+msgid "Choose a branch"
+msgstr ""
+
+#: config.tt:156
+msgid "Debug Mode"
+msgstr ""
+
+#: config.tt:163
+msgid "If this option is enabled, then there will be more data in the Tool tab and the Response from the API will be put into the database in full"
+msgstr ""
+
+#: config.tt:168
+msgid "SS12000 API limit per page"
+msgstr ""
+
+#: config.tt:175
+msgid "10 or 20 - fast, 30 - normal, 100 - very slowly"
+msgstr ""
+
+#: config.tt:180
+msgid "CardNumber for Koha"
+msgstr ""
+
+#: config.tt:187, config.tt:199
+msgid "CivicNo is used by default"
+msgstr ""
+
+#: config.tt:192
+msgid "UserID for Koha"
+msgstr ""
+
+#: config.tt:204
+msgid "How many days to keep plugin logs"
+msgstr ""
+
+#: config.tt:211
+msgid "The default value is 3 days"
+msgstr ""
+
+#: config.tt:221
+msgid "Save"
+msgstr ""
+
+#: config.tt:247
+msgid "Please select values for both Koha Default Categorycode and Koha Default Branchcode"
+msgstr ""
+
+#: ExportUsers.pm:60
+msgid "This plugin implements export users from SS12000"
+msgstr ""
+
+#: ExportUsers.pm:228
+msgid "Configuration successfully updated"
+msgstr ""
+
+#: error.tt:23
+msgid "An error was detected"
+msgstr ""
+
+#: error.tt:15
+msgid "KohaSS12000 &rsaquo; Error"
+msgstr ""
+
+#: error.pm:26
+msgid "Missing required module"
+msgstr ""
+
+#: error.pm:27
+msgid "Run in the server command line"
+msgstr ""
+
+#: error.pm:38
+msgid "Text copied to clipboard"
+msgstr ""
+
+#: tool.tt:33
+msgid "Show users data update"
+msgstr ""
+
+#: config.tt:94
+msgid "Branches mapping and/or Categories mapping not configured correctly"
+msgstr ""
+
+#: config.tt:94
+msgid "WARNING"
+msgstr ""
+
+#: config.tt:100
+msgid "Categories mapping"
+msgstr ""
+
+#: config.tt:104, config.tt:131
+msgid "click here to mark this object for deletion"
+msgstr ""
+
+#: config.tt:114
+msgid "Add category mapping"
+msgstr ""
+
+#: config.tt:116
+msgid "If need be added, enter existing dutyRole here"
+msgstr ""
+
+#: config.tt:127
+msgid "Branches mapping"
+msgstr ""
+
+#: config.tt:141
+msgid "Add branch mapping"
+msgstr ""
+
+#: config.tt:143
+msgid "If need be added, enter existing organisationCode here"
+msgstr ""
+
+#: tool.tt:146
+msgid "Updates Lines"
+msgstr ""
+
+#: tool.tt:152, tool.tt:153, tool.tt:171, tool.tt:172
+msgid "Search"
+msgstr ""
+
+#: tool.tt:158
+msgid "Nothing was found for your request"
+msgstr ""
+
+#: tool.tt:180
+msgid "User"
+msgstr ""
+
+#: tool.tt:181
+msgid "Change Description"
+msgstr ""
+
+#: tool.tt:182
+msgid "Change Timestamp"
+msgstr ""
+
+#: tool.tt:204, tool.tt:77
+msgid "Previous page"
+msgstr ""
+
+#: tool.tt:235, tool.tt:108
+msgid "Next page"
+msgstr ""
+
+#: tool.tt:239, tool.tt:112
+msgid "Last"
+msgstr ""
+
+#: tool.tt:239, tool.tt:112
+msgid "page"
+msgstr ""
+

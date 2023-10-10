@@ -1,7 +1,7 @@
+[% USE gtx = Gettext('com.imcode.exportusers', language, mbf_path) %]
 [% INCLUDE 'doc-head-open.inc' %]
-    <title>Configuration imCode SS12000 </title>
+    <title>[% 'Configuration imCode SS12000' | gettext %]</title>
 [% INCLUDE 'doc-head-close.inc' %]
-
 
 </head>
 
@@ -10,9 +10,9 @@
 [% INCLUDE 'cat-search.inc' %]
 
 <div id="breadcrumbs">
-    <a href="/cgi-bin/koha/mainpage.pl">Home</a> &rsaquo; 
-    <a href="/cgi-bin/koha/plugins/plugins-home.pl">Plugins</a> &rsaquo;  
-    KohaSS12000 &rsaquo; Tool
+    <a href="/cgi-bin/koha/mainpage.pl">[% 'Home' | gettext %]</a> &rsaquo; 
+    <a href="/cgi-bin/koha/plugins/plugins-home.pl">[% 'Plugins' | gettext %]</a> &rsaquo;  
+    [% 'KohaSS12000 &rsaquo; Tool' | gettext %]
 </div>
 
 <div class="main container-fluid">
@@ -20,46 +20,39 @@
     <div class="col-sm-10 col-sm-push-2">
       <main>
 
-        <h1>Tool</h1>
+        <h1>[% 'Tool' | gettext %]</h1>
         <br/>
         <form method="post" action="#">
-
-            <div class="form-group row">
-                <label for="client_id" class="col-sm-2 col-form-label">Action:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="op">
-                        <option value="show-logs">Show user export log</option>
-                        <option value="show-stat">Show user export statistics</option>
-                    </select>
-                </div>
-            </div>
-
-
-            <input type="hidden" name="class" value="[% CLASS %]" />
-            <input type="hidden" name="method" value="[% METHOD %]" />
-
-            <div class="form-group row">
-                <div class="col-sm-4">
-                    <input type="submit" value="Ok" />
-                </div>
-            </div>
-
+            <table><tr>
+            <td>
+                <select class="form-control" name="op">
+                    <option value="show-logs" [% IF logs %]SELECTED[% END %]>[% 'Show user export log' | gettext %]</option>
+                    <option value="show-stat" [% IF stats %]SELECTED[% END %]>[% 'Show user export statistics' | gettext %]</option>
+                    <option value="show-updates" [% IF updates %]SELECTED[% END %]>[% 'Show users data update' | gettext %]</option>
+                </select>
+                <input type="hidden" name="class" value="[% CLASS %]" />
+                <input type="hidden" name="method" value="[% METHOD %]" />
+            </td>
+            <td>
+                <input type="submit" value="[% 'Ok' | gettext %]" />
+            </td>
+            </tr></table>
         </form>
 
         [% IF logs.size > 0 %]
         <br/>
-        <h2>Last 10 Logs Lines</h2>
+        <h2>[% 'Logs Lines' | gettext %]</h2>
         <table class="table table-striped">
             <thead>
                 <tr>
                     <th>ID</th>
-                    [% IF debug_mode == "Yes" %]<th>Page token Next</th>[% END %]
-                    <th>Record Count</th>
-                    [% IF debug_mode == "Yes" %]<th>Response</th>[% END %]
-                    [% IF debug_mode == "No" %]<th>Data Status</th>[% END %]
-                    <th>Created At</th>
-                    <th>Is Processed</th>
-                    <th>Data Hash</th>
+                    [% IF debug_mode == "Yes" %]<th>[% 'Page token Next' | gettext %]</th>[% END %]
+                    <th>[% 'Record Count' | gettext %]</th>
+                    [% IF debug_mode == "Yes" %]<th>[% 'Response' | gettext %]</th>[% END %]
+                    [% IF debug_mode == "No" %]<th>[% 'Data Status' | gettext %]</th>[% END %]
+                    <th>[% 'Created At' | gettext %]</th>
+                    <th>[% 'Is Processed' | gettext %]</th>
+                    <th>[% 'Data Hash' | gettext %]</th>
                 </tr>
             </thead>
             <tbody>
@@ -70,23 +63,70 @@
                         <td>[% log.record_count %]</td>
                         <td class="truncate-text">[% log.response %]</td>
                         <td>[% log.created_at %]</td>
-                        <td>[% IF log.is_processed == 1 %]Yes[% ELSE %]No[% END %]</td>
+                        <td>[% IF log.is_processed == 1 %][% 'Yes' | gettext %][% ELSE %][% 'No' | gettext %][% END %]</td>
                         <td>[% log.data_hash %]</td>
                     </tr>
                 [% END %]
             </tbody>
         </table>
+
+            [% IF total_pages>0 %]
+            <nav aria-label="Page navigation">
+                <ul class="pagination">
+                    [% IF prev_page >0 %]
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% prev_page %]">[% 'Previous page' | gettext %]</a></li>
+                    [% END %]
+
+                    [% SET max_pages = 10 %] 
+
+                    [% SET start_page = current_page - 5 %]
+                    [% SET end_page = current_page + 4 %]
+
+                    [% IF start_page < 1 %]
+                        [% SET start_page = 1 %]
+                        [% SET end_page = 10 %]
+                    [% ELSIF end_page > total_pages %]
+                        [% SET end_page = total_pages %]
+                        [% SET start_page = total_pages - 9 %]
+                    [% END %]
+
+                    [% SET page_number = start_page %] 
+
+                    [% WHILE page_number <= end_page %]
+                        [% IF page_number >= 1 && page_number <= total_pages %] 
+                            [% SET is_current = (page_number == current_page) %]
+                            <li class="page-item [% IF is_current %]active[% END %]">
+                                <a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% page_number %]">
+                                    [% page_number %]
+                                </a>
+                            </li>
+                        [% END %]
+                        [% SET page_number = page_number + 1 %] 
+                    [% END %]                   
+
+                    [% IF next_page >0 %]
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% next_page %]">[% 'Next page' | gettext %]</a></li>
+                    [% END %]
+
+                    [% IF total_pages>10 && next_page < total_pages - 1 && page_number < total_pages %]
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% total_pages %]">[% 'Last' | gettext %], [% total_pages %] [% 'page' | gettext %]</a></li>
+                    [% END %] 
+
+                </ul>
+            </nav>
+            [% END %]
+
         [% END %]
 
         [% IF stats.size > 0 %]
         <br/>
-        <h2>Last 10 Statistics Lines</h2>
+        <h2>[% 'Last 10 Statistics Lines' | gettext %]</h2>
         <table class="table table-striped">
             <thead>
                 <tr>
-                    <th>Added</th>
-                    <th>Updated</th>
-                    <th>Date</th>
+                    <th>[% 'Added' | gettext %]</th>
+                    <th>[% 'Updated' | gettext %]</th>
+                    <th>[% 'Date' | gettext %]</th>
                 </tr>
             </thead>
             <tbody>
@@ -100,6 +140,111 @@
             </tbody>
         </table>
         [% END %]
+
+        [% IF search && !updates %]
+        <br/>
+        <h2>[% 'Updates Lines' | gettext %]</h2>
+        <form method="post" action="#">
+                <input type="hidden" name="op" value="show-updates">
+                <input type="hidden" name="class" value="[% CLASS %]" />
+                <input type="hidden" name="method" value="[% METHOD %]" />
+                <table><tr>
+                <td><input type="search" name="search" class="form-control" id="datatable-search-input" placeholder="[% 'Search' | gettext %]" value="[% search %]"></td>
+                <td><input type="submit" value="[% 'Search' | gettext %]" /></td>
+                </tr></table>
+            <br/>
+        </form>            
+        <div class="alert alert-warning" role="alert">
+            [% 'Nothing was found for your request' | gettext %]
+        </div>
+        [% END %]
+
+        [% IF updates.size > 0 %]
+        <br/>
+        <h2>[% 'Updates Lines' | gettext %]</h2>
+
+        <form method="post" action="#">
+                <input type="hidden" name="op" value="show-updates">
+                <input type="hidden" name="class" value="[% CLASS %]" />
+                <input type="hidden" name="method" value="[% METHOD %]" />
+                <table><tr>
+                <td><input type="search" name="search" class="form-control" id="datatable-search-input" placeholder="[% 'Search' | gettext %]" value="[% search %]"></td>
+                <td><input type="submit" value="[% 'Search' | gettext %]" /></td>
+                </tr></table>
+            <br/>
+        </form>
+
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>[% 'User' | gettext %]</th>
+                    <th>[% 'Change Description' | gettext %]</th>
+                    <th>[% 'Change Timestamp' | gettext %]</th>
+                </tr>
+            </thead>
+            <tbody>
+                [% FOREACH update IN updates %]
+                    <tr>
+                        <td>
+                            <span class="js-update" title="Add to search">[% update.firstname %]</span> 
+                            <span class="js-update" title="Add to search">[% update.surname %]</span> 
+                            (borrowernumber: <a target="_blank" href="/cgi-bin/koha/members/moremember.pl?borrowernumber=[% update.record_id %]">[% update.record_id %])</a>
+                        </td>
+                        <td class="update">[% update.change_description %]</td>
+                        <td>[% update.change_timestamp %]</td>
+                    </tr>
+                [% END %]
+            </tbody>
+        </table>
+        
+            [% IF total_pages>0 %]
+            <nav aria-label="Page navigation">
+                <ul class="pagination">
+                    [% IF prev_page >0 %]
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% prev_page %]&search=[% search %]">[% 'Previous page' | gettext %]</a></li>
+                    [% END %]
+
+                    [% SET max_pages = 10 %] 
+
+                    [% SET start_page = current_page - 5 %]
+                    [% SET end_page = current_page + 4 %]
+
+                    [% IF start_page < 1 %]
+                        [% SET start_page = 1 %]
+                        [% SET end_page = 10 %]
+                    [% ELSIF end_page > total_pages %]
+                        [% SET end_page = total_pages %]
+                        [% SET start_page = total_pages - 9 %]
+                    [% END %]
+
+                    [% SET page_number = start_page %] 
+
+                    [% WHILE page_number <= end_page %]
+                        [% IF page_number >= 1 && page_number <= total_pages %] 
+                            [% SET is_current = (page_number == current_page) %]
+                            <li class="page-item [% IF is_current %]active[% END %]">
+                                <a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% page_number %]&search=[% search %]">
+                                    [% page_number %]
+                                </a>
+                            </li>
+                        [% END %]
+                        [% SET page_number = page_number + 1 %] 
+                    [% END %]
+
+                    [% IF next_page >0 %]
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% next_page %]&search=[% search %]">[% 'Next page' | gettext %]</a></li>
+                    [% END %]
+
+                    [% IF total_pages>10 && next_page < total_pages - 1 && page_number < total_pages %]
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% total_pages %]&search=[% search %]">[% 'Last' | gettext %], [% total_pages %] [% 'page' | gettext %]</a></li>
+                    [% END %]
+                    
+                </ul>
+            </nav>
+            [% END %]
+
+        [% END %]
+
 
       </main>
     </div>
@@ -121,8 +266,47 @@
       td.setAttribute("title", originalText);
     }
   });
+
+var tdElementsWithClass = document.querySelectorAll('td.update');
+tdElementsWithClass.forEach(function(td) {
+    var text = td.innerHTML.trim();
+    text = text.replace(/("[^"]*")/g, function(match, group) {
+        if (group) {
+            if (group === '""' || group === '"";') {
+                return group;
+            } else {
+                return '<span class="js-update">' + group + '</span>';
+            }
+        } else {
+            return match;
+        }
+    });
+    td.innerHTML = text;
+});
+
+var updateElements = document.querySelectorAll('.js-update');
+    updateElements.forEach(function(element) {
+        element.addEventListener('click', function() {
+            var clickedText = element.textContent.trim();
+            //var clickedText = element.textContent.trim().replace(/"/g, '');
+            var searchInput = document.querySelector('input[name="search"]');
+            searchInput.value = clickedText;
+        });
+});
+
 </script>
 
+<style>
+    .js-update {
+        cursor: pointer; 
+        text-decoration: underline; 
+        color: #004d99; 
+    }
+    .js-update:hover {
+        text-decoration: none; 
+        color: #538200;
+    }
+</style>
 
 [% INCLUDE 'intranet-bottom.inc' %]
 

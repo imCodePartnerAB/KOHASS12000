@@ -1,4 +1,3 @@
-"com.imcode.exportusers.pot" 1020L, 836C
 # For package Koha::Plugin::imCode::KohaSS12000::ExportUsers
 # Copyright (C) 2023 imCode, https://www.imcode.com, <info@imcode.com>
 # This file is distributed under the same license as the imCode::KohaSS12000::ExportUsers package.
@@ -145,63 +144,63 @@ msgstr ""
 msgid "Koha Default Categorycode"
 msgstr ""
 
-#: config.tt:66
+#: config.tt:66, config.tt:118
 msgid "Select a category"
 msgstr ""
 
 #: config.tt:71 config.tt:84
-msgid "If Update on UPDATE, then - When you change a parameter, it will be changed for all existing users in the next data update cycle"
+msgid "When you change a parameter, it will be changed for all existing users in the next data update cycle"
 msgstr ""
 
 #: config.tt:76
 msgid "Koha Default Branchcode"
 msgstr ""
 
-#: config.tt:79
+#: config.tt:79, config.tt:145
 msgid "Choose a branch"
 msgstr ""
 
-#: config.tt:89
+#: config.tt:156
 msgid "Debug Mode"
 msgstr ""
 
-#: config.tt:96
+#: config.tt:163
 msgid "If this option is enabled, then there will be more data in the Tool tab and the Response from the API will be put into the database in full"
 msgstr ""
 
-#: config.tt:101
+#: config.tt:168
 msgid "SS12000 API limit per page"
 msgstr ""
 
-#: config.tt:108
+#: config.tt:175
 msgid "10 or 20 - fast, 30 - normal, 100 - very slowly"
 msgstr ""
 
-#: config.tt:113
+#: config.tt:180
 msgid "CardNumber for Koha"
 msgstr ""
 
-#: config.tt:120 config.tt:132
+#: config.tt:187, config.tt:199
 msgid "CivicNo is used by default"
 msgstr ""
 
-#: config.tt:125
+#: config.tt:192
 msgid "UserID for Koha"
 msgstr ""
 
-#: config.tt:137
+#: config.tt:204
 msgid "How many days to keep plugin logs"
 msgstr ""
 
-#: config.tt:144
+#: config.tt:211
 msgid "The default value is 3 days"
 msgstr ""
 
-#: config.tt:154
+#: config.tt:221
 msgid "Save"
 msgstr ""
 
-#: config.tt:180
+#: config.tt:247
 msgid "Please select values for both Koha Default Categorycode and Koha Default Branchcode"
 msgstr ""
 
@@ -209,7 +208,7 @@ msgstr ""
 msgid "This plugin implements export users from SS12000"
 msgstr ""
 
-#: ExportUsers.pm:299
+#: ExportUsers.pm:228
 msgid "Configuration successfully updated"
 msgstr ""
 
@@ -237,10 +236,79 @@ msgstr ""
 msgid "Show users data update"
 msgstr ""
 
-#: config.tt:149
-msgid "Update on INSERT or UPDATE"
+#: config.tt:94
+msgid "Branches mapping and/or Categories mapping not configured correctly"
 msgstr ""
 
-#: config.tt:156
-msgid "Update <b>Koha Default Categorycode</b> and <b>Koha Default Branchcode</b> always, or only when adding a user"
+#: config.tt:94
+msgid "WARNING"
 msgstr ""
+
+#: config.tt:100
+msgid "Categories mapping"
+msgstr ""
+
+#: config.tt:104, config.tt:131
+msgid "click here to mark this object for deletion"
+msgstr ""
+
+#: config.tt:114
+msgid "Add category mapping"
+msgstr ""
+
+#: config.tt:116
+msgid "If need be added, enter existing dutyRole here"
+msgstr ""
+
+#: config.tt:127
+msgid "Branches mapping"
+msgstr ""
+
+#: config.tt:141
+msgid "Add branch mapping"
+msgstr ""
+
+#: config.tt:143
+msgid "If need be added, enter existing organisationCode here"
+msgstr ""
+
+#: tool.tt:146
+msgid "Updates Lines"
+msgstr ""
+
+#: tool.tt:152, tool.tt:153, tool.tt:171, tool.tt:172
+msgid "Search"
+msgstr ""
+
+#: tool.tt:158
+msgid "Nothing was found for your request"
+msgstr ""
+
+#: tool.tt:180
+msgid "User"
+msgstr ""
+
+#: tool.tt:181
+msgid "Change Description"
+msgstr ""
+
+#: tool.tt:182
+msgid "Change Timestamp"
+msgstr ""
+
+#: tool.tt:204, tool.tt:77
+msgid "Previous page"
+msgstr ""
+
+#: tool.tt:235, tool.tt:108
+msgid "Next page"
+msgstr ""
+
+#: tool.tt:239, tool.tt:112
+msgid "Last"
+msgstr ""
+
+#: tool.tt:239, tool.tt:112
+msgid "page"
+msgstr ""
+

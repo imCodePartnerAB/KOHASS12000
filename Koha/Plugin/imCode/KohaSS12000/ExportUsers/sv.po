@@ -7,249 +7,308 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 1.1\n"
 "Report-Msgid-Bugs-To: <tkachuk.serge@gmail.com>\n"
-"POT-Creation-Date: \n"
-"PO-Revision-Date: \n"
-"Last-Translator: \n"
-"Language-Team: imCode.com\n"
+"Last-Translator: Tkachuk Serge <tkachuk.serge@gmail.com> \n"
+"Language-Team: imCode.com \n"
 "Language: sv\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Poedit 3.3.2\n"
 
-#: ExportUsers.pm:52
+
+
+
 msgid "Export Users from SS12000"
 msgstr "Export av användare från SS12000"
 
-#: config.tt:3 tool.tt:3 error.tt:3
+
 msgid "Configuration imCode SS12000"
 msgstr "Konfiguration imCode SS12000"
 
-#: config.tt:13 tool.tt:13 error.tt:13
+
 msgid "Home"
 msgstr "Hem"
 
-#: config.tt:14 tool.tt:14 error.tt:14
+
 msgid "Plugins"
 msgstr "Hantera plugins"
 
-#: tool.tt:15
+
 msgid "KohaSS12000 &rsaquo; Tool"
 msgstr "KohaSS12000 &rsaquo; Verktyg"
 
-#: config.tt:15
+
 msgid "KohaSS12000 &rsaquo; Configuration"
 msgstr "KohaSS12000 &rsaquo; Konfiguration"
 
-#: config.tt:23
+
 msgid "Configuration Settings"
 msgstr "Konfigurationsinställningar"
 
-#: tool.tt:23
+
 msgid "Tool"
 msgstr "Verktyg"
 
-#: tool.tt:28
+
 msgid "Action"
 msgstr "Åtgärder"
 
-#: tool.tt:31
+
 msgid "Show user export log"
 msgstr "Visa exportlogg för användare"
 
-#: tool.tt:32
+
 msgid "Show user export statistics"
 msgstr "Visa statistik för användarexport"
 
-#: tool.tt:43
+
 msgid "Ok"
 msgstr "Okej"
 
-#: tool.tt:51
+
 msgid "Logs Lines"
 msgstr "Loggar linjer"
 
-#: tool.tt:56
+
 msgid "Page token Next"
 msgstr "Page token Nästa"
 
-#: tool.tt:57
+
 msgid "Record Count"
 msgstr "Antal inspelningar"
 
-#: tool.tt:58
+
 msgid "Response"
 msgstr "Svar"
 
-#: tool.tt:59
+
 msgid "Data Status"
 msgstr "Status för data"
 
-#: tool.tt:60
+
 msgid "Created At"
 msgstr "Skapad vid"
 
-#: tool.tt:61
+
 msgid "Is Processed"
 msgstr "Har bearbetats"
 
-#: tool.tt:62
+
 msgid "Data Hash"
 msgstr "Hash för data"
 
-#: tool.tt:83
+
 msgid "Last 10 Statistics Lines"
 msgstr "Senaste 10 statistiska linjer"
 
-#: tool.tt:87
+
 msgid "Added"
 msgstr "Tillagd"
 
-#: tool.tt:88
+
 msgid "Updated"
 msgstr "Uppdaterad"
 
-#: tool.tt:89
+
 msgid "Date"
 msgstr "Datum"
 
-#: tool.tt:73
+
 msgid "Yes"
 msgstr "Ja"
 
-#: tool.tt:73
+
 msgid "No"
 msgstr "Nej"
 
-#: config.tt:28
+
 msgid "Client ID"
 msgstr "Client ID"
 
-#: config.tt:35
+
 msgid "Client Secret"
 msgstr "Client Secret"
 
-#: config.tt:42
+
 msgid "Customer ID"
 msgstr "Customer ID"
 
-#: config.tt:49
+
 msgid "API URL"
 msgstr "API URL"
 
-#: config.tt:56
+
 msgid "OAUTH API URL"
 msgstr "URL för åtkomsttoken för hämtning"
 
-#: config.tt:63
+
 msgid "Koha Default Categorycode"
 msgstr "Koha Standard Kategorikod"
 
-#: config.tt:66
+
 msgid "Select a category"
 msgstr "Välj en kategori"
 
-#: config.tt:71 config.tt:84
-msgid "If Update on UPDATE, then - When you change a parameter, it will be changed for all existing users in the next data update cycle"
-msgstr ""
-"Om Uppdatering på UPDATE, då - När du ändrar en parameter kommer den att ändras för alla befintliga "
-"användare i nästa datauppdateringscykel"
 
-#: config.tt:76
+msgid "When you change a parameter, it will be changed for all existing users in the next data update cycle"
+msgstr "När du ändrar en parameter kommer den att ändras för alla befintliga användare i nästa datauppdateringscykel"
+
+
 msgid "Koha Default Branchcode"
 msgstr "Koha Default Kontorskod"
 
-#: config.tt:79
+
 msgid "Choose a branch"
 msgstr "Välj en bransch"
 
-#: config.tt:89
+
 msgid "Debug Mode"
 msgstr "Debuggläge"
 
-#: config.tt:96
-msgid ""
-"If this option is enabled, then there will be more data in the Tool tab and "
-"the Response from the API will be put into the database in full"
-msgstr ""
-"Om detta alternativ är aktiverat kommer det att finnas mer data på fliken "
-"Verktyg och svaret från API:et kommer att läggas in i databasen i sin helhet"
 
-#: config.tt:101
+msgid "If this option is enabled, then there will be more data in the Tool tab and the Response from the API will be put into the database in full"
+msgstr "Om detta alternativ är aktiverat kommer det att finnas mer data på fliken Verktyg och svaret från API:et kommer att läggas in i databasen i sin helhet"
+
+
 msgid "SS12000 API limit per page"
 msgstr "SS12000 API gräns per sida"
 
-#: config.tt:108
+
 msgid "10 or 20 - fast, 30 - normal, 100 - very slowly"
 msgstr "10 eller 20 - snabbt, 30 - normalt, 100 - mycket långsamt"
 
-#: config.tt:113
+
 msgid "CardNumber for Koha"
 msgstr "Kortnummer för Koha"
 
-#: config.tt:120 config.tt:132
+
 msgid "CivicNo is used by default"
 msgstr "CivicNo används som standard"
 
-#: config.tt:125
+
 msgid "UserID for Koha"
 msgstr "Användar-ID för Koha"
 
-#: config.tt:137
+
 msgid "How many days to keep plugin logs"
 msgstr "Hur många dagar ska plugin-loggar sparas"
 
-#: config.tt:144
+
 msgid "The default value is 3 days"
 msgstr "Standardvärdet är 3 dagar"
 
-#: config.tt:154
+
 msgid "Save"
 msgstr "Spar"
 
-#: config.tt:180
-msgid ""
-"Please select values for both Koha Default Categorycode and Koha Default "
-"Branchcode"
-msgstr ""
-"Välj värden för både Koha Default Kontorskod och Koha Default Kontorskod"
 
-#: ExportUsers.pm:60
+msgid "Please select values for both Koha Default Categorycode and Koha Default Branchcode"
+msgstr "Välj värden för både Koha Default Kontorskod och Koha Default Kontorskod"
+
+
 msgid "This plugin implements export users from SS12000"
 msgstr "Detta plugin implementerar exportanvändare från SS12000"
 
-#: ExportUsers.pm:299
+
 msgid "Configuration successfully updated"
 msgstr "Konfigurationen har uppdaterats framgångsrikt"
 
-#: error.tt:23
+
 msgid "An error was detected"
 msgstr "Ett fel har upptäckts"
 
-#: error.tt:15
+
 msgid "KohaSS12000 &rsaquo; Error"
 msgstr "KohaSS12000 &rsaquo; Fel"
 
-#: ExportUsers.pm:175
+
 msgid "Missing required module"
 msgstr "Saknar obligatorisk modul"
 
-#: ExportUsers.pm:176
+
 msgid "Run in the server command line"
 msgstr "Kör i serverns kommandorad"
 
-#: ExportUsers.pm:187
+
 msgid "Text copied to clipboard"
 msgstr "Text kopierad till urklipp"
 
-#: tool.tt:33
+
 msgid "Show users data update"
 msgstr "Visa användardatauppdatering"
 
-#: config.tt:149
-msgid "Update on INSERT or UPDATE"
-msgstr "Uppdatering vid INSERT eller UPDATE"
 
-#: config.tt:156
-msgid "Update <b>Koha Default Categorycode</b> and <b>Koha Default Branchcode</b> always, or only when adding a user"
-msgstr "Uppdatera <b>Koha Default Categorycode</b> och <b>Koha Default Branchcode</b> alltid, eller bara när du lägger till en användare"
+msgid "Branches mapping and/or Categories mapping not configured correctly"
+msgstr "Grenmappning och/eller kategorimappning är inte korrekt konfigurerad"
+
+
+msgid "WARNING"
+msgstr "VARNING"
+
+
+msgid "Categories mapping"
+msgstr "Kategorier kartläggning"
+
+
+msgid "click here to mark this object for deletion"
+msgstr "klicka här för att markera detta objekt för radering"
+
+
+msgid "Add category mapping"
+msgstr "Lägg till kategorimappning"
+
+
+msgid "If need be added, enter existing dutyRole here"
+msgstr "Om det behövs, skriv in befintlig dutyRole här"
+
+
+msgid "Branches mapping"
+msgstr "Grenskartläggning"
+
+
+msgid "Add branch mapping"
+msgstr "Lägg till grenmappning"
+
+
+msgid "If need be added, enter existing organisationCode here"
+msgstr "Om det behövs, skriv in befintlig organisationskod här"
+
+
+msgid "Updates Lines"
+msgstr "Uppdaterar linjer"
+
+
+msgid "Search"
+msgstr "Sök"
+
+
+msgid "Nothing was found for your request"
+msgstr "Inget hittades för din begäran"
+
+
+msgid "User"
+msgstr "Användare"
+
+
+msgid "Change Description"
+msgstr "Ändra beskrivning"
+
+
+msgid "Change Timestamp"
+msgstr "Ändra tidsstämpel"
+
+
+msgid "Previous page"
+msgstr "Föregående sida"
+
+
+msgid "Next page"
+msgstr "Nästa sida"
+
+
+msgid "Last"
+msgstr "Sista"
+
+
+msgid "page"
+msgstr "sidan"
+

@@ -7,250 +7,308 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 1.1\n"
 "Report-Msgid-Bugs-To: <tkachuk.serge@gmail.com>\n"
-"POT-Creation-Date: \n"
-"PO-Revision-Date: \n"
-"Last-Translator: \n"
-"Language-Team: imCode.com\n"
+"Last-Translator: Tkachuk Serge <tkachuk.serge@gmail.com> \n"
+"Language-Team: imCode.com \n"
 "Language: fi_FI\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Poedit 3.3.2\n"
 
-#: ExportUsers.pm:52
+
+
+
 msgid "Export Users from SS12000"
 msgstr "Käyttäjien vienti SS12000:sta"
 
-#: config.tt:3 tool.tt:3 error.tt:3
+
 msgid "Configuration imCode SS12000"
 msgstr "Konfigurointi imCode SS12000"
 
-#: config.tt:13 tool.tt:13 error.tt:13
+
 msgid "Home"
 msgstr "Etusivu"
 
-#: config.tt:14 tool.tt:14 error.tt:14
+
 msgid "Plugins"
 msgstr "Liitännäiset"
 
-#: tool.tt:15
+
 msgid "KohaSS12000 &rsaquo; Tool"
 msgstr "KohaSS12000 &rsaquo; Työkalu"
 
-#: config.tt:15
+
 msgid "KohaSS12000 &rsaquo; Configuration"
 msgstr "KohaSS12000 &rsaquo; Konfigurointi"
 
-#: config.tt:23
+
 msgid "Configuration Settings"
 msgstr "Konfigurointiasetukset"
 
-#: tool.tt:23
+
 msgid "Tool"
 msgstr "Työkalu"
 
-#: tool.tt:28
+
 msgid "Action"
 msgstr "Toiminta"
 
-#: tool.tt:31
+
 msgid "Show user export log"
 msgstr "Näytä käyttäjän vientiloki"
 
-#: tool.tt:32
+
 msgid "Show user export statistics"
 msgstr "Näytä käyttäjän vientitilastot"
 
-#: tool.tt:43
+
 msgid "Ok"
 msgstr "Okei"
 
-#: tool.tt:51
+
 msgid "Logs Lines"
 msgstr "Lokit Linjat"
 
-#: tool.tt:56
+
 msgid "Page token Next"
 msgstr "Sivun merkki Seuraava"
 
-#: tool.tt:57
+
 msgid "Record Count"
 msgstr "Tietueiden määrä"
 
-#: tool.tt:58
+
 msgid "Response"
 msgstr "Vastaus"
 
-#: tool.tt:59
+
 msgid "Data Status"
 msgstr "Tietojen tila"
 
-#: tool.tt:60
+
 msgid "Created At"
 msgstr "Luonut"
 
-#: tool.tt:61
+
 msgid "Is Processed"
 msgstr "Käsitellään"
 
-#: tool.tt:62
+
 msgid "Data Hash"
 msgstr "Data Hash"
 
-#: tool.tt:83
+
 msgid "Last 10 Statistics Lines"
 msgstr "Viimeiset 10 tilastoriviä"
 
-#: tool.tt:87
+
 msgid "Added"
 msgstr "Lisätty"
 
-#: tool.tt:88
+
 msgid "Updated"
 msgstr "Päivitetty"
 
-#: tool.tt:89
+
 msgid "Date"
 msgstr "Päivämäärä"
 
-#: tool.tt:73
+
 msgid "Yes"
 msgstr "Kyllä"
 
-#: tool.tt:73
+
 msgid "No"
 msgstr "Ei"
 
-#: config.tt:28
+
 msgid "Client ID"
 msgstr "Client ID"
 
-#: config.tt:35
+
 msgid "Client Secret"
 msgstr "Client Secret"
 
-#: config.tt:42
+
 msgid "Customer ID"
 msgstr "Customer ID"
 
-#: config.tt:49
+
 msgid "API URL"
 msgstr "API URL"
 
-#: config.tt:56
+
 msgid "OAUTH API URL"
 msgstr "URL-osoite tunnisteiden hakua varten"
 
-#: config.tt:63
+
 msgid "Koha Default Categorycode"
 msgstr "Koha Default Categorycode"
 
-#: config.tt:66
+
 msgid "Select a category"
 msgstr "Valitse luokka"
 
-#: config.tt:71 config.tt:84
-msgid "If Update on UPDATE, then - When you change a parameter, it will be changed for all existing users in the next data update cycle"
-msgstr ""
-"Jos Update on UPDATE, niin - Kun muutat parametria, se muuttuu kaikkien nykyisten käyttäjien osalta "
-"seuraavassa tietojen päivityssyklissä"
 
-#: config.tt:76
+msgid "When you change a parameter, it will be changed for all existing users in the next data update cycle"
+msgstr "Kun muutat parametria, se muuttuu kaikkien nykyisten käyttäjien osalta seuraavassa tietojen päivityssyklissä"
+
+
 msgid "Koha Default Branchcode"
 msgstr "Koha Default Branchcode"
 
-#: config.tt:79
+
 msgid "Choose a branch"
 msgstr "Valitse haara"
 
-#: config.tt:89
+
 msgid "Debug Mode"
 msgstr "Vianmääritystila"
 
-#: config.tt:96
-msgid ""
-"If this option is enabled, then there will be more data in the Tool tab and "
-"the Response from the API will be put into the database in full"
-msgstr ""
-"Jos tämä vaihtoehto on käytössä, Työkalu-välilehdellä on enemmän tietoja ja "
-"API:n vastaus tallennetaan tietokantaan kokonaisuudessaan"
 
-#: config.tt:101
+msgid "If this option is enabled, then there will be more data in the Tool tab and the Response from the API will be put into the database in full"
+msgstr "Jos tämä vaihtoehto on käytössä, Työkalu-välilehdellä on enemmän tietoja ja API:n vastaus tallennetaan tietokantaan kokonaisuudessaan"
+
+
 msgid "SS12000 API limit per page"
 msgstr "SS12000 API-raja sivua kohti"
 
-#: config.tt:108
+
 msgid "10 or 20 - fast, 30 - normal, 100 - very slowly"
 msgstr "10 tai 20 - nopeasti, 30 - normaalisti, 100 - hyvin hitaasti"
 
-#: config.tt:113
+
 msgid "CardNumber for Koha"
 msgstr "CardNumber for Koha"
 
-#: config.tt:120 config.tt:132
+
 msgid "CivicNo is used by default"
 msgstr "CivicNo on oletusarvoisesti käytössä"
 
-#: config.tt:125
+
 msgid "UserID for Koha"
 msgstr "UserID for Koha"
 
-#: config.tt:137
+
 msgid "How many days to keep plugin logs"
 msgstr "Kuinka monta päivää pitää säilyttää plugin-lokit"
 
-#: config.tt:144
+
 msgid "The default value is 3 days"
 msgstr "Oletusarvo on 3 päivää"
 
-#: config.tt:154
+
 msgid "Save"
 msgstr "Tallenna"
 
-#: config.tt:180
-msgid ""
-"Please select values for both Koha Default Categorycode and Koha Default "
-"Branchcode"
-msgstr ""
-"Valitse arvot sekä Koha Default Categorycode että Koha Default Branchcode -"
-"koodeille"
 
-#: ExportUsers.pm:60
+msgid "Please select values for both Koha Default Categorycode and Koha Default Branchcode"
+msgstr "Valitse arvot sekä Koha Default Categorycode että Koha Default Branchcode - koodeille"
+
+
 msgid "This plugin implements export users from SS12000"
 msgstr "Tämä lisäosa toteuttaa käyttäjien viennin SS12000:sta"
 
-#: ExportUsers.pm:299
+
 msgid "Configuration successfully updated"
 msgstr "Konfiguraatio päivitetty onnistuneesti"
 
-#: error.tt:23
+
 msgid "An error was detected"
 msgstr "Virhe havaittiin"
 
-#: error.tt:15
+
 msgid "KohaSS12000 &rsaquo; Error"
 msgstr "KohaSS12000 &rsaquo; Virhe"
 
-#: ExportUsers.pm:175
+
 msgid "Missing required module"
 msgstr "Puuttuva vaadittu moduuli"
 
-#: ExportUsers.pm:176
+
 msgid "Run in the server command line"
 msgstr "Suorita palvelimen komentorivillä"
 
-#: ExportUsers.pm:187
+
 msgid "Text copied to clipboard"
 msgstr "Leikepöydälle kopioitu teksti"
 
-#: tool.tt:33
+
 msgid "Show users data update"
 msgstr "Näytä käyttäjien tietojen päivitys"
 
-#: config.tt:149
-msgid "Update on INSERT or UPDATE"
-msgstr "Päivitys INSERT- tai UPDATE-toiminnolla"
 
-#: config.tt:156
-msgid "Update <b>Koha Default Categorycode</b> and <b>Koha Default Branchcode</b> always, or only when adding a user"
-msgstr "Päivitä <b>Koha Default Categorycode</b> ja <b>Koha Default Branchcode</b> aina tai vain käyttäjän lisäämisen yhteydessä"
+msgid "Branches mapping and/or Categories mapping not configured correctly"
+msgstr "Haarojen kartoitusta ja/tai kategorioiden kartoitusta ei ole määritetty oikein"
+
+
+msgid "WARNING"
+msgstr "VAROITUS"
+
+
+msgid "Categories mapping"
+msgstr "Luokkien kartoitus"
+
+
+msgid "click here to mark this object for deletion"
+msgstr "napsauta tästä merkitäksesi tämän objektin poistettavaksi"
+
+
+msgid "Add category mapping"
+msgstr "Lisää luokkakartoitus"
+
+
+msgid "If need be added, enter existing dutyRole here"
+msgstr "Jos on lisättävä, kirjoita olemassa oleva dutyRole tähän"
+
+
+msgid "Branches mapping"
+msgstr "Haarojen kartoitus"
+
+
+msgid "Add branch mapping"
+msgstr "Lisää haarakartoitus"
+
+
+msgid "If need be added, enter existing organisationCode here"
+msgstr "Jos on lisättävä, kirjoita olemassa oleva organisaatiokoodi tähän"
+
+
+msgid "Updates Lines"
+msgstr "Päivitykset Lines"
+
+
+msgid "Search"
+msgstr "Hae"
+
+
+msgid "Nothing was found for your request"
+msgstr "Pyyntöllesi ei löytynyt mitään"
+
+
+msgid "User"
+msgstr "Käyttäjä"
+
+
+msgid "Change Description"
+msgstr "Muuta kuvausta"
+
+
+msgid "Change Timestamp"
+msgstr "Muuta aikaleimaa"
+
+
+msgid "Previous page"
+msgstr "Edellinen sivu"
+
+
+msgid "Next page"
+msgstr "Seuraava sivu"
+
+
+msgid "Last"
+msgstr "Viimeinen"
+
+
+msgid "page"
+msgstr "sivu"
+

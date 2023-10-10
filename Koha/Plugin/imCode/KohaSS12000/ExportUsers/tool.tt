@@ -74,7 +74,7 @@
             <nav aria-label="Page navigation">
                 <ul class="pagination">
                     [% IF prev_page >0 %]
-                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% prev_page %]">Previous page</a></li>
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% prev_page %]">[% 'Previous page' | gettext %]</a></li>
                     [% END %]
 
                     [% SET max_pages = 10 %] 
@@ -105,11 +105,11 @@
                     [% END %]                   
 
                     [% IF next_page >0 %]
-                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% next_page %]">Next page</a></li>
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% next_page %]">[% 'Next page' | gettext %]</a></li>
                     [% END %]
 
                     [% IF total_pages>10 && next_page < total_pages - 1 && page_number < total_pages %]
-                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% total_pages %]">Last, [% total_pages %] page</a></li>
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-logs&page=[% total_pages %]">[% 'Last' | gettext %], [% total_pages %] [% 'page' | gettext %]</a></li>
                     [% END %] 
 
                 </ul>
@@ -149,13 +149,13 @@
                 <input type="hidden" name="class" value="[% CLASS %]" />
                 <input type="hidden" name="method" value="[% METHOD %]" />
                 <table><tr>
-                <td><input type="search" name="search" class="form-control" id="datatable-search-input" placeholder="Search" value="[% search %]"></td>
-                <td><input type="submit" value="Search" /></td>
+                <td><input type="search" name="search" class="form-control" id="datatable-search-input" placeholder="[% 'Search' | gettext %]" value="[% search %]"></td>
+                <td><input type="submit" value="[% 'Search' | gettext %]" /></td>
                 </tr></table>
             <br/>
         </form>            
         <div class="alert alert-warning" role="alert">
-            Nothing was found for your request
+            [% 'Nothing was found for your request' | gettext %]
         </div>
         [% END %]
 
@@ -168,8 +168,8 @@
                 <input type="hidden" name="class" value="[% CLASS %]" />
                 <input type="hidden" name="method" value="[% METHOD %]" />
                 <table><tr>
-                <td><input type="search" name="search" class="form-control" id="datatable-search-input" placeholder="Search" value="[% search %]"></td>
-                <td><input type="submit" value="Search" /></td>
+                <td><input type="search" name="search" class="form-control" id="datatable-search-input" placeholder="[% 'Search' | gettext %]" value="[% search %]"></td>
+                <td><input type="submit" value="[% 'Search' | gettext %]" /></td>
                 </tr></table>
             <br/>
         </form>
@@ -201,7 +201,7 @@
             <nav aria-label="Page navigation">
                 <ul class="pagination">
                     [% IF prev_page >0 %]
-                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% prev_page %]&search=[% search %]">Previous page</a></li>
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% prev_page %]&search=[% search %]">[% 'Previous page' | gettext %]</a></li>
                     [% END %]
 
                     [% SET max_pages = 10 %] 
@@ -232,11 +232,11 @@
                     [% END %]
 
                     [% IF next_page >0 %]
-                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% next_page %]&search=[% search %]">Next page</a></li>
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% next_page %]&search=[% search %]">[% 'Next page' | gettext %]</a></li>
                     [% END %]
 
                     [% IF total_pages>10 && next_page < total_pages - 1 && page_number < total_pages %]
-                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% total_pages %]&search=[% search %]">Last, [% total_pages %] page</a></li>
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=show-updates&page=[% total_pages %]&search=[% search %]">[% 'Last' | gettext %], [% total_pages %] [% 'page' | gettext %]</a></li>
                     [% END %]
                     
                 </ul>

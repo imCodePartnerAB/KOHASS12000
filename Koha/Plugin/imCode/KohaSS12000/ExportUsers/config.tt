@@ -22,7 +22,7 @@
 
         <h1>[% 'Configuration Settings' | gettext %]</h1>
         <br/>
-        <form method="post" action="#" onsubmit="return validateForm();">
+        <form method="post" action="" onsubmit="return validateForm();">
 
             <div class="form-group row">
                 <label for="client_id" class="col-sm-2 col-form-label">[% 'Client ID' | gettext %]:</label>

@@ -22,7 +22,7 @@
 
         <h1>[% 'Tool' | gettext %]</h1>
         <br/>
-        <form method="post" action="#">
+        <form method="post" action="">
             <table><tr>
             <td>
                 <select class="form-control" name="op">

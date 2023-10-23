@@ -19,7 +19,7 @@ binmode(STDIN, ":utf8");
 use Modern::Perl;
 use C4::Auth;
 use C4::Matcher;
-my $dbh = C4::Context->dbh;
+# my $dbh = C4::Context->dbh;
 
 use strict;
 use warnings;
@@ -96,6 +96,8 @@ sub new {
 
 sub install {
     my ( $self, $args ) = @_;
+
+    my $dbh = C4::Context->dbh;
 
     $self->store_data( { plugin_version => $VERSION } );
     $self->store_data({ '__INSTALLED_VERSION__' => $VERSION });
@@ -263,6 +265,8 @@ sub install {
 sub uninstall {
     my ( $self, $args ) = @_;
 
+    my $dbh = C4::Context->dbh;
+
     my @tables_to_delete = ($config_table, $logs_table); 
 
     eval {
@@ -282,6 +286,8 @@ sub uninstall {
 
 sub configure {
     my ($self, $args) = @_;
+
+    my $dbh = C4::Context->dbh;
 
     my $cgi = $self->{'cgi'};
 
@@ -585,6 +591,8 @@ sub xor_encrypt {
 sub tool {
     my ( $self, $args ) = @_;
     
+    my $dbh = C4::Context->dbh;
+
     my $cgi      = $self->{'cgi'};
     my $template = $self->get_template( { file => 'tool.tt' } );
 
@@ -839,6 +847,8 @@ sub cronjob {
 
 sub fetchDataFromAPI {
     my ($self, $data_endpoint) = @_;
+
+    my $dbh = C4::Context->dbh;
 
     if (verify_categorycode_and_branchcode() eq "No") {
         warn "WARNING: branches mapping and/or categories mapping not configured correctly";
@@ -1144,6 +1154,8 @@ sub getApiResponse {
 
 
 sub verify_categorycode_and_branchcode {
+    my $dbh = C4::Context->dbh;
+
     my $select_categories_mapping_query = qq{SELECT categorycode FROM $categories_mapping_table};
     my $select_branches_mapping_query = qq{SELECT branchcode FROM $branches_mapping_table};
 
@@ -1198,6 +1210,7 @@ sub fetchBorrowers {
             @branches_mapping
         ) = @_;
 
+    my $dbh = C4::Context->dbh;
 
             my $j = 1;
             for my $i (1..$api_limit) {
@@ -1455,6 +1468,8 @@ sub addOrUpdateBorrower {
         $externalIdentifier,
         ) = @_;
     
+    my $dbh = C4::Context->dbh;
+
     my $newUserID;
     my $newCardnumber;
 

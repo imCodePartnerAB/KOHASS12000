@@ -34,7 +34,7 @@
             <div class="form-group row">
                 <label for="client_secret" class="col-sm-2 col-form-label">[% 'Client Secret' | gettext %]:</label>
                 <div class="col-sm-4">
-                    <input type="text" class="form-control" id="client_secret" name="client_secret" value="[% client_secret %]" />
+                    <input type="text" class="form-control" id="client_secret" name="client_secret" value="" placeholder="enter a new value or leave it as is"/>
                 </div>
             </div>
 

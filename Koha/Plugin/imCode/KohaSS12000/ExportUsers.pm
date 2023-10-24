@@ -293,6 +293,9 @@ sub configure {
 
     my $op = $cgi->param('op') || '';
 
+    my $select_query = qq{SELECT name, value FROM $config_table};
+    my $config_data  = {};
+
     my $missing_modules = 0;
     eval {
             require URI::Encode;
@@ -320,7 +323,19 @@ sub configure {
 
     if ($op eq 'save-config') {
         my $client_id     = $cgi->param('client_id');
-        my $client_secret = xor_encrypt($cgi->param('client_secret'), $skey);
+        # client_secret
+        my $client_secret = $cgi->param('client_secret');
+        if (defined $client_secret && length($client_secret) > 0) {
+            $client_secret = xor_encrypt($client_secret, $skey);
+        } else {
+            my $sth = $dbh->prepare($select_query);
+            $sth->execute();
+            while (my ($name, $value) = $sth->fetchrow_array) {
+                $config_data->{$name} = $value;
+            }
+            $client_secret = $config_data->{ist_client_secret};
+        }
+        # /client_secret
         my $customerId    = $cgi->param('customerId');
         my $api_url       = $cgi->param('api_url');
         my $oauth_url     = $cgi->param('oauth_url');
@@ -497,9 +512,6 @@ sub configure {
             warn "Error updating configuration: $@";
         }
     }
-
-    my $select_query = qq{SELECT name, value FROM $config_table};
-    my $config_data  = {};
 
     my $select_categorycode_query = qq{SELECT categorycode FROM $categories_table};
     my $select_branchcode_query = qq{SELECT branchcode FROM $branches_table};

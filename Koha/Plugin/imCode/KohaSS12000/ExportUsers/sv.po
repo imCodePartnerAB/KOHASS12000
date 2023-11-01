@@ -97,8 +97,8 @@ msgid "Data Hash"
 msgstr "Hash för data"
 
 
-msgid "Last 10 Statistics Lines"
-msgstr "Senaste 10 statistiska linjer"
+msgid "Last Statistics Lines"
+msgstr "Senaste statistiska linjer"
 
 
 msgid "Added"

@@ -120,7 +120,7 @@
 
         [% IF stats.size > 0 %]
         <br/>
-        <h2>[% 'Last 10 Statistics Lines' | gettext %]</h2>
+        <h2>[% 'Last Statistics Lines' | gettext %]</h2>
         <table class="table table-striped">
             <thead>
                 <tr>

@@ -40,18 +40,17 @@ use Locale::Messages qw(:locale_h :libintl_h);
 use POSIX qw(setlocale);
 use Encode;
 
-# set locale settings for gettext
-my $self = new('Koha::Plugin::imCode::KohaSS12000::ExportUsers');
-my $cgi  = $self->{'cgi'};
-
-my $locale = C4::Languages::getlanguage($cgi);
-$locale = substr( $locale, 0, 2 );
-$ENV{'LANGUAGE'} = $locale;
-setlocale Locale::Messages::LC_ALL(), '';
-textdomain "com.imcode.exportusers";
-
-my $locale_path = abs_path( $self->mbf_path('translations') );
-bindtextdomain "com.imcode.exportusers" => $locale_path;
+our $config_table     = 'imcode_config';
+our $logs_table       = 'imcode_logs';
+our $skey             = 'Uq9crAvPDNkkQcXAwsEHkjGwBwnSvDPC';  # Encryption key for ist_client_secret, change it if necessary
+our $borrowers_table  = 'borrowers'; # Koha users table
+our $categories_table = 'categories'; # Koha categories table
+our $branches_table   = 'branches'; # Koha branches table
+our $data_change_log_table    = 'imcode_data_change_log';
+our $categories_mapping_table = 'imcode_categories_mapping';
+our $branches_mapping_table   = 'imcode_branches_mapping';
+our $added_count      = 0; # to count added
+our $updated_count    = 0; # to count updated
 
 our $VERSION = "1.2";
 
@@ -66,17 +65,18 @@ our $metadata = {
     description     => getTranslation('This plugin implements export users from SS12000')
 };
 
-our $config_table     = 'imcode_config';
-our $logs_table       = 'imcode_logs';
-our $skey             = 'Uq9crAvPDNkkQcXAwsEHkjGwBwnSvDPC';  # Encryption key for ist_client_secret, change it if necessary
-our $borrowers_table  = 'borrowers'; # Koha users table
-our $categories_table = 'categories'; # Koha categories table
-our $branches_table   = 'branches'; # Koha branches table
-our $data_change_log_table    = 'imcode_data_change_log';
-our $categories_mapping_table = 'imcode_categories_mapping';
-our $branches_mapping_table   = 'imcode_branches_mapping';
-our $added_count      = 0; # to count added
-our $updated_count    = 0; # to count updated
+# set locale settings for gettext
+my $self = new('Koha::Plugin::imCode::KohaSS12000::ExportUsers');
+my $cgi  = $self->{'cgi'};
+
+my $locale = C4::Languages::getlanguage($cgi);
+$locale = substr( $locale, 0, 2 );
+$ENV{'LANGUAGE'} = $locale;
+setlocale Locale::Messages::LC_ALL(), '';
+textdomain "com.imcode.exportusers";
+
+my $locale_path = abs_path( $self->mbf_path('translations') );
+bindtextdomain "com.imcode.exportusers" => $locale_path;
 
 sub new {
     my ( $class, $args ) = @_;
@@ -98,18 +98,14 @@ sub install {
 
     my $dbh = C4::Context->dbh;
 
-    $self->store_data( { plugin_version => $VERSION } );
-    # $self->store_data({ '__INSTALLED_VERSION__' => $VERSION });
-
-    # UNIQUE KEY unique_name_value (name, value)
-    # UNIQUE KEY unique_branchcode_organisationCode (categorycode, dutyRole)
-    # UNIQUE KEY unique_branchcode_organisationCode (branchcode, organisationCode)
+    $self->store_data( { plugin_version => $Koha::Plugin::imCode::KohaSS12000::ExportUsers::VERSION || '1.0' } );
 
     my @installer_statements = (
     qq{CREATE TABLE IF NOT EXISTS imcode_config (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
-        value VARCHAR(255) NOT NULL
+        value VARCHAR(255) NOT NULL,
+        UNIQUE KEY unique_name_value (name, value)
     );},
     qq{CREATE TABLE IF NOT EXISTS imcode_data_change_log (
         log_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -122,12 +118,14 @@ sub install {
     qq{CREATE TABLE IF NOT EXISTS imcode_categories_mapping (
         id INT AUTO_INCREMENT PRIMARY KEY,
         categorycode VARCHAR(10) NOT NULL,
-        dutyRole VARCHAR(120) NOT NULL
+        dutyRole VARCHAR(120) NOT NULL,
+        UNIQUE KEY unique_branchcode_organisationCode (categorycode, dutyRole)
     );},
     qq{CREATE TABLE IF NOT EXISTS imcode_branches_mapping (
         id INT AUTO_INCREMENT PRIMARY KEY,
         branchcode VARCHAR(10) NOT NULL,
-        organisationCode VARCHAR(120) NOT NULL
+        organisationCode VARCHAR(120) NOT NULL,
+        UNIQUE KEY unique_branchcode_organisationCode (branchcode, organisationCode)
     );},        
     qq{CREATE TABLE IF NOT EXISTS imcode_logs (
         id INT AUTO_INCREMENT PRIMARY KEY,

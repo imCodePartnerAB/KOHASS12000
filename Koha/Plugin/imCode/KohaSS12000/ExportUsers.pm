@@ -19,7 +19,6 @@ binmode(STDIN, ":utf8");
 use Modern::Perl;
 use C4::Auth;
 use C4::Matcher;
-# my $dbh = C4::Context->dbh;
 
 use strict;
 use warnings;
@@ -54,13 +53,13 @@ textdomain "com.imcode.exportusers";
 my $locale_path = abs_path( $self->mbf_path('translations') );
 bindtextdomain "com.imcode.exportusers" => $locale_path;
 
-our $VERSION = "1.1";
+our $VERSION = "1.2";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2023-10-09',
+    date_updated    => '2023-11-16',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -100,15 +99,19 @@ sub install {
     my $dbh = C4::Context->dbh;
 
     $self->store_data( { plugin_version => $VERSION } );
-    $self->store_data({ '__INSTALLED_VERSION__' => $VERSION });
+    # $self->store_data({ '__INSTALLED_VERSION__' => $VERSION });
+
+    # UNIQUE KEY unique_name_value (name, value)
+    # UNIQUE KEY unique_branchcode_organisationCode (categorycode, dutyRole)
+    # UNIQUE KEY unique_branchcode_organisationCode (branchcode, organisationCode)
 
     my @installer_statements = (
-    qq{CREATE TABLE IF NOT EXISTS $config_table (
+    qq{CREATE TABLE IF NOT EXISTS imcode_config (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         value VARCHAR(255) NOT NULL
     );},
-    qq{CREATE TABLE IF NOT EXISTS $data_change_log_table (
+    qq{CREATE TABLE IF NOT EXISTS imcode_data_change_log (
         log_id INT AUTO_INCREMENT PRIMARY KEY,
         table_name VARCHAR(255),
         record_id INT,
@@ -116,17 +119,17 @@ sub install {
         change_description TEXT,
         change_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );},
-    qq{CREATE TABLE IF NOT EXISTS $categories_mapping_table (
+    qq{CREATE TABLE IF NOT EXISTS imcode_categories_mapping (
         id INT AUTO_INCREMENT PRIMARY KEY,
         categorycode VARCHAR(10) NOT NULL,
         dutyRole VARCHAR(120) NOT NULL
     );},
-    qq{CREATE TABLE IF NOT EXISTS $branches_mapping_table (
+    qq{CREATE TABLE IF NOT EXISTS imcode_branches_mapping (
         id INT AUTO_INCREMENT PRIMARY KEY,
         branchcode VARCHAR(10) NOT NULL,
         organisationCode VARCHAR(120) NOT NULL
     );},        
-    qq{CREATE TABLE IF NOT EXISTS $logs_table (
+    qq{CREATE TABLE IF NOT EXISTS imcode_logs (
         id INT AUTO_INCREMENT PRIMARY KEY,
         page_token_next text COLLATE utf8mb4_unicode_ci,
         response text COLLATE utf8mb4_unicode_ci,
@@ -136,23 +139,22 @@ sub install {
         data_hash varchar(255) DEFAULT NULL,
         created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
     );},
-    qq{INSERT INTO $config_table (name,value) VALUES ('ist_client_id','your_client_id');},
-    qq{INSERT INTO $config_table (name,value) VALUES ('ist_client_secret','');},
-    qq{INSERT INTO $config_table (name,value) VALUES ('ist_customer_id','your_customerId');},
-    qq{INSERT INTO $config_table (name,value) VALUES ('ist_api_url','https://api.ist.com');},
-    qq{INSERT INTO $config_table (name,value) VALUES ('ist_oauth_url','https://skolid.se/connect/token');},
-    qq{INSERT INTO $config_table (name,value) VALUES ('koha_default_categorycode','');},
-    qq{INSERT INTO $config_table (name,value) VALUES ('koha_default_branchcode','');},
-    qq{INSERT INTO $config_table (name,value) VALUES ('debug_mode','No');},
-    qq{INSERT INTO $config_table (name,value) VALUES ('api_limit','30');},
-    qq{INSERT INTO $config_table (name,value) VALUES ('cardnumberPlugin','civicNo');},
-    qq{INSERT INTO $config_table (name,value) VALUES ('useridPlugin','civicNo');},
-    qq{INSERT INTO $config_table (name,value) VALUES ('logs_limit','3');},
-    qq{INSERT INTO $categories_mapping_table (categorycode,dutyRole) VALUES ('SKOLA','Lärare');},
-    qq{INSERT INTO $categories_mapping_table (categorycode,dutyRole) VALUES ('PERSONAL','Kurator');},
-    qq{INSERT INTO $categories_mapping_table (categorycode,dutyRole) VALUES ('SKOLA','Rektor');},
-    qq{INSERT INTO $categories_mapping_table (categorycode,dutyRole) VALUES ('PERSONAL','Lärarassistent');},
-    qq{INSERT INTO $categories_mapping_table (categorycode,dutyRole) VALUES ('STANDARD','__default__');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('ist_client_id','your_client_id');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('ist_client_secret','');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('ist_customer_id','your_customerId');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('ist_api_url','https://api.ist.com');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('ist_oauth_url','https://skolid.se/connect/token');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('koha_default_categorycode','');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('koha_default_branchcode','');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('debug_mode','No');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('api_limit','30');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('cardnumberPlugin','civicNo');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('useridPlugin','civicNo');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('logs_limit','3');},
+    qq{INSERT INTO imcode_categories_mapping (categorycode,dutyRole) VALUES ('SKOLA','Lärare');},
+    qq{INSERT INTO imcode_categories_mapping (categorycode,dutyRole) VALUES ('PERSONAL','Kurator');},
+    qq{INSERT INTO imcode_categories_mapping (categorycode,dutyRole) VALUES ('SKOLA','Rektor');},
+    qq{INSERT INTO imcode_categories_mapping (categorycode,dutyRole) VALUES ('PERSONAL','Lärarassistent');},
     );
 
     eval {
@@ -169,9 +171,8 @@ sub install {
 
     # LOG trigger in SQL
     my $trigger_sql = qq{
-    DELIMITER //
     CREATE TRIGGER log_user_changes
-    AFTER UPDATE ON $borrowers_table
+    AFTER UPDATE ON borrowers
     FOR EACH ROW
     BEGIN
         DECLARE change_description TEXT;
@@ -241,12 +242,10 @@ sub install {
         END IF;
         
         IF change_description IS NOT NULL THEN
-            INSERT INTO $data_change_log_table (table_name, record_id, action, change_description)
-            VALUES ('$borrowers_table', NEW.borrowernumber, 'update', change_description);
+            INSERT INTO imcode_data_change_log (table_name, record_id, action, change_description)
+            VALUES ('borrowers', NEW.borrowernumber, 'update', change_description);
         END IF;
     END;
-    //
-    DELIMITER ;
     };
 
     eval {
@@ -267,13 +266,15 @@ sub uninstall {
 
     my $dbh = C4::Context->dbh;
 
-    my @tables_to_delete = ($config_table, $logs_table); 
+    my @tables_to_delete = ($config_table, $logs_table, $data_change_log_table, $categories_mapping_table, $branches_mapping_table); 
 
     eval {
         foreach my $table (@tables_to_delete) {
             my $table_deletion_query = "DROP TABLE IF EXISTS $table";
             $dbh->do($table_deletion_query);
         }
+        my $table_deletion_query = "DROP TRIGGER IF EXISTS log_user_changes";
+        $dbh->do($table_deletion_query);
     };
 
     if ($@) {
@@ -1168,6 +1169,9 @@ sub getApiResponse {
 sub verify_categorycode_and_branchcode {
     my $dbh = C4::Context->dbh;
 
+    $dbh->do("SET NAMES utf8mb4");
+    $dbh->do("SET CHARACTER SET utf8mb4");
+
     my $select_categories_mapping_query = qq{SELECT categorycode FROM $categories_mapping_table};
     my $select_branches_mapping_query = qq{SELECT branchcode FROM $branches_mapping_table};
 
@@ -1183,14 +1187,14 @@ sub verify_categorycode_and_branchcode {
 
         my $categorycode_in_categories_table_query = qq{
             SELECT categorycode FROM $categories_table
-            WHERE categorycode IN (SELECT categorycode FROM $categories_mapping_table)
+            WHERE categorycode COLLATE utf8mb4_swedish_ci IN (SELECT categorycode FROM $categories_mapping_table)
         };
 
         my $categorycode_in_categories_table = $dbh->selectall_arrayref($categorycode_in_categories_table_query);
 
         my $branchcode_in_branches_table_query = qq{
             SELECT branchcode FROM $branches_table
-            WHERE branchcode IN (SELECT branchcode FROM $branches_mapping_table)
+            WHERE branchcode COLLATE utf8mb4_swedish_ci IN (SELECT branchcode FROM $branches_mapping_table)
         };
 
         my $branchcode_in_branches_table = $dbh->selectall_arrayref($branchcode_in_branches_table_query);

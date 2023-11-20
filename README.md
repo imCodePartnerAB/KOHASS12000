@@ -39,7 +39,7 @@ Examples of use in cron:
 ```
 ![imcode_ss12000.pl](Doc/KohaSS12000Install_2.png)
 
-**run_ss12000.sh** the script has protection against re-running. It also has a runtime limit, which is 8 hours by default.
+**run_ss12000.sh** - the script has protection against re-running. It also has a runtime limit, which is **8 hours by default**.
 
 5. After you've added a script call to cron, you need to restart cron on the server running Koha:
 ```

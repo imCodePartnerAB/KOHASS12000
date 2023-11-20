@@ -50,7 +50,12 @@ sudo /etc/init.d/cron restart
 
 ![Configuration](Doc/KohaSS12000Configuration_sv.png)
 
+If you need to start parsing data right now and don't want to wait for the script to be called through the cron, run this command on the server:
+```
+/var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.sh >> /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.log
+```
 
+**defaultlibraryname** - this should be the name you gave when installing Koha
 
 
 Make your GitHub documentation look good, use [writing-on-github](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax)

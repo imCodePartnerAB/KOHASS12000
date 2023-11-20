@@ -21,14 +21,13 @@ Nov 17 2023:
 ```
 sudo service memcached restart ; sudo service koha-common restart
 ```
-2. Put script [Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/imcode_ss12000.pl](Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/imcode_ss12000.pl) to 
+2. Put perl script [Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/imcode_ss12000.pl](Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/imcode_ss12000.pl) to 
 ```
 /usr/share/koha/bin/cronjobs
 ```
 ![imcode_ss12000.pl](Doc/KohaSS12000Install_1.png)
 
-3. Go through all the pages in the API
-/var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.sh
+3. Shell script [run_ss12000.sh](Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.sh)
 
 Examples of use in cron:
 ```

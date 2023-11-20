@@ -18,6 +18,7 @@ Nov 17 2023:
 # KohaSS12000 › Installation and CRON
 
 1. Add the [latest version of the plugin](https://github.com/imCodePartnerAB/KOHASS12000/releases) to Koha
+
 ![to_Koha](Doc/KohaSS12000Install_0.png)
 
 2. Run this command on a server running Koha:

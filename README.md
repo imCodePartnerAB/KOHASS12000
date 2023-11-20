@@ -45,7 +45,7 @@ Examples of use in cron:
 sudo /etc/init.d/cron restart
 ```
 
-6. # KohaSS12000 › Configuration
+# KohaSS12000 › Configuration
 ![Configuration](Doc/KohaSS12000Configuration.png)
 
 ![Configuration](Doc/KohaSS12000Configuration_sv.png)

@@ -32,9 +32,19 @@ sudo service memcached restart ; sudo service koha-common restart
 
 Examples of use in cron:
 ```
-40 */12 * * * root /bin/timeout 8h /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.sh >> /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.log
+4 */12 * * * root /bin/timeout 8h /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.sh >> /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.log
 ```
 ![imcode_ss12000.pl](Doc/KohaSS12000Install_2.png)
+
+**run_ss12000.sh** the script has protection against re-running. It also has a runtime limit, which is 8 hours by default.
+
+4. After you've added a script call to cron, you need to restart cron on the server running Koha:
+```
+sudo /etc/init.d/cron restart
+```
+
+
+
 
 # KohaSS12000 › Configuration
 ![Configuration](Doc/KohaSS12000Configuration.png)

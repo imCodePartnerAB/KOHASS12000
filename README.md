@@ -17,17 +17,20 @@ Nov 17 2023:
 
 # KohaSS12000 › Installation and CRON
 
-1. Run this command on a server running Koha:
+1. Add the [latest version of the plugin](https://github.com/imCodePartnerAB/KOHASS12000/releases) to Koha
+![to_Koha](Doc/KohaSS12000Install_0.png)
+
+2. Run this command on a server running Koha:
 ```
 sudo service memcached restart ; sudo service koha-common restart
 ```
-2. Put perl script [Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/imcode_ss12000.pl](Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/imcode_ss12000.pl) to 
+3. Put perl script [Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/imcode_ss12000.pl](Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/imcode_ss12000.pl) to 
 ```
 /usr/share/koha/bin/cronjobs
 ```
 ![imcode_ss12000.pl](Doc/KohaSS12000Install_1.png)
 
-3. Shell script [run_ss12000.sh](Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.sh)
+4. Shell script [run_ss12000.sh](Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.sh)
 
 Examples of use in cron:
 ```
@@ -37,16 +40,17 @@ Examples of use in cron:
 
 **run_ss12000.sh** the script has protection against re-running. It also has a runtime limit, which is 8 hours by default.
 
-4. After you've added a script call to cron, you need to restart cron on the server running Koha:
+5. After you've added a script call to cron, you need to restart cron on the server running Koha:
 ```
 sudo /etc/init.d/cron restart
 ```
 
-
-
-
-# KohaSS12000 › Configuration
+6. # KohaSS12000 › Configuration
 ![Configuration](Doc/KohaSS12000Configuration.png)
 
 ![Configuration](Doc/KohaSS12000Configuration_sv.png)
 
+
+
+
+Make your GitHub documentation look good, use [writing-on-github](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax)

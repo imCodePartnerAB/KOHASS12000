@@ -27,17 +27,14 @@ sudo service memcached restart ; sudo service koha-common restart
 ```
 ![imcode_ss12000.pl](Doc/KohaSS12000Install_1.png)
 
-3. Perform one cycle of passing through the data in the API:
-```
-sudo koha-foreach /usr/share/koha/bin/cronjobs/imcode_ss12000.pl
-```
-
-4. Go through all the pages in the API
+3. Go through all the pages in the API
 /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.sh
-```
+
 Examples of use in cron:
+```
 40 */12 * * * root /bin/timeout 8h /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.sh >> /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.log
 ```
+![imcode_ss12000.pl](Doc/KohaSS12000Install_2.png)
 
 # KohaSS12000 › Configuration
 ![Configuration](Doc/KohaSS12000Configuration.png)

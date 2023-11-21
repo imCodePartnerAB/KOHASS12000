@@ -17,7 +17,7 @@ while true; do
     elapsed_time=$((current_time - start_time))
 
     if [ $elapsed_time -gt 28800 ]; then  # 4 hours = 4 * 3600 seconds = 14400, 8h = 28800
-        echo "$(date '+%Y-%m-%d %H:%M:%S') : Script has been running for more than 4 hours. Forcing termination."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') : Script has been running for more than 8 hours. Forcing termination."
         exit 1
     fi
 

@@ -142,7 +142,7 @@ msgstr "URL för åtkomsttoken för hämtning"
 
 
 msgid "Koha Default Categorycode"
-msgstr "Koha Standard Kategorikod"
+msgstr "Standard låntagarkategori"
 
 
 msgid "Select a category"
@@ -154,7 +154,7 @@ msgstr "När du ändrar en parameter kommer den att ändras för alla befintliga
 
 
 msgid "Koha Default Branchcode"
-msgstr "Koha Default Kontorskod"
+msgstr "Standard bibliotek"
 
 
 msgid "Choose a branch"
@@ -202,7 +202,7 @@ msgstr "Spar"
 
 
 msgid "Please select values for both Koha Default Categorycode and Koha Default Branchcode"
-msgstr "Välj värden för både Koha Default Kontorskod och Koha Default Kontorskod"
+msgstr "Välj värden för både Standard låntagarkategori och Standard bibliotek"
 
 
 msgid "This plugin implements export users from SS12000"
@@ -246,7 +246,7 @@ msgstr "VARNING"
 
 
 msgid "Categories mapping"
-msgstr "Kategorier kartläggning"
+msgstr "Mappning av låntagarkategorier"
 
 
 msgid "click here to mark this object for deletion"
@@ -254,7 +254,7 @@ msgstr "klicka här för att markera detta objekt för radering"
 
 
 msgid "Add category mapping"
-msgstr "Lägg till kategorimappning"
+msgstr "Lägg till mappning"
 
 
 msgid "If need be added, enter existing dutyRole here"
@@ -262,11 +262,11 @@ msgstr "Om det behövs, skriv in befintlig dutyRole här"
 
 
 msgid "Branches mapping"
-msgstr "Grenskartläggning"
+msgstr "Mappning av biblioteksenhet"
 
 
 msgid "Add branch mapping"
-msgstr "Lägg till grenmappning"
+msgstr "Lägg till mappning"
 
 
 msgid "If need be added, enter existing organisationCode here"

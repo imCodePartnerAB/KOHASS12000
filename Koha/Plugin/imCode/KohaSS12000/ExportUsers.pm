@@ -1330,11 +1330,11 @@ sub fetchBorrowers {
                             my $email_type  = $selectedEmail->{type};
                             if ($email_type eq "Privat") {
                                 if (defined $email_value) {
-                                    $email = lc($email_value);
+                                    $B_email = lc($email_value);
                                 }
                             } elsif ($email_type eq "Skola personal") {
                                 if (defined $email_value) {
-                                    $B_email = lc($email_value);
+                                    $email = lc($email_value);
                                 }
                             }
                         }

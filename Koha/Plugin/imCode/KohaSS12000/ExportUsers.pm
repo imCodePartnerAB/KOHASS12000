@@ -1592,6 +1592,19 @@ sub addOrUpdateBorrower {
                 $B_email,
                 $newUserID
             );
+
+            # 2023/12/28 borrower_attributes
+            my $insert_attr_query = qq{
+                INSERT INTO borrower_attributes (borrowernumber, code, attribute)
+                VALUES (?, ?, ?)
+            };
+            my $insert_attr_sth = $dbh->prepare($insert_attr_query);
+            my $borrowernumber = $dbh->last_insert_id(undef, undef, $borrowers_table, undef);
+            my $code = 'CL';
+            my $attribute = $borrowernumber;
+            $insert_attr_sth->execute($borrowernumber, $code, $attribute);
+            # end 2023/12/28
+
             $added_count++;
     }
 }

@@ -1062,7 +1062,7 @@ sub fetchDataFromAPI {
         }
 
         if ($response_data && $data_endpoint eq "persons") {
-            my $result = fetchBorrowers(
+                fetchBorrowers(
                     $response_data, 
                     $api_limit, 
                     $debug_mode, 
@@ -1226,7 +1226,7 @@ sub fetchBorrowers {
 
     my $dbh = C4::Context->dbh;
 
-            my $j = 1;
+            my $j = 0;
             for my $i (1..$api_limit) {
                 my $koha_categorycode = $koha_default_categorycode;
                 my $koha_branchcode = $koha_default_branchcode;
@@ -1234,6 +1234,29 @@ sub fetchBorrowers {
                 my $response_page_data = $response_data->{data}[$i-1];
                 if ($response_page_data) {
                     my $id = $response_page_data->{id};
+
+                    # start search "groupType": "Klass"
+                    my $person_groupMemberships_api_url = $api_url_base."persons/".$id."?expand=groupMemberships";
+                    my $response_data_groupMemberships;
+                    eval {
+                        $response_data_groupMemberships = decode_json(getApiResponse($person_groupMemberships_api_url, $access_token));
+                    };
+
+                    use DateTime;
+                    my $dt = DateTime->now;
+                    my $today = $dt->ymd;
+
+                    my $klass_displayName;
+                    foreach my $groupMembership (@{$response_data_groupMemberships ->{_embedded}->{groupMemberships}}) {
+                        my $group = $groupMembership->{group};
+                        #  "groupType" & "endDate"
+                        if ($group->{groupType} eq "Klass" && $group->{endDate} gt $today) {
+                            $klass_displayName = $group->{displayName};
+                            # warn "klass_displayName: ".$klass_displayName.", to date: ".$group->{endDate};
+                            last; 
+                        }
+                    }
+                    # end search "groupType": "Klass"
 
                     # my $api_url_base = "$ist_url/ss12000v2-api/source/$customerId/v2.0/";
                     # dutyRole @categories_mapping
@@ -1403,7 +1426,7 @@ sub fetchBorrowers {
 
                     if (!defined $email || $email eq "") { $email = undef; }
 
-                    my $result = addOrUpdateBorrower(
+                    addOrUpdateBorrower(
                             $cardnumber, 
                             $familyName, 
                             $givenName, 
@@ -1423,10 +1446,13 @@ sub fetchBorrowers {
                             $useridPlugin,
                             $cardnumberPlugin,
                             $externalIdentifier,
+                            $klass_displayName,
                         );
-                    if ($result) { $j++; }
+                    $j++;
                 } 
             }
+
+            # warn "j: $j";
 
             if ($j == $api_limit) {
                 if ($debug_mode eq "No") { 
@@ -1480,6 +1506,7 @@ sub addOrUpdateBorrower {
         $useridPlugin,
         $cardnumberPlugin,
         $externalIdentifier,
+        $klass_displayName,
         ) = @_;
     
     my $dbh = C4::Context->dbh;
@@ -1504,6 +1531,7 @@ sub addOrUpdateBorrower {
     my $select_sth = $dbh->prepare($select_query);
     $select_sth->execute($cardnumber, $externalIdentifier);
     my $existing_borrower = $select_sth->fetchrow_hashref;
+    my $borrowernumber;
 
     if ($existing_borrower) {
         # If the user exists, update their data
@@ -1548,8 +1576,8 @@ sub addOrUpdateBorrower {
                 $newCardnumber,
                 $existing_borrower->{'borrowernumber'}
             );
-
         $updated_count++;
+        $borrowernumber = $existing_borrower->{'borrowernumber'};
     } else {
         # If the user doesn't exist, insert their data
         my $insert_query = qq{
@@ -1592,20 +1620,46 @@ sub addOrUpdateBorrower {
                 $B_email,
                 $newUserID
             );
-
-            # 2023/12/28 borrower_attributes
-#            my $insert_attr_query = qq{
-#                INSERT INTO borrower_attributes (borrowernumber, code, attribute)
-#                VALUES (?, ?, ?)
-#            };
-#            my $insert_attr_sth = $dbh->prepare($insert_attr_query);
-#            my $borrowernumber = $dbh->last_insert_id(undef, undef, $borrowers_table, undef);
-#            my $code = 'CL';
-#            my $attribute = $borrowernumber;
-#            $insert_attr_sth->execute($borrowernumber, $code, $attribute);
-            # end 2023/12/28
-
             $added_count++;
+            $borrowernumber = $dbh->last_insert_id(undef, undef, $borrowers_table, undef);
+    }
+
+    if ($klass_displayName) {
+        # add to borrower_attributes
+        # warn "borrowernumber: $borrowernumber, klass_displayName: $klass_displayName";
+        my $code = 'CL';
+        my $attribute = $klass_displayName;
+
+        # Check if the record exists
+        my $check_query = qq{
+                SELECT attribute FROM borrower_attributes 
+                WHERE borrowernumber = ? AND code = ?
+                };
+        my $check_sth = $dbh->prepare($check_query);
+        $check_sth->execute($borrowernumber, $code);
+        my $existing_attribute = $check_sth->fetchrow_array();
+
+        if (defined $existing_attribute) {
+                # If the record exists but the attribute is different, update it
+                if ($existing_attribute ne $attribute) {
+                    my $update_query = qq{
+                        UPDATE borrower_attributes
+                        SET attribute = ?
+                        WHERE borrowernumber = ? AND code = ?
+                    };
+                    my $update_sth = $dbh->prepare($update_query);
+                    $update_sth->execute($attribute, $borrowernumber, $code);
+                }
+        } else {
+            # If there is no record, insert a new one
+            my $insert_query = qq{
+                        INSERT INTO borrower_attributes (borrowernumber, code, attribute)
+                        VALUES (?, ?, ?)
+                    };
+            my $insert_sth = $dbh->prepare($insert_query);
+            $insert_sth->execute($borrowernumber, $code, $attribute);
+        }
+        # end borrower_attributes
     }
 }
 

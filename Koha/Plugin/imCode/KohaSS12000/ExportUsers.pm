@@ -52,13 +52,13 @@ our $branches_mapping_table   = 'imcode_branches_mapping';
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 
-our $VERSION = "1.2";
+our $VERSION = "1.3";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2023-11-16',
+    date_updated    => '2024-01-10',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -1629,6 +1629,24 @@ sub addOrUpdateBorrower {
         # warn "borrowernumber: $borrowernumber, klass_displayName: $klass_displayName";
         my $code = 'CL';
         my $attribute = $klass_displayName;
+
+        # Check if an entry exists in borrower_attribute_types
+        my $check_types_query = qq{
+            SELECT 1 FROM borrower_attribute_types WHERE code = ?
+        };
+        my $check_types_sth = $dbh->prepare($check_types_query);
+        $check_types_sth->execute($code);
+        my ($exists) = $check_types_sth->fetchrow_array();
+
+        unless ($exists) {
+            # If there is no record, insert it
+            my $insert_types_query = qq{
+                INSERT INTO borrower_attribute_types (code, description, repeatable, unique_id, opac_display, opac_editable, staff_searchable, authorised_value_category, display_checkout, category_code, class, keep_for_pseudonymization, mandatory)
+                VALUES ('CL', 'Klass', 0, 0, 0, 0, 0, '', 0, NULL, '', 0, 0)
+            };
+            my $insert_types_sth = $dbh->prepare($insert_types_query);
+            $insert_types_sth->execute();
+        }
 
         # Check if the record exists
         my $check_query = qq{

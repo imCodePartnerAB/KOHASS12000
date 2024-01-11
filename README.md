@@ -11,7 +11,7 @@ Plugin and cron jobs for importing SS12000 v 1.1
 
 Jan 11 2023:
 
-[1.3 version of koha-plugin-export-users_ss12000](https://github.com/imCodePartnerAB/KOHASS12000/releases/tag/v17.11.2023)
+[1.3 version of koha-plugin-export-users_ss12000](https://github.com/imCodePartnerAB/KOHASS12000/releases/tag/v11.01.2024)
 
 
 

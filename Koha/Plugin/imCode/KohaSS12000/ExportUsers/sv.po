@@ -312,3 +312,22 @@ msgstr "Sista"
 msgid "page"
 msgstr "sidan"
 
+
+msgid "To delete an item from the list, select the checkbox of the item to be deleted"
+msgstr "Om du vill ta bort ett objekt från listan markerar du kryssrutan för det objekt som ska tas bort"
+
+
+msgid "Click to mark for deletion"
+msgstr "Klicka för att markera för radering"
+
+
+msgid "Click to mark do not import"
+msgstr "Klicka för att markera importera inte"
+
+
+msgid "Delete"
+msgstr "Radera"
+
+
+msgid "Do not import"
+msgstr "Importera inte"

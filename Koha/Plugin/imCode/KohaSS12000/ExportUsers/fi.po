@@ -312,3 +312,22 @@ msgstr "Viimeinen"
 msgid "page"
 msgstr "sivu"
 
+
+msgid "To delete an item from the list, select the checkbox of the item to be deleted"
+msgstr "Jos haluat poistaa kohteen luettelosta, valitse poistettavan kohteen valintaruutu"
+
+
+msgid "Click to mark for deletion"
+msgstr "Merkitse poistettavaksi napsauttamalla"
+
+
+msgid "Click to mark do not import"
+msgstr "Merkitse älä tuo tuontia napsauttamalla"
+
+
+msgid "Poistaa"
+msgstr ""
+
+
+msgid "Do not import"
+msgstr "Älä tuo maahan"

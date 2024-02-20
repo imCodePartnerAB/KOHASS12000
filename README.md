@@ -6,12 +6,12 @@ This is a plugin for [Koha](https://github.com/Koha-Community/Koha) by [imCode](
 
 It exports user data from the API in SS12000 format to your Koha database
 
-Plugin and cron jobs for importing SS12000 v 1.3
+Plugin and cron jobs for importing SS12000 v 1.31
 
 
-Jan 11 2023:
+2024 Feb 20:
 
-[1.3 version of koha-plugin-export-users_ss12000](https://github.com/imCodePartnerAB/KOHASS12000/releases/tag/v11.01.2024)
+[1.31 version of koha-plugin-export-users_ss12000](https://github.com/imCodePartnerAB/KOHASS12000/releases/tag/v20.02.2024)
 
 
 

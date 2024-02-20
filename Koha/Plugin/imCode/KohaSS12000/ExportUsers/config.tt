@@ -98,14 +98,29 @@
 
             <div class="form-group row">
                 <label class="col-sm-2 col-form-label">[% 'Categories mapping' | gettext %]:</label>
-                <div class="col-sm-4">
+                <div class="col-sm-8">
                     [% FOREACH category_mapping IN categories_mapping %]
-                        <p>
-                        <label for="category_del_[% category_mapping.id %]" style="font-weight:normal !important;" title="[% 'click here to mark this object for deletion' | gettext %]">
-                        <input type="checkbox" name="category_mapping_del[]" value="[% category_mapping.id %]" title="Delete" id="category_del_[% category_mapping.id %]">
-                        &nbsp;categoryCode: [% category_mapping.categorycode %], dutyRole: [% category_mapping.dutyRole %] 
-                        </label>
-                        </p>
+                        <div class="row mb-2 border-bottom">
+                            <div class="col-sm-8 col-md-3">
+                                <strong>Category Code:</strong> [% category_mapping.categorycode %]
+                            </div>
+                            <div class="col-sm-8 col-md-3">
+                                <strong>Duty Role:</strong> [% category_mapping.dutyRole %]
+                            </div>
+                            <div class="col-sm-2 col-md-2">
+                                <label for="category_del_[% category_mapping.id %]" class="form-check-label" title="[% 'Click to mark for deletion' | gettext %]">
+                                    <input type="checkbox" name="category_mapping_del[]" value="[% category_mapping.id %]" title="[% 'Delete' | gettext %]" id="category_del_[% category_mapping.id %]">
+                                    [% 'Delete' | gettext %]
+                                </label>
+                            </div>                            
+                            <div class="col-sm-4 col-md-3">
+                                <label for="category_not_import_[% category_mapping.id %]" class="form-check-label" title="[% 'Click to mark do not import' | gettext %]">
+                                    <input type="checkbox" name="category_mapping_not_import[]" value="[% category_mapping.id %]" title="[% 'Do not import' | gettext %]" id="category_not_import_[% category_mapping.id %]" [% IF category_mapping.not_import %]checked="checked"[% END %]>
+                                    [% 'Do not import' | gettext %]
+                                </label>
+                            </div>
+                            <hr>
+                        </div>
                     [% END %]
                 </div>
             </div>
@@ -125,17 +140,28 @@
 
             <div class="form-group row">
                 <label class="col-sm-2 col-form-label">[% 'Branches mapping' | gettext %]:</label>
-                <div class="col-sm-4">
+                <div class="col-sm-8">
                     [% FOREACH branch_mapping IN branches_mapping %]
-                        <p>
-                        <label for="branch_del_[% branch_mapping.id %]" style="font-weight:normal !important;" title="[% 'click here to mark this object for deletion' | gettext %]">
-                        <input type="checkbox" name="branch_mapping_del[]" value="[% branch_mapping.id %]" title="Delete" id="branch_del_[% branch_mapping.id %]">
-                        &nbsp;branchcode: [% branch_mapping.branchcode %], organisationCode: [% branch_mapping.organisationCode %]
-                        </label>
-                        </p>
+                        <div class="row mb-2 border-bottom">
+                            <div class="col-sm-8 col-md-3">
+                                <strong>Branch Code:</strong> [% branch_mapping.branchcode %]
+                            </div>
+                            <div class="col-sm-8 col-md-3">
+                                <strong>Organisation Code:</strong> [% branch_mapping.organisationCode %]
+                            </div>
+                            <div class="col-sm-2 col-md-2">
+                                <label for="branch_del_[% branch_mapping.id %]" class="form-check-label" title="[% 'Click to mark for deletion' | gettext %]">
+                                    <input type="checkbox" name="branch_mapping_del[]" value="[% branch_mapping.id %]" title="Delete" id="branch_del_[% branch_mapping.id %]">
+                                    Delete
+                                </label>
+                            </div>                            
+                            <hr>
+                        </div>
                     [% END %]
+                    <p class="text-info">[% 'To delete an item from the list, select the checkbox of the item to be deleted' | gettext %]</p>
                 </div>
             </div>
+
 
             <div class="form-group row" id="div_new_branch_mapping">
                 <label for="new_organisationCode_mapping" class="col-sm-2 col-form-label">[% 'Add branch mapping' | gettext %]:</label>

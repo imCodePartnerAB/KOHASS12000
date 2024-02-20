@@ -312,3 +312,26 @@ msgstr ""
 msgid "page"
 msgstr ""
 
+#: config.tt:161
+msgid "To delete an item from the list, select the checkbox of the item to be deleted"
+msgstr ""
+
+
+#: config.tt:111
+msgid "Click to mark for deletion"
+msgstr ""
+
+
+#: config.tt:117
+msgid "Click to mark do not import"
+msgstr ""
+
+
+#: config.tt:112, config.tt:113
+msgid "Delete"
+msgstr ""
+
+
+#: config.tt:118, config.tt:119
+msgid "Do not import"
+msgstr ""

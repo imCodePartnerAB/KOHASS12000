@@ -52,13 +52,13 @@ our $branches_mapping_table   = 'imcode_branches_mapping';
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 
-our $VERSION = "1.3";
+our $VERSION = "1.31";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2024-01-10',
+    date_updated    => '2024-02-20',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -119,6 +119,7 @@ sub install {
         id INT AUTO_INCREMENT PRIMARY KEY,
         categorycode VARCHAR(10) NOT NULL,
         dutyRole VARCHAR(120) NOT NULL,
+        not_import tinyint(1) DEFAULT NULL,
         UNIQUE KEY unique_branchcode_organisationCode (categorycode, dutyRole)
     );},
     qq{CREATE TABLE IF NOT EXISTS imcode_branches_mapping (
@@ -354,6 +355,23 @@ sub configure {
 
         my @category_mapping_del = $cgi->multi_param('category_mapping_del[]');
         my @branch_mapping_del   = $cgi->multi_param('branch_mapping_del[]');
+        my @category_mapping_not_import = $cgi->multi_param('category_mapping_not_import[]');
+
+        # update not_import
+        my $update_category_query = qq{UPDATE $categories_mapping_table SET not_import = NULL};
+        $dbh->do($update_category_query);
+        if (@category_mapping_not_import) {
+            my $update_category_query = qq{
+                UPDATE
+                $categories_mapping_table
+                SET not_import = 1
+                WHERE id = ?
+            };
+            foreach my $category_id (@category_mapping_not_import) {
+                next if $category_id == 0; # skip ID = 0
+                $dbh->do($update_category_query, undef, $category_id);
+            }
+        }
 
         # delete
         if (@category_mapping_del) {
@@ -512,13 +530,31 @@ sub configure {
         }
     }
 
+
+    # update for version 1.31
+    # Check for 'not_import' field
+    my $check_column_query = qq{SELECT not_import FROM $categories_mapping_table LIMIT 1};
+    my $sth = eval { $dbh->prepare($check_column_query) };
+
+    if (!$@) {
+        eval { $sth->execute() };
+        unless ($@) {
+            # The column exists, you don't need to do anything
+        } else {
+            my $add_column_query = qq{ALTER TABLE $categories_mapping_table ADD COLUMN not_import tinyint(1) DEFAULT NULL};
+            eval { $dbh->do($add_column_query) };
+        }
+    } else {
+        warn "Error while preparing query: $@";
+    }
+
     my $select_categorycode_query = qq{SELECT categorycode FROM $categories_table};
     my $select_branchcode_query = qq{SELECT branchcode FROM $branches_table};
 
     my @categories;
     my @branches;
 
-    my $select_categories_mapping_query = qq{SELECT id, categorycode, dutyRole FROM $categories_mapping_table};
+    my $select_categories_mapping_query = qq{SELECT id, categorycode, dutyRole, not_import FROM $categories_mapping_table};
     my $select_branches_mapping_query = qq{SELECT id, branchcode, organisationCode FROM $branches_mapping_table};
 
     my @categories_mapping;
@@ -539,8 +575,8 @@ sub configure {
 
         my $sth_categories_mapping = $dbh->prepare($select_categories_mapping_query);
         $sth_categories_mapping->execute();
-        while (my ($id, $category, $dutyRole) = $sth_categories_mapping->fetchrow_array) {
-            push @categories_mapping, { id => $id, categorycode => $category, dutyRole => $dutyRole };
+        while (my ($id, $category, $dutyRole, $not_import) = $sth_categories_mapping->fetchrow_array) {
+            push @categories_mapping, { id => $id, categorycode => $category, dutyRole => $dutyRole, not_import => $not_import };
         }
 
         my $sth_branches_mapping = $dbh->prepare($select_branches_mapping_query);
@@ -1037,7 +1073,7 @@ sub fetchDataFromAPI {
                 }
         }
 
-        my $select_categories_mapping_query = qq{SELECT id, categorycode, dutyRole FROM $categories_mapping_table};
+        my $select_categories_mapping_query = qq{SELECT id, categorycode, dutyRole, not_import FROM $categories_mapping_table};
         my $select_branches_mapping_query = qq{SELECT id, branchcode, organisationCode FROM $branches_mapping_table};
 
         my @categories_mapping;
@@ -1046,8 +1082,8 @@ sub fetchDataFromAPI {
         eval {
             my $sth_categories_mapping = $dbh->prepare($select_categories_mapping_query);
             $sth_categories_mapping->execute();
-            while (my ($id, $category, $dutyRole) = $sth_categories_mapping->fetchrow_array) {
-                push @categories_mapping, { id => $id, categorycode => $category, dutyRole => $dutyRole };
+            while (my ($id, $category, $dutyRole, $not_import) = $sth_categories_mapping->fetchrow_array) {
+                push @categories_mapping, { id => $id, categorycode => $category, dutyRole => $dutyRole, not_import =>$not_import };
             }
 
             my $sth_branches_mapping = $dbh->prepare($select_branches_mapping_query);
@@ -1230,6 +1266,7 @@ sub fetchBorrowers {
             for my $i (1..$api_limit) {
                 my $koha_categorycode = $koha_default_categorycode;
                 my $koha_branchcode = $koha_default_branchcode;
+                my $not_import = 0;
 
                 my $response_page_data = $response_data->{data}[$i-1];
                 if ($response_page_data) {
@@ -1279,17 +1316,15 @@ sub fetchBorrowers {
                         # utf8::decode($duty_role); # utf8
                     } 
 
-                    # warn "BEFORE koha_categorycode: $koha_categorycode";
                     if ($duty_role) {
                         foreach my $category_mapping (@categories_mapping) {
                             if ($category_mapping->{dutyRole} && $category_mapping->{dutyRole} eq $duty_role) {
-                                # warn "FOUND dutyRole! To use: ".$category_mapping->{categorycode};
                                 $koha_categorycode = $category_mapping->{categorycode};
+                                $not_import = $category_mapping->{not_import};
                                 last; 
                             }
                         }
                     }
-                    # warn "AFTER koha_categorycode: $koha_categorycode";
                     # /dutyRole
 
                     # organisationCode @branches_mapping
@@ -1301,7 +1336,6 @@ sub fetchBorrowers {
                             my $enroledAt = $enrolment->{enroledAt}; 
                             if (defined $enroledAt && ref $enroledAt eq 'HASH') {
                                 $enroledAtId = $enroledAt->{id}; 
-                                # warn "enroledAtId: $enroledAtId";
                             }
                         }
                     }
@@ -1318,17 +1352,14 @@ sub fetchBorrowers {
                             my $organisationCode = $response_data_person->{organisationCode};
                         }
 
-                        # warn "BEFORE koha_branchcode: $koha_branchcode";
                         if ($organisationCode) {
                             foreach my $branch_mapping (@branches_mapping) {
                                 if ($branch_mapping->{organisationCode} && $branch_mapping->{organisationCode} eq $organisationCode) {
-                                    # warn "FOUND organisationCode! To use: ".$branch_mapping->{branchcode};
                                     $koha_branchcode = $branch_mapping->{branchcode};
                                     last; 
                                 }
                             }
                         }
-                        # warn "AFTER koha_branchcode: $koha_branchcode";
                         # /organisationCode
                     }
 
@@ -1418,7 +1449,6 @@ sub fetchBorrowers {
                     if (defined $externalIdentifiers && ref $externalIdentifiers eq 'ARRAY') {
                         foreach my $selectedIdentifier (@$externalIdentifiers) {
                             $externalIdentifier = $selectedIdentifier->{value}; 
-                            # warn $givenName. " - ".$externalIdentifier;
                         }
                     }
 
@@ -1426,28 +1456,30 @@ sub fetchBorrowers {
 
                     if (!defined $email || $email eq "") { $email = undef; }
 
-                    addOrUpdateBorrower(
-                            $cardnumber, 
-                            $familyName, 
-                            $givenName, 
-                            $birthDate, 
-                            $email, 
-                            $sex, 
-                            $phone, 
-                            $mobile_phone, 
-                            $koha_categorycode, 
-                            $koha_branchcode,
-                            $streetAddress,
-                            $locality,
-                            $postalCode,
-                            $country,
-                            $B_email,
-                            $userid,
-                            $useridPlugin,
-                            $cardnumberPlugin,
-                            $externalIdentifier,
-                            $klass_displayName,
-                        );
+                    if ($not_import != 1) {
+                        addOrUpdateBorrower(
+                                $cardnumber,
+                                $familyName,
+                                $givenName,
+                                $birthDate,
+                                $email,
+                                $sex,
+                                $phone,
+                                $mobile_phone,
+                                $koha_categorycode,
+                                $koha_branchcode,
+                                $streetAddress,
+                                $locality,
+                                $postalCode,
+                                $country,
+                                $B_email,
+                                $userid,
+                                $useridPlugin,
+                                $cardnumberPlugin,
+                                $externalIdentifier,
+                                $klass_displayName,
+                            );
+                    }
                     $j++;
                 } 
             }

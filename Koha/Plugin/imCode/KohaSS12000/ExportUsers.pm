@@ -533,19 +533,14 @@ sub configure {
 
     # update for version 1.31
     # Check for 'not_import' field
-    my $check_column_query = qq{SELECT not_import FROM $categories_mapping_table LIMIT 1};
-    my $sth = eval { $dbh->prepare($check_column_query) };
+    my $add_column_query = qq{
+        ALTER TABLE $categories_mapping_table
+        ADD COLUMN IF NOT EXISTS not_import TINYINT(1) DEFAULT NULL
+    };
+    eval { $dbh->do($add_column_query) };
 
-    if (!$@) {
-        eval { $sth->execute() };
-        unless ($@) {
-            # The column exists, you don't need to do anything
-        } else {
-            my $add_column_query = qq{ALTER TABLE $categories_mapping_table ADD COLUMN not_import tinyint(1) DEFAULT NULL};
-            eval { $dbh->do($add_column_query) };
-        }
-    } else {
-        warn "Error while preparing query: $@";
+    if ($@) {
+        warn "Error while adding column: $@";
     }
 
     my $select_categorycode_query = qq{SELECT categorycode FROM $categories_table};

@@ -327,7 +327,7 @@ msgid "Click to mark do not import"
 msgstr ""
 
 
-#: config.tt:112, config.tt:113
+#: config.tt:112, config.tt:113, config.tt:155
 msgid "Delete"
 msgstr ""
 

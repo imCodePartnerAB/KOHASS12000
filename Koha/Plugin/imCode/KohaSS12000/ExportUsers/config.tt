@@ -152,7 +152,7 @@
                             <div class="col-sm-2 col-md-2">
                                 <label for="branch_del_[% branch_mapping.id %]" class="form-check-label" title="[% 'Click to mark for deletion' | gettext %]">
                                     <input type="checkbox" name="branch_mapping_del[]" value="[% branch_mapping.id %]" title="Delete" id="branch_del_[% branch_mapping.id %]">
-                                    Delete
+                                    [% 'Delete' | gettext %]
                                 </label>
                             </div>                            
                             <hr>

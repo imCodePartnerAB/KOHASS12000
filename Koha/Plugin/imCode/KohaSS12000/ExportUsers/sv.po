@@ -313,8 +313,8 @@ msgid "page"
 msgstr "sidan"
 
 
-msgid "To delete an item from the list, select the checkbox of the item to be deleted"
-msgstr "Om du vill ta bort ett objekt från listan markerar du kryssrutan för det objekt som ska tas bort"
+msgid "To delete an item from the list, select the checkbox of the item to be deleted, and press Save"
+msgstr "Om du vill ta bort ett objekt från listan markerar du kryssrutan för objektet som ska tas bort och trycker på Spara"
 
 
 msgid "Click to mark for deletion"

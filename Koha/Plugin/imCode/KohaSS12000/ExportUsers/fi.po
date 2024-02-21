@@ -313,8 +313,8 @@ msgid "page"
 msgstr "sivu"
 
 
-msgid "To delete an item from the list, select the checkbox of the item to be deleted"
-msgstr "Jos haluat poistaa kohteen luettelosta, valitse poistettavan kohteen valintaruutu"
+msgid "To delete an item from the list, select the checkbox of the item to be deleted, and press Save"
+msgstr "Jos haluat poistaa kohteen luettelosta, valitse poistettavan kohteen valintaruutu ja paina Tallenna"
 
 
 msgid "Click to mark for deletion"

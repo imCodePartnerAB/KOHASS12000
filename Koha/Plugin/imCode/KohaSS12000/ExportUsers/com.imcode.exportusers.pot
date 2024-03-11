@@ -335,3 +335,20 @@ msgstr ""
 #: config.tt:118, config.tt:119
 msgid "Do not import"
 msgstr ""
+
+
+msgid "Exclude empty users, dutyRole"
+msgstr ""
+
+
+msgid "Excluding all users that does not have dutyRole"
+msgstr ""
+
+
+msgid "Exclude empty users, enrolments"
+msgstr ""
+
+
+msgid "Excluding all users that does not have enrolments"
+msgstr ""
+

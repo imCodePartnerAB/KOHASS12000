@@ -85,6 +85,30 @@
                 </div>
             </div>
 
+            <div class="form-group row">
+                <label for="excluding_dutyRole_empty" class="col-sm-2 col-form-label">[% 'Exclude empty users, dutyRole' | gettext %]:</label>
+                <div class="col-sm-4">
+                    <select class="form-control" name="excluding_dutyRole_empty" id="excluding_dutyRole_empty">
+                        [% FOREACH mode IN ["No", "Yes"] %]
+                            <option value="[% mode %]" [% IF excluding_dutyRole_empty == mode %]selected="selected"[% END %]>[% mode %]</option>
+                        [% END %]
+                    </select>
+                    <p class="text-info">[% 'Excluding all users that does not have dutyRole' | gettext %]</p>
+                </div>
+            </div> 
+
+
+            <div class="form-group row">
+                <label for="excluding_enrolments_empty" class="col-sm-2 col-form-label">[% 'Exclude empty users, enrolments' | gettext %]:</label>
+                <div class="col-sm-4">
+                    <select class="form-control" name="excluding_enrolments_empty" id="excluding_enrolments_empty">
+                        [% FOREACH mode IN ["No", "Yes"] %]
+                            <option value="[% mode %]" [% IF excluding_enrolments_empty == mode %]selected="selected"[% END %]>[% mode %]</option>
+                        [% END %]
+                    </select>
+                    <p class="text-info">[% 'Excluding all users that does not have enrolments' | gettext %]</p>
+                </div>
+            </div> 
 
 
             [% IF verify_config == "No" %] 
@@ -163,7 +187,6 @@
                 </div>
             </div>
 
-
             <div class="form-group row" id="div_new_branch_mapping">
                 <label for="new_organisationCode_mapping" class="col-sm-2 col-form-label">[% 'Add branch mapping' | gettext %]:</label>
                 <div class="col-sm-4">
@@ -177,12 +200,10 @@
                 </div>
             </div>
 
-
-
             <div class="form-group row">
                 <label for="debug_mode" class="col-sm-2 col-form-label">[% 'Debug Mode' | gettext %]:</label>
                 <div class="col-sm-4">
-                    <select class="form-control" name="debug_mode">
+                    <select class="form-control" name="debug_mode" id="debug_mode">
                         [% FOREACH mode IN ["Yes", "No"] %]
                             <option value="[% mode %]" [% IF debug_mode == mode %]selected="selected"[% END %]>[% mode %]</option>
                         [% END %]
@@ -192,9 +213,9 @@
             </div>            
 
             <div class="form-group row">
-                <label for="oauth_url" class="col-sm-2 col-form-label">[% 'SS12000 API limit per page' | gettext %]:</label>
+                <label for="api_limit" class="col-sm-2 col-form-label">[% 'SS12000 API limit per page' | gettext %]:</label>
                 <div class="col-sm-4">
-                    <select class="form-control" name="api_limit">
+                    <select class="form-control" name="api_limit" id="api_limit">
                         [% FOREACH limit IN [10, 20, 30, 40, 50, 75, 100] %]
                             <option value="[% limit %]" [% IF limit == api_limit %]selected="selected"[% END %]>[% limit %]</option>
                         [% END %]
@@ -204,9 +225,9 @@
             </div>
 
             <div class="form-group row">
-                <label for="oauth_url" class="col-sm-2 col-form-label">[% 'CardNumber for Koha' | gettext %]:</label>
+                <label for="cardnumberPlugin" class="col-sm-2 col-form-label">[% 'CardNumber for Koha' | gettext %]:</label>
                 <div class="col-sm-4">
-                    <select class="form-control" name="cardnumberPlugin">
+                    <select class="form-control" name="cardnumberPlugin" id="cardnumberPlugin">
                         [% FOREACH cardnumbers IN ["civicNo", "externalIdentifier"] %]
                             <option value="[% cardnumbers %]" [% IF cardnumberPlugin == cardnumbers %]selected="selected"[% END %]>[% cardnumbers %]</option>
                         [% END %]
@@ -216,9 +237,9 @@
             </div>            
 
             <div class="form-group row">
-                <label for="oauth_url" class="col-sm-2 col-form-label">[% 'UserID for Koha' | gettext %]:</label>
+                <label for="useridPlugin" class="col-sm-2 col-form-label">[% 'UserID for Koha' | gettext %]:</label>
                 <div class="col-sm-4">
-                    <select class="form-control" name="useridPlugin">
+                    <select class="form-control" name="useridPlugin" id="useridPlugin">
                         [% FOREACH userids IN ["civicNo", "externalIdentifier"] %]
                             <option value="[% userids %]" [% IF useridPlugin == userids %]selected="selected"[% END %]>[% userids %]</option>
                         [% END %]
@@ -228,9 +249,9 @@
             </div>  
 
             <div class="form-group row">
-                <label for="oauth_url" class="col-sm-2 col-form-label">[% 'How many days to keep plugin logs' | gettext %]:</label>
+                <label for="logs_limit" class="col-sm-2 col-form-label">[% 'How many days to keep plugin logs' | gettext %]:</label>
                 <div class="col-sm-4">
-                    <select class="form-control" name="logs_limit">
+                    <select class="form-control" name="logs_limit" id="logs_limit">
                         [% FOREACH day_limit IN [1, 2, 3, 7, 14, 30, 60, 90, 120] %]
                             <option value="[% day_limit %]" [% IF day_limit == logs_limit %]selected="selected"[% END %]>[% day_limit %]</option>
                         [% END %]

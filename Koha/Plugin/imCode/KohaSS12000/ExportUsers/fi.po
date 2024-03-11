@@ -331,3 +331,19 @@ msgstr ""
 
 msgid "Do not import"
 msgstr "Älä tuo maahan"
+
+
+msgid "Exclude empty users, dutyRole"
+msgstr "Sulje pois tyhjät käyttäjät, dutyRole"
+
+
+msgid "Excluding all users that does not have dutyRole"
+msgstr "Sulkee pois kaikki käyttäjät, joilla ei ole dutyRole"
+
+
+msgid "Exclude empty users, enrolments"
+msgstr "Sulje pois tyhjät käyttäjät, ilmoittautumiset"
+
+
+msgid "Excluding all users that does not have enrolments"
+msgstr "Sulkee pois kaikki käyttäjät, joilla ei ole ilmoittautumisia"

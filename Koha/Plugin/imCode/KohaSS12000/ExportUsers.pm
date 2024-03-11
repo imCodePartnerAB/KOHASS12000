@@ -52,13 +52,13 @@ our $branches_mapping_table   = 'imcode_branches_mapping';
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 
-our $VERSION = "1.31";
+our $VERSION = "1.32";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2024-02-20',
+    date_updated    => '2024-03-11',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -150,6 +150,8 @@ sub install {
     qq{INSERT INTO imcode_config (name,value) VALUES ('cardnumberPlugin','civicNo');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('useridPlugin','civicNo');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('logs_limit','3');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('excluding_dutyRole_empty','No');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('excluding_enrolments_empty','No');},
     qq{INSERT INTO imcode_categories_mapping (categorycode,dutyRole) VALUES ('SKOLA','Lärare');},
     qq{INSERT INTO imcode_categories_mapping (categorycode,dutyRole) VALUES ('PERSONAL','Kurator');},
     qq{INSERT INTO imcode_categories_mapping (categorycode,dutyRole) VALUES ('SKOLA','Rektor');},
@@ -284,6 +286,32 @@ sub uninstall {
     return 1;
 }
 
+sub insertConfigValue {
+    my ($dbh, $name, $value) = @_;
+
+    my $check_query = qq{
+        SELECT COUNT(*) FROM `imcode_config` WHERE `name` = ?
+    };
+
+    my $existing_records = $dbh->selectrow_array($check_query, undef, $name);
+
+    if (!$existing_records) {
+        my $insert_query = qq{
+            INSERT INTO `imcode_config` (`name`, `value`)
+            VALUES (?, ?)
+        };
+
+        eval { $dbh->do($insert_query, undef, $name, $value) };
+
+        if ($@) {
+            warn "Error while inserting config value: $@";
+        }
+    } else {
+        # warn "Config value with name '$name' already exists";
+    }
+}
+
+
 sub configure {
     my ($self, $args) = @_;
 
@@ -292,6 +320,10 @@ sub configure {
     my $cgi = $self->{'cgi'};
 
     my $op = $cgi->param('op') || '';
+
+    # update for version 1.32 
+    insertConfigValue($dbh, 'excluding_dutyRole_empty', 'No');
+    insertConfigValue($dbh, 'excluding_enrolments_empty', 'No');
 
     my $select_query = qq{SELECT name, value FROM $config_table};
     my $config_data  = {};
@@ -356,6 +388,9 @@ sub configure {
         my @category_mapping_del = $cgi->multi_param('category_mapping_del[]');
         my @branch_mapping_del   = $cgi->multi_param('branch_mapping_del[]');
         my @category_mapping_not_import = $cgi->multi_param('category_mapping_not_import[]');
+
+        my $excluding_dutyRole_empty = $cgi->param('excluding_dutyRole_empty');
+        my $excluding_enrolments_empty = $cgi->param('excluding_enrolments_empty');
 
         # update not_import
         my $update_category_query = qq{UPDATE $categories_mapping_table SET not_import = NULL};
@@ -488,6 +523,8 @@ sub configure {
                 WHEN name = 'cardnumberPlugin' THEN ?
                 WHEN name = 'useridPlugin' THEN ?
                 WHEN name = 'logs_limit' THEN ?
+                WHEN name = 'excluding_dutyRole_empty' THEN ?
+                WHEN name = 'excluding_enrolments_empty' THEN ?
             END
             WHERE name IN (
                 'ist_client_id', 
@@ -501,7 +538,9 @@ sub configure {
                 'api_limit',
                 'cardnumberPlugin',
                 'useridPlugin',
-                'logs_limit'
+                'logs_limit',
+                'excluding_dutyRole_empty',
+                'excluding_enrolments_empty'
                 )
         };
 
@@ -520,7 +559,9 @@ sub configure {
                 $api_limit,
                 $cardnumberPlugin,
                 $useridPlugin,
-                $logs_limit
+                $logs_limit,
+                $excluding_dutyRole_empty,
+                $excluding_enrolments_empty
                 );
             $template->param(success => 'success');
         };
@@ -611,6 +652,8 @@ sub configure {
         language            => C4::Languages::getlanguage($cgi) || 'en',
         mbf_path            => abs_path( $self->mbf_path('translations') ),
         verify_config       => verify_categorycode_and_branchcode(),
+        excluding_enrolments_empty => $config_data->{excluding_enrolments_empty} || 'No',
+        excluding_dutyRole_empty => $config_data->{excluding_dutyRole_empty} || 'No'
         );
 
     print $cgi->header(-type => 'text/html', -charset => 'utf-8');
@@ -949,6 +992,8 @@ sub fetchDataFromAPI {
     my $cardnumberPlugin    = $config_data->{cardnumberPlugin} || 'civicNo';
     my $useridPlugin        = $config_data->{useridPlugin} || 'civicNo';
     my $logs_limit          = int($config_data->{logs_limit}) || 3;
+    my $excluding_enrolments_empty = $config_data->{excluding_enrolments_empty} || 'No';
+    my $excluding_dutyRole_empty = $config_data->{excluding_dutyRole_empty} || 'No';
     
     # Request to API IST
     my $ua = LWP::UserAgent->new;
@@ -1105,6 +1150,8 @@ sub fetchDataFromAPI {
                     $data_hash,
                     $access_token,
                     $api_url_base,
+                    $excluding_enrolments_empty,
+                    $excluding_dutyRole_empty,                    
                     @categories_mapping,
                     @branches_mapping
                 );
@@ -1251,8 +1298,10 @@ sub fetchBorrowers {
             $data_hash,
             $access_token,
             $api_url_base,
+            $excluding_enrolments_empty,
+            $excluding_dutyRole_empty,            
             @categories_mapping,
-            @branches_mapping
+            @branches_mapping           
         ) = @_;
 
     my $dbh = C4::Context->dbh;
@@ -1315,9 +1364,16 @@ sub fetchBorrowers {
                         foreach my $category_mapping (@categories_mapping) {
                             if ($category_mapping->{dutyRole} && $category_mapping->{dutyRole} eq $duty_role) {
                                 $koha_categorycode = $category_mapping->{categorycode};
-                                $not_import = $category_mapping->{not_import};
+                                $not_import = $category_mapping->{not_import} || 0;
                                 last; 
                             }
+                        }
+                    } else {
+                        if ($excluding_dutyRole_empty eq "Yes") {
+                            $not_import = 1;
+                            if ($debug_mode eq "Yes") { 
+                                warn "duty_role is empty, not import data";
+                            }                            
                         }
                     }
                     # /dutyRole
@@ -1356,6 +1412,13 @@ sub fetchBorrowers {
                             }
                         }
                         # /organisationCode
+                    } else {
+                        if ($excluding_enrolments_empty eq "Yes") {
+                            $not_import = 1;
+                            if ($debug_mode eq "Yes") { 
+                                warn "enrolments is empty, not import data";
+                            }
+                        }
                     }
 
                     my $givenName = $response_page_data->{givenName};

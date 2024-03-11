@@ -331,3 +331,19 @@ msgstr "Radera"
 
 msgid "Do not import"
 msgstr "Importera inte"
+
+
+msgid "Exclude empty users, dutyRole"
+msgstr "Exkludera tomma användare, dutyRole"
+
+
+msgid "Excluding all users that does not have dutyRole"
+msgstr "Exkluderar alla användare som inte har dutyRole"
+
+
+msgid "Exclude empty users, enrolments"
+msgstr "Uteslut tomma användare, registreringar"
+
+
+msgid "Excluding all users that does not have enrolments"
+msgstr "Exkluderar alla användare som inte har registreringar"

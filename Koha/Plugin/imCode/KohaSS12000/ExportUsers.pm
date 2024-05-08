@@ -1,4 +1,4 @@
-# Copyright (C) 2023 imCode, https://www.imcode.com, <info@imcode.com>
+# Copyright (C) 2024 imCode, https://www.imcode.com, <info@imcode.com>
 #
 # This is a plugin for Koha
 # It exports user data from the API in SS12000 format to your Koha database
@@ -52,13 +52,13 @@ our $branches_mapping_table   = 'imcode_branches_mapping';
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 
-our $VERSION = "1.32";
+our $VERSION = "1.33";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2024-03-11',
+    date_updated    => '2024-05-08',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -1616,10 +1616,10 @@ sub addOrUpdateBorrower {
     my $select_query = qq{
         SELECT borrowernumber 
         FROM $borrowers_table 
-        WHERE cardnumber = ? OR cardnumber = ?
+        WHERE cardnumber = ? OR cardnumber = ? OR userid = ?
     };
     my $select_sth = $dbh->prepare($select_query);
-    $select_sth->execute($cardnumber, $externalIdentifier);
+    $select_sth->execute($cardnumber, $externalIdentifier, $newUserID);
     my $existing_borrower = $select_sth->fetchrow_hashref;
     my $borrowernumber;
 

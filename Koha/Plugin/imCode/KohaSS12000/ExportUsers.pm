@@ -52,13 +52,13 @@ our $branches_mapping_table   = 'imcode_branches_mapping';
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 
-our $VERSION = "1.33";
+our $VERSION = "1.34";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2024-05-08',
+    date_updated    => '2024-05-24',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -1330,10 +1330,11 @@ sub fetchBorrowers {
                     my $klass_displayName;
                     foreach my $groupMembership (@{$response_data_groupMemberships ->{_embedded}->{groupMemberships}}) {
                         my $group = $groupMembership->{group};
-                        #  "groupType" & "endDate"
-                        if ($group->{groupType} eq "Klass" && $group->{endDate} gt $today) {
+                        # "groupType" & "endDate" 
+                        # 2024-05-24 added "startDate" for case like - to_date: 2025-06-30 from_date: 2024-07-01
+                        if ($group->{groupType} eq "Klass" && $group->{endDate} gt $today && $group->{startDate} lt $today) {
                             $klass_displayName = $group->{displayName};
-                            # warn "klass_displayName: ".$klass_displayName.", to date: ".$group->{endDate};
+                            # warn "klass_displayName: ".$klass_displayName.", to date: ".$group->{endDate}." from date: ".$group->{startDate};
                             last; 
                         }
                     }

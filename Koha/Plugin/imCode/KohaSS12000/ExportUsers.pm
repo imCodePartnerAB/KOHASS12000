@@ -39,6 +39,7 @@ Locale::Messages->select_package('gettext_pp');
 use Locale::Messages qw(:locale_h :libintl_h);
 use POSIX qw(setlocale);
 use Encode;
+use Fcntl qw(:flock);
 
 our $config_table     = 'imcode_config';
 our $logs_table       = 'imcode_logs';
@@ -52,13 +53,13 @@ our $branches_mapping_table   = 'imcode_branches_mapping';
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 
-our $VERSION = "1.34";
+our $VERSION = "1.35";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2024-05-24',
+    date_updated    => '2024-07-10',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -1285,6 +1286,31 @@ sub verify_categorycode_and_branchcode {
     }
 }
 
+sub read_state {
+    my $filename = shift;
+    open my $fh, '<', $filename or die "Cannot open $filename: $!";
+    flock($fh, LOCK_SH) or die "Cannot lock $filename: $!";
+    my %state;
+    while (my $line = <$fh>) {
+        chomp $line;
+        my ($key, $value) = split /:/, $line, 2;
+        $state{$key} = $value;
+    }
+    close $fh;
+    return \%state;
+}
+
+sub write_state {
+    my ($filename, $state) = @_;
+    open my $fh, '>', $filename or die "Cannot open $filename: $!";
+    flock($fh, LOCK_EX) or die "Cannot lock $filename: $!";
+    foreach my $key (keys %$state) {
+        print $fh "$key:$state->{$key}\n";
+    }
+    close $fh;
+}
+
+
 sub fetchBorrowers {
     my (
             $response_data,
@@ -1306,14 +1332,37 @@ sub fetchBorrowers {
 
     my $dbh = C4::Context->dbh;
 
+    my $state_file = '/tmp/imcode-state.inf';
+    unless (-e $state_file) {
+                    open my $fh, '>', $state_file or die "Cannot create $state_file: $!";
+                    flock($fh, LOCK_EX) or die "Cannot lock $state_file: $!";
+                    print $fh "";
+                    close $fh;
+    }
+
+    my $state = read_state($state_file);
+    my $parse_page = $state->{parse_page} // 1;
+    my $total_borrowers = $state->{total_borrowers} // 0;
+    my $total_enrolments = $state->{total_enrolments} // 0;
+    my $total_dutyRole = $state->{total_dutyRole} // 0;
+    my $total_dutyRole_empty = $state->{total_dutyRole_empty} // 0;
+    my $total_enrolments_empty = $state->{total_enrolments_empty} // 0;
+    my $total_intersecting_dutyRole_enrolments_empty = $state->{total_intersecting_dutyRole_enrolments_empty} // 0;
+    my $total_dutyRoleName = $state->{total_dutyRoleName} // '';
+    my $total_enrolmentsName = $state->{total_enrolmentsName} // '';
+
             my $j = 0;
             for my $i (1..$api_limit) {
+
                 my $koha_categorycode = $koha_default_categorycode;
                 my $koha_branchcode = $koha_default_branchcode;
                 my $not_import = 0;
 
                 my $response_page_data = $response_data->{data}[$i-1];
                 if ($response_page_data) {
+                    # Update state
+                    if ($debug_mode eq "Yes") { $total_borrowers++; }
+
                     my $id = $response_page_data->{id};
 
                     # start search "groupType": "Klass"
@@ -1346,6 +1395,9 @@ sub fetchBorrowers {
                     my $response_data_person;
                     my $duty_role;
 
+                    # warn "access_token: ".$access_token;
+                    if ($debug_mode eq "Yes") { print STDERR "\nUSER START DEBUG\n"; }
+
                     eval {
                         $response_data_person = decode_json(getApiResponse($person_api_url, $access_token));
                     };
@@ -1361,21 +1413,39 @@ sub fetchBorrowers {
                         # utf8::decode($duty_role); # utf8
                     } 
 
+                    # warn "response_data_person: ".Dumper($response_data_person);
+
                     if ($duty_role) {
+                        if ($debug_mode eq "Yes") { 
+                            print STDERR "duty_role: ".$duty_role."\n"; 
+                            if ($total_dutyRoleName eq '') {
+                                $total_dutyRoleName = $duty_role;
+                            } else {
+                                $total_dutyRoleName = $total_dutyRoleName . ", " . $duty_role;
+                            }
+                            $total_dutyRole++;
+                        }
                         foreach my $category_mapping (@categories_mapping) {
                             if ($category_mapping->{dutyRole} && $category_mapping->{dutyRole} eq $duty_role) {
                                 $koha_categorycode = $category_mapping->{categorycode};
                                 $not_import = $category_mapping->{not_import} || 0;
+                                if ($debug_mode eq "Yes") { 
+                                    print STDERR "not_import from mysql base, category_mapping: ".$not_import."\n";
+                                }
                                 last; 
                             }
                         }
                     } else {
+
                         if ($excluding_dutyRole_empty eq "Yes") {
-                            $not_import = 1;
-                            if ($debug_mode eq "Yes") { 
-                                warn "duty_role is empty, not import data";
-                            }                            
+                                $not_import = 1;
+                                if ($debug_mode eq "Yes") { 
+                                    $total_dutyRole_empty++;
+                                    print STDERR "duty_role is empty, not import data\n";
+                                    # warn "duty_role is empty, not import data";
+                                }                            
                         }
+
                     }
                     # /dutyRole
 
@@ -1393,6 +1463,12 @@ sub fetchBorrowers {
                     }
 
                     if ($enroledAtId) {
+                        if ($debug_mode eq "Yes") { 
+                                $total_enrolments++; 
+                                # warn "organisations user url: ".$person_api_url;
+                                print STDERR "enroledAtId: ".$enroledAtId."\n";
+                        }
+                        
                         my $person_api_url = $api_url_base."organisations/".$enroledAtId;
                         my $organisationCode;
 
@@ -1400,11 +1476,21 @@ sub fetchBorrowers {
                             $response_data_person = decode_json(getApiResponse($person_api_url, $access_token));
                         };
 
+                        # warn "organisations response_data_person: ".Dumper($response_data_person);
+
                         if (defined $response_data_person && ref($response_data_person) eq 'HASH' && defined $response_data_person->{organisationCode}) {
-                            my $organisationCode = $response_data_person->{organisationCode};
+                            $organisationCode = $response_data_person->{organisationCode};
                         }
 
                         if ($organisationCode) {
+                            if ($debug_mode eq "Yes") { 
+                                print STDERR "organisationCode: $organisationCode\n"; 
+                                if ($total_enrolmentsName eq '') {
+                                    $total_enrolmentsName = $organisationCode;
+                                } else {
+                                    $total_enrolmentsName = $total_enrolmentsName . ", " . $organisationCode;
+                                }
+                            }
                             foreach my $branch_mapping (@branches_mapping) {
                                 if ($branch_mapping->{organisationCode} && $branch_mapping->{organisationCode} eq $organisationCode) {
                                     $koha_branchcode = $branch_mapping->{branchcode};
@@ -1414,13 +1500,22 @@ sub fetchBorrowers {
                         }
                         # /organisationCode
                     } else {
+
                         if ($excluding_enrolments_empty eq "Yes") {
-                            $not_import = 1;
-                            if ($debug_mode eq "Yes") { 
-                                warn "enrolments is empty, not import data";
-                            }
+                                $not_import = 1;
+                                if ($debug_mode eq "Yes") { 
+                                    warn "enrolments is empty, not import data";
+                                    print STDERR "enrolments is empty, not import data\n";
+                                    $total_enrolments_empty++;
+                                }
                         }
+
                     }
+
+                    if ($not_import == 1 && $debug_mode eq "Yes") { $total_intersecting_dutyRole_enrolments_empty++; }
+
+                    # warn "not_import: ".$not_import;
+                    if ($debug_mode eq "Yes") { print STDERR "USER END DEBUG\n"; }
 
                     my $givenName = $response_page_data->{givenName};
                     my $familyName = $response_page_data->{familyName};
@@ -1543,7 +1638,19 @@ sub fetchBorrowers {
                 } 
             }
 
-            # warn "j: $j";
+            if ($debug_mode eq "Yes") {
+                # Update state
+                $state->{parse_page} = $parse_page + 1;
+                $state->{total_borrowers} = $total_borrowers;
+                $state->{total_enrolments} = $total_enrolments;
+                $state->{total_dutyRole} = $total_dutyRole;
+                $state->{total_dutyRole_empty} = $total_dutyRole_empty;
+                $state->{total_enrolments_empty} = $total_enrolments_empty;
+                $state->{total_intersecting_dutyRole_enrolments_empty} = $total_intersecting_dutyRole_enrolments_empty;
+                $state->{total_dutyRoleName} = $total_dutyRoleName;
+                $state->{total_enrolmentsName} = $total_enrolmentsName;
+                write_state($state_file, $state);
+            }
 
             if ($j == $api_limit) {
                 if ($debug_mode eq "No") { 

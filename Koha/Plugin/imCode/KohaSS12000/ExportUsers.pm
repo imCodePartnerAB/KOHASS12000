@@ -53,13 +53,13 @@ our $branches_mapping_table   = 'imcode_branches_mapping';
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 
-our $VERSION = "1.35";
+our $VERSION = "1.36";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2024-07-10',
+    date_updated    => '2024-08-12',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -1153,8 +1153,8 @@ sub fetchDataFromAPI {
                     $api_url_base,
                     $excluding_enrolments_empty,
                     $excluding_dutyRole_empty,                    
-                    @categories_mapping,
-                    @branches_mapping
+                    \@categories_mapping,
+                    \@branches_mapping
                 );
 
             if (!defined $response_page_token || $response_page_token eq "") {
@@ -1326,9 +1326,12 @@ sub fetchBorrowers {
             $api_url_base,
             $excluding_enrolments_empty,
             $excluding_dutyRole_empty,            
-            @categories_mapping,
-            @branches_mapping           
+            $categories_mapping_ref,
+            $branches_mapping_ref
         ) = @_;
+
+    my @categories_mapping = @$categories_mapping_ref;
+    my @branches_mapping = @$branches_mapping_ref;
 
     my $dbh = C4::Context->dbh;
 
@@ -1491,7 +1494,9 @@ sub fetchBorrowers {
                                     $total_enrolmentsName = $total_enrolmentsName . ", " . $organisationCode;
                                 }
                             }
+                            # warn "Number of elements in \@branches_mapping: " . scalar(@branches_mapping);
                             foreach my $branch_mapping (@branches_mapping) {
+                                # warn "Checking branch_mapping: ". Dumper($branch_mapping);
                                 if ($branch_mapping->{organisationCode} && $branch_mapping->{organisationCode} eq $organisationCode) {
                                     $koha_branchcode = $branch_mapping->{branchcode};
                                     last; 

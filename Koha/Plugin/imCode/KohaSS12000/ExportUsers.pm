@@ -16,6 +16,7 @@ $ENV{PERL_UNICODE} = "AS";
 binmode(STDOUT, ":utf8");
 binmode(STDIN, ":utf8");
 
+use Koha::Token;
 use Modern::Perl;
 use C4::Auth;
 use C4::Matcher;
@@ -53,13 +54,13 @@ our $branches_mapping_table   = 'imcode_branches_mapping';
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 
-our $VERSION = "1.36";
+our $VERSION = "1.37";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2024-08-12',
+    date_updated    => '2024-08-14',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -354,7 +355,7 @@ sub configure {
 
     my $template = $self->get_template({ file => 'config.tt' });
 
-    if ($op eq 'save-config') {
+    if ($op eq 'cud-save-config') {
         my $client_id     = $cgi->param('client_id');
         # client_secret
         my $client_secret = $cgi->param('client_secret');
@@ -437,14 +438,20 @@ sub configure {
         # /delete
 
         if ($new_branch_mapping && $new_organisationCode_mapping) {
+            # my $check_mapping_query = qq{
+            #     SELECT organisationCode 
+            #     FROM $branches_mapping_table 
+            #     WHERE organisationCode = ? 
+            #     AND branchcode = ?
+            # };            
             my $check_mapping_query = qq{
                 SELECT organisationCode 
                 FROM $branches_mapping_table 
                 WHERE organisationCode = ? 
-                AND branchcode = ?
             };
             my $sth_check_mapping = $dbh->prepare($check_mapping_query);
-            $sth_check_mapping->execute($new_organisationCode_mapping, $new_branch_mapping);
+            # $sth_check_mapping->execute($new_organisationCode_mapping, $new_branch_mapping);
+            $sth_check_mapping->execute($new_organisationCode_mapping);
 
             if (!$sth_check_mapping->fetchrow_array()) {
                 my $insert_mapping_query = qq{
@@ -457,14 +464,20 @@ sub configure {
         }
 
         if ($new_categories_mapping && $new_dutyRole_mapping) {
+            # my $check_mapping_query = qq{
+            #     SELECT categorycode 
+            #     FROM $categories_mapping_table 
+            #     WHERE categorycode = ? 
+            #     AND dutyRole = ?
+            # };
             my $check_mapping_query = qq{
                 SELECT categorycode 
                 FROM $categories_mapping_table 
                 WHERE categorycode = ? 
-                AND dutyRole = ?
             };
             my $sth_check_mapping = $dbh->prepare($check_mapping_query);
-            $sth_check_mapping->execute($new_categories_mapping, $new_dutyRole_mapping);
+            # $sth_check_mapping->execute($new_categories_mapping, $new_dutyRole_mapping);
+            $sth_check_mapping->execute($new_dutyRole_mapping);
 
             if (!$sth_check_mapping->fetchrow_array()) {
                 my $insert_mapping_query = qq{
@@ -633,6 +646,14 @@ sub configure {
         warn "Error fetching configuration: $@";
     }
 
+    my $session_id = $cgi->cookie('CGISESSID');
+    unless ($session_id) {
+        warn "Session ID not found";
+        return;
+    }
+    my $tokenizer = Koha::Token->new;
+    my $csrf_token = $tokenizer->generate_csrf({ session_id => $session_id });
+
     $template->param(
         client_id     => $config_data->{ist_client_id} || '',
         client_secret => xor_encrypt($config_data->{ist_client_secret}, $skey) || '',
@@ -654,7 +675,8 @@ sub configure {
         mbf_path            => abs_path( $self->mbf_path('translations') ),
         verify_config       => verify_categorycode_and_branchcode(),
         excluding_enrolments_empty => $config_data->{excluding_enrolments_empty} || 'No',
-        excluding_dutyRole_empty => $config_data->{excluding_dutyRole_empty} || 'No'
+        excluding_dutyRole_empty => $config_data->{excluding_dutyRole_empty} || 'No',
+        csrf_token => $csrf_token
         );
 
     print $cgi->header(-type => 'text/html', -charset => 'utf-8');
@@ -682,6 +704,14 @@ sub tool {
     my $cgi      = $self->{'cgi'};
     my $template = $self->get_template( { file => 'tool.tt' } );
 
+    my $session_id = $cgi->cookie('CGISESSID');
+    unless ($session_id) {
+        warn "Session ID not found";
+        return;
+    }
+    my $tokenizer = Koha::Token->new;
+    my $csrf_token = $tokenizer->generate_csrf({ session_id => $session_id });
+
     my $op          = $cgi->param('op') || q{};
 
     # For pagination 
@@ -707,7 +737,7 @@ sub tool {
 
     my $debug_mode = $config_values{'debug_mode'} || '';
 
-    if ($op eq 'show-updates') {
+    if ($op eq 'cud-show-updates') {
         my @updates;
 
         my $search = $cgi->param('search') || q{};
@@ -825,7 +855,7 @@ sub tool {
         );
     }
 
-    if ($op eq 'show-logs') {
+    if ($op eq 'cud-show-logs') {
         my @logs;
 
         # Execute a query on the database, selecting data from the $logs_table
@@ -874,7 +904,7 @@ sub tool {
         );
     }
 
-    if ($op eq 'show-stat') {
+    if ($op eq 'cud-show-stat') {
         my @stats;
 
         my $select_query = qq{SELECT
@@ -917,6 +947,7 @@ sub tool {
     $template->param(
             language => C4::Languages::getlanguage($cgi) || 'en',
             mbf_path => abs_path( $self->mbf_path('translations') ),
+            csrf_token => $csrf_token,
     );
 
     print $cgi->header( -type => 'text/html', -charset => 'utf-8' );
@@ -1494,6 +1525,7 @@ sub fetchBorrowers {
                                     $total_enrolmentsName = $total_enrolmentsName . ", " . $organisationCode;
                                 }
                             }
+                            # warn "organisationCode: $organisationCode";
                             # warn "Number of elements in \@branches_mapping: " . scalar(@branches_mapping);
                             foreach my $branch_mapping (@branches_mapping) {
                                 # warn "Checking branch_mapping: ". Dumper($branch_mapping);
@@ -1502,6 +1534,8 @@ sub fetchBorrowers {
                                     last; 
                                 }
                             }
+                            # warn "koha_branchcode set to: ".$koha_branchcode;
+                            # warn "koha_default_branchcode is : ".$koha_default_branchcode;
                         }
                         # /organisationCode
                     } else {
@@ -1509,7 +1543,7 @@ sub fetchBorrowers {
                         if ($excluding_enrolments_empty eq "Yes") {
                                 $not_import = 1;
                                 if ($debug_mode eq "Yes") { 
-                                    warn "enrolments is empty, not import data";
+                                    # warn "enrolments is empty, not import data";
                                     print STDERR "enrolments is empty, not import data\n";
                                     $total_enrolments_empty++;
                                 }
@@ -1519,7 +1553,6 @@ sub fetchBorrowers {
 
                     if ($not_import == 1 && $debug_mode eq "Yes") { $total_intersecting_dutyRole_enrolments_empty++; }
 
-                    # warn "not_import: ".$not_import;
                     if ($debug_mode eq "Yes") { print STDERR "USER END DEBUG\n"; }
 
                     my $givenName = $response_page_data->{givenName};
@@ -1614,7 +1647,7 @@ sub fetchBorrowers {
                     my $userid = $cardnumber;
 
                     if (!defined $email || $email eq "") { $email = undef; }
-
+                    # warn "not_import, must be !=1, now is: ".$not_import;
                     if ($not_import != 1) {
                         addOrUpdateBorrower(
                                 $cardnumber,

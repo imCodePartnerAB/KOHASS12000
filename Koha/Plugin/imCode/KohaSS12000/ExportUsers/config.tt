@@ -264,7 +264,8 @@
             <input type="hidden" name="method" value="[% METHOD %]" />
 
             <div class="form-group row">
-                <input type="hidden" name="op" value="save-config" />
+                <input type="hidden" name="op" value="cud-save-config" />
+                <input type="hidden" name="csrf_token" value="[% csrf_token %]">
                 <div class="col-sm-4">
                     <input type="submit" value="[% 'Save' | gettext %]" />
                 </div>

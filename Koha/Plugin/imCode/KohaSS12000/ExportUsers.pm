@@ -54,13 +54,13 @@ our $branches_mapping_table   = 'imcode_branches_mapping';
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 
-our $VERSION = "1.37";
+our $VERSION = "1.38";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2024-08-14',
+    date_updated    => '2024-09-20',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -178,75 +178,75 @@ sub install {
     AFTER UPDATE ON borrowers
     FOR EACH ROW
     BEGIN
-        DECLARE change_description TEXT;
-        
+        DECLARE change_description TEXT DEFAULT '';
+
         IF NEW.dateofbirth != OLD.dateofbirth THEN
-            SET change_description = CONCAT('field dateofbirth changed from "', OLD.dateofbirth, '" to "', NEW.dateofbirth, '"');
+            SET change_description = CONCAT(change_description, 'field dateofbirth changed from "', OLD.dateofbirth, '" to "', NEW.dateofbirth, '"; ');
         END IF;
 
         IF NEW.phone != OLD.phone THEN
-            SET change_description = CONCAT('field phone changed from "', OLD.phone, '" to "', NEW.phone, '"');
+            SET change_description = CONCAT(change_description, 'field phone changed from "', OLD.phone, '" to "', NEW.phone, '"; ');
         END IF;
 
         IF NEW.mobile != OLD.mobile THEN
-            SET change_description = CONCAT('field mobile changed from "', OLD.mobile, '" to "', NEW.mobile, '"');
+            SET change_description = CONCAT(change_description, 'field mobile changed from "', OLD.mobile, '" to "', NEW.mobile, '"; ');
         END IF;
 
         IF NEW.surname != OLD.surname THEN
-            SET change_description = CONCAT('field surname changed from "', OLD.surname, '" to "', NEW.surname, '"');
+            SET change_description = CONCAT(change_description, 'field surname changed from "', OLD.surname, '" to "', NEW.surname, '"; ');
         END IF;
 
         IF NEW.firstname != OLD.firstname THEN
-            SET change_description = CONCAT('field firstname changed from "', OLD.firstname, '" to "', NEW.firstname, '"');
+            SET change_description = CONCAT(change_description, 'field firstname changed from "', OLD.firstname, '" to "', NEW.firstname, '"; ');
         END IF;
 
         IF NEW.categorycode != OLD.categorycode THEN
-            SET change_description = CONCAT('field categorycode changed from "', OLD.categorycode, '" to "', NEW.categorycode, '"');
+            SET change_description = CONCAT(change_description, 'field categorycode changed from "', OLD.categorycode, '" to "', NEW.categorycode, '"; ');
         END IF;
 
         IF NEW.branchcode != OLD.branchcode THEN
-            SET change_description = CONCAT('field branchcode changed from "', OLD.branchcode, '" to "', NEW.branchcode, '"');
+            SET change_description = CONCAT(change_description, 'field branchcode changed from "', OLD.branchcode, '" to "', NEW.branchcode, '"; ');
         END IF;
 
         IF NEW.address != OLD.address THEN
-            SET change_description = CONCAT('field address changed from "', OLD.address, '" to "', NEW.address, '"');
+            SET change_description = CONCAT(change_description, 'field address changed from "', OLD.address, '" to "', NEW.address, '"; ');
         END IF;
 
         IF NEW.city != OLD.city THEN
-            SET change_description = CONCAT('field city changed from "', OLD.city, '" to "', NEW.city, '"');
+            SET change_description = CONCAT(change_description, 'field city changed from "', OLD.city, '" to "', NEW.city, '"; ');
         END IF;
 
         IF NEW.zipcode != OLD.zipcode THEN
-            SET change_description = CONCAT('field zipcode changed from "', OLD.zipcode, '" to "', NEW.zipcode, '"');
+            SET change_description = CONCAT(change_description, 'field zipcode changed from "', OLD.zipcode, '" to "', NEW.zipcode, '"; ');
         END IF;
 
         IF NEW.country != OLD.country THEN
-            SET change_description = CONCAT('field country changed from "', OLD.country, '" to "', NEW.country, '"');
+            SET change_description = CONCAT(change_description, 'field country changed from "', OLD.country, '" to "', NEW.country, '"; ');
         END IF;
 
         IF NEW.B_email != OLD.B_email THEN
-            SET change_description = CONCAT('field B_email changed from "', OLD.B_email, '" to "', NEW.B_email, '"');
+            SET change_description = CONCAT(change_description, 'field B_email changed from "', OLD.B_email, '" to "', NEW.B_email, '"; ');
         END IF;
 
         IF NEW.userid != OLD.userid THEN
-            SET change_description = CONCAT('field userid changed from "', OLD.userid, '" to "', NEW.userid, '"');
+            SET change_description = CONCAT(change_description, 'field userid changed from "', OLD.userid, '" to "', NEW.userid, '"; ');
         END IF;
 
         IF NEW.cardnumber != OLD.cardnumber THEN
-            SET change_description = CONCAT('field cardnumber changed from "', OLD.cardnumber, '" to "', NEW.cardnumber, '"');
-        END IF;      
+            SET change_description = CONCAT(change_description, 'field cardnumber changed from "', OLD.cardnumber, '" to "', NEW.cardnumber, '"; ');
+        END IF;
 
         IF NEW.sex != OLD.sex THEN
-            SET change_description = CONCAT('field sex changed from "', OLD.sex, '" to "', NEW.sex, '"');
+            SET change_description = CONCAT(change_description, 'field sex changed from "', OLD.sex, '" to "', NEW.sex, '"; ');
         END IF;
-        
+
         IF NEW.email != OLD.email THEN
-            SET change_description = CONCAT(change_description, '; Email changed from "', OLD.email, '" to "', NEW.email, '"');
+            SET change_description = CONCAT(change_description, 'field email changed from "', OLD.email, '" to "', NEW.email, '"; ');
         END IF;
-        
-        IF change_description IS NOT NULL THEN
+
+        IF change_description != '' THEN
             INSERT INTO imcode_data_change_log (table_name, record_id, action, change_description)
-            VALUES ('borrowers', NEW.borrowernumber, 'update', change_description);
+            VALUES ('borrowers', NEW.borrowernumber, 'update', TRIM(TRAILING '; ' FROM change_description));
         END IF;
     END;
     };
@@ -262,6 +262,162 @@ sub install {
     }
 
     return 1;
+}
+
+sub upgrade {
+    my ( $self, $args ) = @_;
+    
+    my $dbh = C4::Context->dbh;
+    my $success = 1;
+
+    # Ensure $VERSION is defined
+    our $VERSION = $VERSION || '1.0';
+    warn "Starting upgrade process for plugin version $VERSION";
+
+    # Check if this is a new installation
+    my $installed_version = $self->retrieve_data('installed_version') || '0';
+    my $is_new_install = ($installed_version eq '0');
+
+    warn "Is new install: " . ($is_new_install ? "Yes" : "No");
+    warn "Installed version: $installed_version";
+
+    # Always attempt to drop the trigger first
+    my $drop_trigger_sql = q{
+        DROP TRIGGER IF EXISTS log_user_changes
+    };
+
+    eval {
+        $dbh->do($drop_trigger_sql) or die "Failed to drop trigger: " . $dbh->errstr;
+        warn "Existing trigger dropped successfully (if it existed)";
+    };
+    if ($@) {
+        warn "Error dropping trigger: $@";
+        $success = 0;
+    }
+
+    # Create the new trigger
+    my $create_trigger_sql = q{
+    CREATE TRIGGER log_user_changes
+    AFTER UPDATE ON borrowers
+    FOR EACH ROW
+    BEGIN
+        DECLARE change_description TEXT DEFAULT '';
+
+        IF NEW.dateofbirth != OLD.dateofbirth THEN
+            SET change_description = CONCAT(change_description, 'field dateofbirth changed from "', OLD.dateofbirth, '" to "', NEW.dateofbirth, '"; ');
+        END IF;
+
+        IF NEW.phone != OLD.phone THEN
+            SET change_description = CONCAT(change_description, 'field phone changed from "', OLD.phone, '" to "', NEW.phone, '"; ');
+        END IF;
+
+        IF NEW.mobile != OLD.mobile THEN
+            SET change_description = CONCAT(change_description, 'field mobile changed from "', OLD.mobile, '" to "', NEW.mobile, '"; ');
+        END IF;
+
+        IF NEW.surname != OLD.surname THEN
+            SET change_description = CONCAT(change_description, 'field surname changed from "', OLD.surname, '" to "', NEW.surname, '"; ');
+        END IF;
+
+        IF NEW.firstname != OLD.firstname THEN
+            SET change_description = CONCAT(change_description, 'field firstname changed from "', OLD.firstname, '" to "', NEW.firstname, '"; ');
+        END IF;
+
+        IF NEW.categorycode != OLD.categorycode THEN
+            SET change_description = CONCAT(change_description, 'field categorycode changed from "', OLD.categorycode, '" to "', NEW.categorycode, '"; ');
+        END IF;
+
+        IF NEW.branchcode != OLD.branchcode THEN
+            SET change_description = CONCAT(change_description, 'field branchcode changed from "', OLD.branchcode, '" to "', NEW.branchcode, '"; ');
+        END IF;
+
+        IF NEW.address != OLD.address THEN
+            SET change_description = CONCAT(change_description, 'field address changed from "', OLD.address, '" to "', NEW.address, '"; ');
+        END IF;
+
+        IF NEW.city != OLD.city THEN
+            SET change_description = CONCAT(change_description, 'field city changed from "', OLD.city, '" to "', NEW.city, '"; ');
+        END IF;
+
+        IF NEW.zipcode != OLD.zipcode THEN
+            SET change_description = CONCAT(change_description, 'field zipcode changed from "', OLD.zipcode, '" to "', NEW.zipcode, '"; ');
+        END IF;
+
+        IF NEW.country != OLD.country THEN
+            SET change_description = CONCAT(change_description, 'field country changed from "', OLD.country, '" to "', NEW.country, '"; ');
+        END IF;
+
+        IF NEW.B_email != OLD.B_email THEN
+            SET change_description = CONCAT(change_description, 'field B_email changed from "', OLD.B_email, '" to "', NEW.B_email, '"; ');
+        END IF;
+
+        IF NEW.userid != OLD.userid THEN
+            SET change_description = CONCAT(change_description, 'field userid changed from "', OLD.userid, '" to "', NEW.userid, '"; ');
+        END IF;
+
+        IF NEW.cardnumber != OLD.cardnumber THEN
+            SET change_description = CONCAT(change_description, 'field cardnumber changed from "', OLD.cardnumber, '" to "', NEW.cardnumber, '"; ');
+        END IF;
+
+        IF NEW.sex != OLD.sex THEN
+            SET change_description = CONCAT(change_description, 'field sex changed from "', OLD.sex, '" to "', NEW.sex, '"; ');
+        END IF;
+
+        IF NEW.email != OLD.email THEN
+            SET change_description = CONCAT(change_description, 'field email changed from "', OLD.email, '" to "', NEW.email, '"; ');
+        END IF;
+
+        IF change_description != '' THEN
+            INSERT INTO imcode_data_change_log (table_name, record_id, action, change_description)
+            VALUES ('borrowers', NEW.borrowernumber, 'update', TRIM(TRAILING '; ' FROM change_description));
+        END IF;
+    END
+    };
+
+    eval {
+        $dbh->do($create_trigger_sql) or die "Failed to create trigger: " . $dbh->errstr;
+        warn "New trigger created successfully";
+    };
+    if ($@) {
+        warn "Error creating trigger: $@";
+        $success = 0;
+    }
+
+    # Verify the trigger was created
+    my $verify_trigger_sql = q{
+        SELECT TRIGGER_NAME FROM information_schema.triggers 
+        WHERE trigger_schema = DATABASE()
+        AND trigger_name = 'log_user_changes'
+    };
+    my $verify_sth = $dbh->prepare($verify_trigger_sql);
+    $verify_sth->execute;
+    my ($verified_trigger) = $verify_sth->fetchrow_array;
+
+    if ($verified_trigger) {
+        warn "Trigger verified: log_user_changes exists in the database";
+    } else {
+        warn "Error: Trigger log_user_changes not found in the database after creation attempt";
+        $success = 0;
+    }
+
+    # Log the upgrade or installation result
+    if ($success) {
+        if ($is_new_install) {
+            warn "Plugin installed successfully (version $VERSION)";
+        } else {
+            warn "Plugin upgraded successfully to version $VERSION";
+        }
+        # Store the new version
+        $self->store_data({ installed_version => $VERSION });
+    } else {
+        if ($is_new_install) {
+            warn "Plugin installation failed (version $VERSION)";
+        } else {
+            warn "Plugin upgrade to version $VERSION failed";
+        }
+    }
+
+    return $success;
 }
 
 sub uninstall {

@@ -209,9 +209,9 @@
                         [% END %]
                     </select>
                     <p class="text-info">[% 'If this option is enabled, then there will be more data in the Tool tab and the Response from the API will be put into the database in full' | gettext %].</p>
+                    <p class="text-info">If Yes is set here, the received data from the api will be additionally recorded in the imcode-debug.log file</p>
                 </div>
             </div>            
-
             <div class="form-group row">
                 <label for="api_limit" class="col-sm-2 col-form-label">[% 'SS12000 API limit per page' | gettext %]:</label>
                 <div class="col-sm-4">

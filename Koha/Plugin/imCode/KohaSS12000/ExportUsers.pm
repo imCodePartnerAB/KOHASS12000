@@ -20,6 +20,10 @@ use Koha::Token;
 use Modern::Perl;
 use C4::Auth;
 use C4::Matcher;
+use C4::Context;
+use File::Spec;
+use Fcntl ':flock';  # Import LOCK_EX for file locking
+use Time::Local;     # For time calculations
 
 use strict;
 use warnings;
@@ -39,8 +43,8 @@ Locale::Messages->select_package('gettext_pp');
 
 use Locale::Messages qw(:locale_h :libintl_h);
 use POSIX qw(setlocale);
+use POSIX qw(strftime); # To format date/time
 use Encode;
-use Fcntl qw(:flock);
 
 our $config_table     = 'imcode_config';
 our $logs_table       = 'imcode_logs';
@@ -54,13 +58,13 @@ our $branches_mapping_table   = 'imcode_branches_mapping';
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 
-our $VERSION = "1.38";
+our $VERSION = "1.39";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2024-09-20',
+    date_updated    => '2024-09-25',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -93,6 +97,41 @@ sub new {
     my $self = $class->SUPER::new($args);
 
     return $self;
+}
+
+
+our $log_config_dir = C4::Context->config("logdir"); 
+our $my_log_file = File::Spec->catfile($log_config_dir, 'imcode-debug.log');
+
+# Function to log messages
+# Example usage:
+# log_message('Yes', 'Here is the message to log');
+sub log_message {
+    my ($debug_mode, $message) = @_;
+
+    # If debug mode is "Yes"
+    if ($debug_mode eq 'Yes') {
+        # Check if the file exists, if not - create it
+        unless (-e $my_log_file) {
+            open my $fh, '>', $my_log_file or die "Cannot create $my_log_file: $!";
+            flock($fh, LOCK_EX) or die "Cannot lock $my_log_file: $!";
+            print $fh "";  # Create an empty file
+            close $fh;
+        }
+
+        # Open the file for appending data
+        open my $fh, '>>', $my_log_file or die "Cannot open $my_log_file: $!";
+        flock($fh, LOCK_EX) or die "Cannot lock $my_log_file: $!";
+
+        # Get the current date and time
+        my $timestamp = strftime "%Y-%m-%d %H:%M:%S", localtime;
+
+        # Write the message to the log file with a timestamp
+        print $fh "$timestamp - $message\n";
+
+        # Close the file
+        close $fh;
+    }
 }
 
 sub install {
@@ -1473,31 +1512,6 @@ sub verify_categorycode_and_branchcode {
     }
 }
 
-sub read_state {
-    my $filename = shift;
-    open my $fh, '<', $filename or die "Cannot open $filename: $!";
-    flock($fh, LOCK_SH) or die "Cannot lock $filename: $!";
-    my %state;
-    while (my $line = <$fh>) {
-        chomp $line;
-        my ($key, $value) = split /:/, $line, 2;
-        $state{$key} = $value;
-    }
-    close $fh;
-    return \%state;
-}
-
-sub write_state {
-    my ($filename, $state) = @_;
-    open my $fh, '>', $filename or die "Cannot open $filename: $!";
-    flock($fh, LOCK_EX) or die "Cannot lock $filename: $!";
-    foreach my $key (keys %$state) {
-        print $fh "$key:$state->{$key}\n";
-    }
-    close $fh;
-}
-
-
 sub fetchBorrowers {
     my (
             $response_data,
@@ -1520,46 +1534,34 @@ sub fetchBorrowers {
     my @categories_mapping = @$categories_mapping_ref;
     my @branches_mapping = @$branches_mapping_ref;
 
+    log_message($debug_mode, 'data from mysql, categories_mapping: '.Dumper(\@categories_mapping));
+    log_message($debug_mode, 'data from mysql, branches_mapping: '.Dumper(\@branches_mapping));
+
     my $dbh = C4::Context->dbh;
-
-    my $state_file = '/tmp/imcode-state.inf';
-    unless (-e $state_file) {
-                    open my $fh, '>', $state_file or die "Cannot create $state_file: $!";
-                    flock($fh, LOCK_EX) or die "Cannot lock $state_file: $!";
-                    print $fh "";
-                    close $fh;
-    }
-
-    my $state = read_state($state_file);
-    my $parse_page = $state->{parse_page} // 1;
-    my $total_borrowers = $state->{total_borrowers} // 0;
-    my $total_enrolments = $state->{total_enrolments} // 0;
-    my $total_dutyRole = $state->{total_dutyRole} // 0;
-    my $total_dutyRole_empty = $state->{total_dutyRole_empty} // 0;
-    my $total_enrolments_empty = $state->{total_enrolments_empty} // 0;
-    my $total_intersecting_dutyRole_enrolments_empty = $state->{total_intersecting_dutyRole_enrolments_empty} // 0;
-    my $total_dutyRoleName = $state->{total_dutyRoleName} // '';
-    my $total_enrolmentsName = $state->{total_enrolmentsName} // '';
 
             my $j = 0;
             for my $i (1..$api_limit) {
 
+                log_message($debug_mode, 'STARTED DEBUGGING THE CURRENT USER');
                 my $koha_categorycode = $koha_default_categorycode;
+                log_message($debug_mode, 'koha_default_categorycode: '.$koha_default_categorycode);
                 my $koha_branchcode = $koha_default_branchcode;
+                log_message($debug_mode, 'koha_default_branchcode: '.$koha_default_branchcode);
                 my $not_import = 0;
 
                 my $response_page_data = $response_data->{data}[$i-1];
                 if ($response_page_data) {
-                    # Update state
-                    if ($debug_mode eq "Yes") { $total_borrowers++; }
 
                     my $id = $response_page_data->{id};
+                    log_message($debug_mode, 'api response_page_data->{id}: '.$id);
 
                     # start search "groupType": "Klass"
                     my $person_groupMemberships_api_url = $api_url_base."persons/".$id."?expand=groupMemberships";
+                    log_message($debug_mode, 'person_groupMemberships_api_url: '.$person_groupMemberships_api_url);
                     my $response_data_groupMemberships;
                     eval {
                         $response_data_groupMemberships = decode_json(getApiResponse($person_groupMemberships_api_url, $access_token));
+                        log_message($debug_mode, 'response_data_groupMemberships: '.Dumper($response_data_groupMemberships));
                     };
 
                     use DateTime;
@@ -1569,10 +1571,14 @@ sub fetchBorrowers {
                     my $klass_displayName;
                     foreach my $groupMembership (@{$response_data_groupMemberships ->{_embedded}->{groupMemberships}}) {
                         my $group = $groupMembership->{group};
+                        log_message($debug_mode, 'groupMembership->{group}: '.Dumper($group));
                         # "groupType" & "endDate" 
                         # 2024-05-24 added "startDate" for case like - to_date: 2025-06-30 from_date: 2024-07-01
                         if ($group->{groupType} eq "Klass" && $group->{endDate} gt $today && $group->{startDate} lt $today) {
                             $klass_displayName = $group->{displayName};
+                            log_message($debug_mode, 'klass_displayName: '.$klass_displayName);
+                            log_message($debug_mode, 'group->{endDate}: '.$group->{endDate});
+                            log_message($debug_mode, 'group->{startDate}: '.$group->{startDate});
                             # warn "klass_displayName: ".$klass_displayName.", to date: ".$group->{endDate}." from date: ".$group->{startDate};
                             last; 
                         }
@@ -1582,14 +1588,15 @@ sub fetchBorrowers {
                     # my $api_url_base = "$ist_url/ss12000v2-api/source/$customerId/v2.0/";
                     # dutyRole @categories_mapping
                     my $person_api_url = $api_url_base."duties?person=".$id;
+                    log_message($debug_mode, 'person_api_url: '.$person_api_url);
                     my $response_data_person;
                     my $duty_role;
 
                     # warn "access_token: ".$access_token;
-                    if ($debug_mode eq "Yes") { print STDERR "\nUSER START DEBUG\n"; }
 
                     eval {
                         $response_data_person = decode_json(getApiResponse($person_api_url, $access_token));
+                        log_message($debug_mode, 'response_data_person: '.Dumper($response_data_person));
                     };
 
                     if (
@@ -1606,22 +1613,15 @@ sub fetchBorrowers {
                     # warn "response_data_person: ".Dumper($response_data_person);
 
                     if ($duty_role) {
-                        if ($debug_mode eq "Yes") { 
-                            print STDERR "duty_role: ".$duty_role."\n"; 
-                            if ($total_dutyRoleName eq '') {
-                                $total_dutyRoleName = $duty_role;
-                            } else {
-                                $total_dutyRoleName = $total_dutyRoleName . ", " . $duty_role;
-                            }
-                            $total_dutyRole++;
-                        }
+                        log_message($debug_mode, 'duty_role: '.$duty_role);
+                        # if ($debug_mode eq "Yes") { 
+                        #     print STDERR "duty_role: ".$duty_role."\n"; 
+                        # }
                         foreach my $category_mapping (@categories_mapping) {
                             if ($category_mapping->{dutyRole} && $category_mapping->{dutyRole} eq $duty_role) {
                                 $koha_categorycode = $category_mapping->{categorycode};
                                 $not_import = $category_mapping->{not_import} || 0;
-                                if ($debug_mode eq "Yes") { 
-                                    print STDERR "not_import from mysql base, category_mapping: ".$not_import."\n";
-                                }
+                                log_message($debug_mode, 'Geted not_import flag from mysql base, category_mapping import set to: '.($not_import ? 'no' : 'yes'));
                                 last; 
                             }
                         }
@@ -1629,11 +1629,10 @@ sub fetchBorrowers {
 
                         if ($excluding_dutyRole_empty eq "Yes") {
                                 $not_import = 1;
-                                if ($debug_mode eq "Yes") { 
-                                    $total_dutyRole_empty++;
-                                    print STDERR "duty_role is empty, not import data\n";
-                                    # warn "duty_role is empty, not import data";
-                                }                            
+                                log_message($debug_mode, 'duty_role is empty, not import data');
+                                # if ($debug_mode eq "Yes") { 
+                                    # print STDERR "duty_role is empty, not import data\n";
+                                # }                            
                         }
 
                     }
@@ -1653,17 +1652,19 @@ sub fetchBorrowers {
                     }
 
                     if ($enroledAtId) {
-                        if ($debug_mode eq "Yes") { 
-                                $total_enrolments++; 
+                        log_message($debug_mode, 'enroledAtId: '.$enroledAtId);
+                        # if ($debug_mode eq "Yes") { 
                                 # warn "organisations user url: ".$person_api_url;
-                                print STDERR "enroledAtId: ".$enroledAtId."\n";
-                        }
+                                # print STDERR "enroledAtId: ".$enroledAtId."\n";
+                        # }
                         
                         my $person_api_url = $api_url_base."organisations/".$enroledAtId;
+                        log_message($debug_mode, 'person_api_url: '.$person_api_url);
                         my $organisationCode;
 
                         eval {
                             $response_data_person = decode_json(getApiResponse($person_api_url, $access_token));
+                            log_message($debug_mode, 'response_data_person: '.Dumper($response_data_person));
                         };
 
                         # warn "organisations response_data_person: ".Dumper($response_data_person);
@@ -1673,20 +1674,17 @@ sub fetchBorrowers {
                         }
 
                         if ($organisationCode) {
-                            if ($debug_mode eq "Yes") { 
-                                print STDERR "organisationCode: $organisationCode\n"; 
-                                if ($total_enrolmentsName eq '') {
-                                    $total_enrolmentsName = $organisationCode;
-                                } else {
-                                    $total_enrolmentsName = $total_enrolmentsName . ", " . $organisationCode;
-                                }
-                            }
+                            log_message($debug_mode, 'organisationCode: '.$organisationCode);
+                            # if ($debug_mode eq "Yes") { 
+                                # print STDERR "organisationCode: $organisationCode\n"; 
+                            # }
                             # warn "organisationCode: $organisationCode";
                             # warn "Number of elements in \@branches_mapping: " . scalar(@branches_mapping);
                             foreach my $branch_mapping (@branches_mapping) {
                                 # warn "Checking branch_mapping: ". Dumper($branch_mapping);
                                 if ($branch_mapping->{organisationCode} && $branch_mapping->{organisationCode} eq $organisationCode) {
                                     $koha_branchcode = $branch_mapping->{branchcode};
+                                    log_message($debug_mode, 'Checking branch_mapping, koha_branchcode: '.$koha_branchcode);
                                     last; 
                                 }
                             }
@@ -1698,18 +1696,14 @@ sub fetchBorrowers {
 
                         if ($excluding_enrolments_empty eq "Yes") {
                                 $not_import = 1;
-                                if ($debug_mode eq "Yes") { 
+                                log_message($debug_mode, 'enrolments is empty, not import data');
+                                # if ($debug_mode eq "Yes") { 
                                     # warn "enrolments is empty, not import data";
-                                    print STDERR "enrolments is empty, not import data\n";
-                                    $total_enrolments_empty++;
-                                }
+                                    # print STDERR "enrolments is empty, not import data\n";
+                                # }
                         }
 
                     }
-
-                    if ($not_import == 1 && $debug_mode eq "Yes") { $total_intersecting_dutyRole_enrolments_empty++; }
-
-                    if ($debug_mode eq "Yes") { print STDERR "USER END DEBUG\n"; }
 
                     my $givenName = $response_page_data->{givenName};
                     my $familyName = $response_page_data->{familyName};
@@ -1722,6 +1716,10 @@ sub fetchBorrowers {
                             $sex = "F";
                         }
                     }
+                    log_message($debug_mode, 'givenName: '.$givenName);
+                    log_message($debug_mode, 'familyName: '.$familyName);
+                    log_message($debug_mode, 'birthDate: '.$birthDate);
+                    log_message($debug_mode, 'sex: '.$sex);
 
                     my $emails = $response_page_data->{emails}; # we get an array
                     my $email = "";
@@ -1741,8 +1739,12 @@ sub fetchBorrowers {
                             }
                         }
                     }
+                    log_message($debug_mode, 'Geted emails from api: '.Dumper($emails));
+                    log_message($debug_mode, 'email: '.$email);
+                    log_message($debug_mode, 'B_email: '.$B_email);
 
                     my $addresses = $response_page_data->{addresses}; # we get an array
+                    log_message($debug_mode, 'Geted addresses from api: '.Dumper($addresses));
                     my $streetAddress = "";
                     my $locality = "";
                     my $postalCode = "";
@@ -1769,8 +1771,17 @@ sub fetchBorrowers {
                             }
                         }
                     }
+                    log_message($debug_mode, 'type: '.$type);
+                    log_message($debug_mode, 'streetAddress: '.$streetAddress);
+                    log_message($debug_mode, 'locality: '.$locality);
+                    log_message($debug_mode, 'postalCode: '.$postalCode);
+                    log_message($debug_mode, 'country: '.$country);
+                    log_message($debug_mode, 'countyCode: '.$countyCode);
+                    log_message($debug_mode, 'municipalityCode: '.$municipalityCode);
+                    log_message($debug_mode, 'realEstateDesignation: '.$realEstateDesignation);
 
                     my $phoneNumbers = $response_page_data->{phoneNumbers};
+                    log_message($debug_mode, 'Geted phoneNumbers from api: '.Dumper($phoneNumbers));
                     my $phone = "";
                     my $mobile_phone = "";
                     if (defined $phoneNumbers && ref $phoneNumbers eq 'ARRAY') {
@@ -1784,6 +1795,8 @@ sub fetchBorrowers {
                             }
                         }
                     }
+                    log_message($debug_mode, 'phone: '.$phone);
+                    log_message($debug_mode, 'mobile_phone: '.$mobile_phone);
 
                     my $cardnumber;
                     my $civicNo = $response_page_data->{civicNo};
@@ -1791,6 +1804,8 @@ sub fetchBorrowers {
                             # $nationality = $civicNo->{nationality};
                             $cardnumber = $civicNo->{value}; 
                     }
+                    log_message($debug_mode, 'cardnumber: '.$cardnumber);
+                    log_message($debug_mode, 'civicNo: '.Dumper($civicNo));
 
                     my $externalIdentifier;
                     my $externalIdentifiers = $response_page_data->{externalIdentifiers};
@@ -1799,12 +1814,37 @@ sub fetchBorrowers {
                             $externalIdentifier = $selectedIdentifier->{value}; 
                         }
                     }
+                    log_message($debug_mode, 'externalIdentifier: '.$externalIdentifier);
 
                     my $userid = $cardnumber;
+                    log_message($debug_mode, 'userid: '.$userid);
 
                     if (!defined $email || $email eq "") { $email = undef; }
                     # warn "not_import, must be !=1, now is: ".$not_import;
+                    log_message($debug_mode, 'Import data from api to our Koha: '.($not_import ? 'no' : 'yes'));
+
                     if ($not_import != 1) {
+                        log_message($debug_mode, 'addOrUpdateBorrower, cardnumber: '.$cardnumber);
+                        log_message($debug_mode, 'addOrUpdateBorrower, familyName: '.(defined $familyName ? $familyName : ''));
+                        log_message($debug_mode, 'addOrUpdateBorrower, givenName: '.(defined $givenName ? $givenName : ''));
+                        log_message($debug_mode, 'addOrUpdateBorrower, birthDate: '.(defined $birthDate ? $birthDate : ''));
+                        log_message($debug_mode, 'addOrUpdateBorrower, email: '.(defined $email ? $email : ''));
+                        log_message($debug_mode, 'addOrUpdateBorrower, sex: '.(defined $sex ? $sex : ''));
+                        log_message($debug_mode, 'addOrUpdateBorrower, phone: '.(defined $phone ? $phone : ''));
+                        log_message($debug_mode, 'addOrUpdateBorrower, mobile_phone: '.(defined $mobile_phone ? $mobile_phone : ''));
+                        log_message($debug_mode, 'addOrUpdateBorrower, koha_categorycode: '.$koha_categorycode);
+                        log_message($debug_mode, 'addOrUpdateBorrower, koha_branchcode: '.$koha_branchcode);
+                        log_message($debug_mode, 'addOrUpdateBorrower, streetAddress: '.(defined $streetAddress ? $streetAddress : ''));
+                        log_message($debug_mode, 'addOrUpdateBorrower, locality: '.(defined $locality ? $locality : ''));
+                        log_message($debug_mode, 'addOrUpdateBorrower, postalCode: '.(defined $postalCode ? $postalCode : ''));
+                        log_message($debug_mode, 'addOrUpdateBorrower, country: '.(defined $country ? $country : ''));
+                        log_message($debug_mode, 'addOrUpdateBorrower, B_email: '.(defined $B_email ? $B_email : ''));
+                        log_message($debug_mode, 'addOrUpdateBorrower, userid: '.$userid);
+                        log_message($debug_mode, 'addOrUpdateBorrower, useridPlugin: '.$useridPlugin);
+                        log_message($debug_mode, 'addOrUpdateBorrower, cardnumberPlugin: '.$cardnumberPlugin);
+                        log_message($debug_mode, 'addOrUpdateBorrower, externalIdentifier: '.$externalIdentifier);
+                        log_message($debug_mode, 'addOrUpdateBorrower, klass_displayName: '.(defined $klass_displayName ? $klass_displayName : ''));
+
                         addOrUpdateBorrower(
                                 $cardnumber,
                                 $familyName,
@@ -1830,20 +1870,8 @@ sub fetchBorrowers {
                     }
                     $j++;
                 } 
-            }
-
-            if ($debug_mode eq "Yes") {
-                # Update state
-                $state->{parse_page} = $parse_page + 1;
-                $state->{total_borrowers} = $total_borrowers;
-                $state->{total_enrolments} = $total_enrolments;
-                $state->{total_dutyRole} = $total_dutyRole;
-                $state->{total_dutyRole_empty} = $total_dutyRole_empty;
-                $state->{total_enrolments_empty} = $total_enrolments_empty;
-                $state->{total_intersecting_dutyRole_enrolments_empty} = $total_intersecting_dutyRole_enrolments_empty;
-                $state->{total_dutyRoleName} = $total_dutyRoleName;
-                $state->{total_enrolmentsName} = $total_enrolmentsName;
-                write_state($state_file, $state);
+                log_message($debug_mode, 'ENDED DEBUGGING THE CURRENT USER');
+                log_message($debug_mode, ' ');
             }
 
             if ($j == $api_limit) {

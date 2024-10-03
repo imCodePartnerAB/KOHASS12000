@@ -58,13 +58,13 @@ our $branches_mapping_table   = 'imcode_branches_mapping';
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 
-our $VERSION = "1.39";
+our $VERSION = "1.4";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2024-09-25',
+    date_updated    => '2024-10-03',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -550,6 +550,13 @@ sub configure {
 
     my $template = $self->get_template({ file => 'config.tt' });
 
+    # Pass success or error message to the template
+    $template->param(success => $self->{'success'}) if $self->{'success'};
+    $template->param(error => $self->{'error'}) if $self->{'error'};
+    my $count_log_query = "SELECT COUNT(*) FROM imcode_logs";
+    my ($log_count) = $dbh->selectrow_array($count_log_query);
+    $template->param(log_count => $log_count);
+
     if ($op eq 'cud-save-config') {
         my $client_id     = $cgi->param('client_id');
         # client_secret
@@ -777,6 +784,16 @@ sub configure {
 
         if ($@) {
             warn "Error updating configuration: $@";
+        }
+    }
+    elsif ($op eq 'cud-clearlog-config') {
+        my $clean_query = qq{
+            TRUNCATE TABLE imcode_logs
+        };
+        eval { $dbh->do($clean_query) };
+
+        if ($@) {
+            warn "Error while run clean_query: $@";
         }
     }
 
@@ -1542,15 +1559,16 @@ sub fetchBorrowers {
             my $j = 0;
             for my $i (1..$api_limit) {
 
-                log_message($debug_mode, 'STARTED DEBUGGING THE CURRENT USER');
                 my $koha_categorycode = $koha_default_categorycode;
-                log_message($debug_mode, 'koha_default_categorycode: '.$koha_default_categorycode);
                 my $koha_branchcode = $koha_default_branchcode;
-                log_message($debug_mode, 'koha_default_branchcode: '.$koha_default_branchcode);
                 my $not_import = 0;
 
                 my $response_page_data = $response_data->{data}[$i-1];
                 if ($response_page_data) {
+
+                    log_message($debug_mode, 'STARTED DEBUGGING THE CURRENT USER');
+                    log_message($debug_mode, 'koha_default_categorycode: '.$koha_default_categorycode);
+                    log_message($debug_mode, 'koha_default_branchcode: '.$koha_default_branchcode);
 
                     my $id = $response_page_data->{id};
                     log_message($debug_mode, 'api response_page_data->{id}: '.$id);
@@ -1569,6 +1587,7 @@ sub fetchBorrowers {
                     my $today = $dt->ymd;
 
                     my $klass_displayName;
+                    log_message($debug_mode, '::groupMembership (trying to get Klass) BEGIN');
                     foreach my $groupMembership (@{$response_data_groupMemberships ->{_embedded}->{groupMemberships}}) {
                         my $group = $groupMembership->{group};
                         log_message($debug_mode, 'groupMembership->{group}: '.Dumper($group));
@@ -1583,6 +1602,7 @@ sub fetchBorrowers {
                             last; 
                         }
                     }
+                    log_message($debug_mode, '::groupMembership END');
                     # end search "groupType": "Klass"
 
                     # my $api_url_base = "$ist_url/ss12000v2-api/source/$customerId/v2.0/";
@@ -1612,6 +1632,7 @@ sub fetchBorrowers {
 
                     # warn "response_data_person: ".Dumper($response_data_person);
 
+                    log_message($debug_mode, '::duty_role BEGIN');
                     if ($duty_role) {
                         log_message($debug_mode, 'duty_role: '.$duty_role);
                         # if ($debug_mode eq "Yes") { 
@@ -1623,24 +1644,29 @@ sub fetchBorrowers {
                                 $not_import = $category_mapping->{not_import} || 0;
                                 log_message($debug_mode, 'Geted not_import flag from mysql base, category_mapping import set to: '.($not_import ? 'no' : 'yes'));
                                 last; 
-                            }
+                            } 
+                            log_message($debug_mode, 'koha_categorycode settled to: '.$koha_categorycode);
+                            log_message($debug_mode, 'not_import flag settled to: '.($not_import ? 'no' : 'yes'));
                         }
                     } else {
-
                         if ($excluding_dutyRole_empty eq "Yes") {
                                 $not_import = 1;
-                                log_message($debug_mode, 'duty_role is empty, not import data');
+                                log_message($debug_mode, 'Duty_role is empty, not import data, excluding_dutyRole_empty in config settled to Yes');
                                 # if ($debug_mode eq "Yes") { 
                                     # print STDERR "duty_role is empty, not import data\n";
                                 # }                            
                         }
 
                     }
+                    log_message($debug_mode, '::duty_role END');
                     # /dutyRole
 
                     # organisationCode @branches_mapping
                     my $enrolments = $response_page_data->{enrolments}; 
+                    log_message($debug_mode, 'enrolments: '.Dumper($enrolments));
                     my $enroledAtId = "";
+
+                    log_message($debug_mode, '::organisationCode BEGIN');
 
                     if (defined $enrolments && ref $enrolments eq 'ARRAY') {
                         foreach my $enrolment (@$enrolments) {
@@ -1686,7 +1712,8 @@ sub fetchBorrowers {
                                     $koha_branchcode = $branch_mapping->{branchcode};
                                     log_message($debug_mode, 'Checking branch_mapping, koha_branchcode: '.$koha_branchcode);
                                     last; 
-                                }
+                                } 
+                                log_message($debug_mode, 'koha_branchcode settled to: '.$koha_branchcode);
                             }
                             # warn "koha_branchcode set to: ".$koha_branchcode;
                             # warn "koha_default_branchcode is : ".$koha_default_branchcode;
@@ -1696,7 +1723,7 @@ sub fetchBorrowers {
 
                         if ($excluding_enrolments_empty eq "Yes") {
                                 $not_import = 1;
-                                log_message($debug_mode, 'enrolments is empty, not import data');
+                                log_message($debug_mode, 'Enrolments is empty, not import data, excluding_Enrolments_empty in config settled to Yes');
                                 # if ($debug_mode eq "Yes") { 
                                     # warn "enrolments is empty, not import data";
                                     # print STDERR "enrolments is empty, not import data\n";
@@ -1704,6 +1731,7 @@ sub fetchBorrowers {
                         }
 
                     }
+                    log_message($debug_mode, '::organisationCode END');
 
                     my $givenName = $response_page_data->{givenName};
                     my $familyName = $response_page_data->{familyName};
@@ -1821,7 +1849,7 @@ sub fetchBorrowers {
 
                     if (!defined $email || $email eq "") { $email = undef; }
                     # warn "not_import, must be !=1, now is: ".$not_import;
-                    log_message($debug_mode, 'Import data from api to our Koha: '.($not_import ? 'no' : 'yes'));
+                    log_message($debug_mode, 'addOrUpdateBorrower data from api to our Koha: '.($not_import ? 'no' : 'yes'));
 
                     if ($not_import != 1) {
                         log_message($debug_mode, 'addOrUpdateBorrower, cardnumber: '.$cardnumber);
@@ -1869,9 +1897,9 @@ sub fetchBorrowers {
                             );
                     }
                     $j++;
+                    log_message($debug_mode, 'ENDED DEBUGGING THE CURRENT USER');
+                    log_message($debug_mode, ' ');
                 } 
-                log_message($debug_mode, 'ENDED DEBUGGING THE CURRENT USER');
-                log_message($debug_mode, ' ');
             }
 
             if ($j == $api_limit) {

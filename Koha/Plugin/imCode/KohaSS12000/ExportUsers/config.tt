@@ -273,6 +273,21 @@
 
         </form>
 
+        [% IF log_count %]
+        <!-- Separate form for clearing logs -->
+        <form method="post" action="" id="clearLogForm">
+            <input type="hidden" name="class" value="[% CLASS %]" />
+            <input type="hidden" name="method" value="[% METHOD %]" />
+            <input type="hidden" name="op" value="cud-clearlog-config" />
+            <input type="hidden" name="csrf_token" value="[% csrf_token %]">
+            <div class="form-group row">
+                <div class="col-sm-4">
+                    <input type="submit" value="[% 'Set API scanner from the first page' | gettext %]" />
+                </div>
+            </div>
+        </form>
+        [% END %]
+
         [% IF success %]
         <div class="alert alert-success">[% 'Configuration successfully updated' | gettext %]</div>
         [% END %]
@@ -314,6 +329,13 @@
             $('select[name="debug_mode"]').css('color', 'red');
         }
     });
+</script>
+<script>
+document.querySelector('input[value="[% 'Set API scanner from the first page' | gettext %]"]').addEventListener('click', function(e) {
+    if (!confirm('[% 'Are you sure you want to clear the log? This action cannot be undone.' | gettext %]')) {
+        e.preventDefault();
+    }
+});
 </script>
 
 [% INCLUDE 'intranet-bottom.inc' %]

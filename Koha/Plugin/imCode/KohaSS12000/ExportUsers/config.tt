@@ -274,18 +274,20 @@
         </form>
 
         [% IF log_count %]
-        <!-- Separate form for clearing logs -->
-        <form method="post" action="" id="clearLogForm">
-            <input type="hidden" name="class" value="[% CLASS %]" />
-            <input type="hidden" name="method" value="[% METHOD %]" />
-            <input type="hidden" name="op" value="cud-clearlog-config" />
-            <input type="hidden" name="csrf_token" value="[% csrf_token %]">
-            <div class="form-group row">
-                <div class="col-sm-4">
-                    <input type="submit" value="[% 'Set API scanner from the first page' | gettext %]" />
+        <div name="DivClearLogForm" style="display:none;">
+            <!-- Separate form for clearing logs -->
+            <form method="post" action="" id="clearLogForm">
+                <input type="hidden" name="class" value="[% CLASS %]" />
+                <input type="hidden" name="method" value="[% METHOD %]" />
+                <input type="hidden" name="op" value="cud-clearlog-config" />
+                <input type="hidden" name="csrf_token" value="[% csrf_token %]">
+                <div class="form-group row">
+                    <div class="col-sm-4">
+                        <input type="submit" value="[% 'Set API scanner from the first page' | gettext %]" />
+                    </div>
                 </div>
-            </div>
-        </form>
+            </form>
+        </div>
         [% END %]
 
         [% IF success %]
@@ -327,6 +329,7 @@
         });
         if ($('select[name="debug_mode"]').val() === 'Yes') {
             $('select[name="debug_mode"]').css('color', 'red');
+            $('div[name="DivClearLogForm"]').css('display', 'block');
         }
     });
 </script>

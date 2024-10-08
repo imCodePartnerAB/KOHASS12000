@@ -1635,9 +1635,7 @@ sub fetchBorrowers {
                     log_message($debug_mode, '::duty_role BEGIN');
                     if ($duty_role) {
                         log_message($debug_mode, 'duty_role: '.$duty_role);
-                        # if ($debug_mode eq "Yes") { 
-                        #     print STDERR "duty_role: ".$duty_role."\n"; 
-                        # }
+                        log_message($debug_mode, "Checking category_mapping, in category_mapping we have: ". Dumper($category_mapping));
                         foreach my $category_mapping (@categories_mapping) {
                             if ($category_mapping->{dutyRole} && $category_mapping->{dutyRole} eq $duty_role) {
                                 $koha_categorycode = $category_mapping->{categorycode};
@@ -1652,11 +1650,7 @@ sub fetchBorrowers {
                         if ($excluding_dutyRole_empty eq "Yes") {
                                 $not_import = 1;
                                 log_message($debug_mode, 'Duty_role is empty, not import data, excluding_dutyRole_empty in config settled to Yes');
-                                # if ($debug_mode eq "Yes") { 
-                                    # print STDERR "duty_role is empty, not import data\n";
-                                # }                            
                         }
-
                     }
                     log_message($debug_mode, '::duty_role END');
                     # /dutyRole
@@ -1701,22 +1695,20 @@ sub fetchBorrowers {
 
                         if ($organisationCode) {
                             log_message($debug_mode, 'organisationCode: '.$organisationCode);
-                            # if ($debug_mode eq "Yes") { 
-                                # print STDERR "organisationCode: $organisationCode\n"; 
-                            # }
+                            log_message($debug_mode, "Checking branch_mapping, in branch_mapping we have: ". Dumper($branch_mapping));
                             # warn "organisationCode: $organisationCode";
                             # warn "Number of elements in \@branches_mapping: " . scalar(@branches_mapping);
                             foreach my $branch_mapping (@branches_mapping) {
-                                # warn "Checking branch_mapping: ". Dumper($branch_mapping);
                                 if ($branch_mapping->{organisationCode} && $branch_mapping->{organisationCode} eq $organisationCode) {
                                     $koha_branchcode = $branch_mapping->{branchcode};
+                                    # log_message($debug_mode, 'branch_mapping->{organisationCode}: '.$branch_mapping->{organisationCode}.', need: '.$organisationCode);
                                     log_message($debug_mode, 'Checking branch_mapping, koha_branchcode: '.$koha_branchcode);
                                     last; 
                                 } 
-                                log_message($debug_mode, 'koha_branchcode settled to: '.$koha_branchcode);
                             }
                             # warn "koha_branchcode set to: ".$koha_branchcode;
                             # warn "koha_default_branchcode is : ".$koha_default_branchcode;
+                            log_message($debug_mode, 'koha_branchcode settled to: '.$koha_branchcode);
                         }
                         # /organisationCode
                     } else {

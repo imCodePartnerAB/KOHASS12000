@@ -1635,7 +1635,7 @@ sub fetchBorrowers {
                     log_message($debug_mode, '::duty_role BEGIN');
                     if ($duty_role) {
                         log_message($debug_mode, 'duty_role: '.$duty_role);
-                        log_message($debug_mode, "Checking category_mapping, in category_mapping we have: ". Dumper($category_mapping));
+                        log_message($debug_mode, "Checking categories_mapping, in categories_mapping we have: ". Dumper(@categories_mapping));
                         foreach my $category_mapping (@categories_mapping) {
                             if ($category_mapping->{dutyRole} && $category_mapping->{dutyRole} eq $duty_role) {
                                 $koha_categorycode = $category_mapping->{categorycode};
@@ -1695,7 +1695,7 @@ sub fetchBorrowers {
 
                         if ($organisationCode) {
                             log_message($debug_mode, 'organisationCode: '.$organisationCode);
-                            log_message($debug_mode, "Checking branch_mapping, in branch_mapping we have: ". Dumper($branch_mapping));
+                            log_message($debug_mode, "Checking branches_mapping, in branches_mapping we have: ". Dumper(@branches_mapping));
                             # warn "organisationCode: $organisationCode";
                             # warn "Number of elements in \@branches_mapping: " . scalar(@branches_mapping);
                             foreach my $branch_mapping (@branches_mapping) {

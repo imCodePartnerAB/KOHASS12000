@@ -61,7 +61,7 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0;
 
-our $VERSION = "1.50001";
+our $VERSION = "1.50005";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
@@ -184,7 +184,6 @@ sub install {
         updated_count INT DEFAULT 0,
         processed_count INT DEFAULT 0,
         iteration_number INT DEFAULT 0,
-        organisation_code VARCHAR(255) DEFAULT NULL,
         created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
     );},
     qq{INSERT INTO imcode_config (name,value) VALUES ('ist_client_id','your_client_id');},
@@ -334,8 +333,7 @@ sub upgrade {
         ADD COLUMN IF NOT EXISTS added_count INT DEFAULT 0,
         ADD COLUMN IF NOT EXISTS updated_count INT DEFAULT 0,
         ADD COLUMN IF NOT EXISTS processed_count INT DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS iteration_number INT DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS organisation_code VARCHAR(255) DEFAULT NULL
+        ADD COLUMN IF NOT EXISTS iteration_number INT DEFAULT 0
     };
 
     eval {
@@ -1197,36 +1195,25 @@ sub cronjob {
     
     my $dbh = C4::Context->dbh;
     
-    # Get current date
-    my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
-    my $today = sprintf("%04d-%02d-%02d", $year + 1900, $mon + 1, $mday);
-    
-    # Check if all organisations are processed for today
-    my $check_all_completed = qq{
-        SELECT COUNT(*) FROM (
-            SELECT DISTINCT organisationCode 
-            FROM $branches_mapping_table 
-            WHERE organisationCode IS NOT NULL 
-            AND organisationCode != ''
-            AND organisationCode NOT IN (
-                SELECT DISTINCT organisation_code 
-                FROM $logs_table 
-                WHERE DATE(created_at) = CURDATE()
-                AND page_token_next IS NULL 
-                AND data_endpoint = ?
-                AND is_processed = 1
-            )
-        ) AS remaining_orgs
+    # Check if processing is already completed for today
+    my $check_completion = qq{
+        SELECT 1 FROM $logs_table 
+        WHERE DATE(created_at) = CURDATE()
+        AND page_token_next IS NULL
+        AND data_endpoint = ?
+        AND is_processed = 1
     };
     
-    my ($remaining_count) = $dbh->selectrow_array($check_all_completed, undef, $data_endpoint);
-    if ($remaining_count == 0) {
-        log_message('Yes', "All organisations already processed for today");
-        print "EndLastPageFromAPI\n";
+    my ($is_completed) = $dbh->selectrow_array($check_completion, undef, $data_endpoint);
+    if ($is_completed) {
+        print "EndLastPageFromAPI\n";  # Додаємо явний вивід для bash скрипта
         return;
     }
     
-    # Clean old logs
+    # Rest of the original code...
+    my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+    my $today = sprintf("%04d-%02d-%02d", $year + 1900, $mon + 1, $mday);
+    
     my $config_data = $self->get_config_data();
     my $logs_limit = int($config_data->{logs_limit}) || 3;
     
@@ -1236,24 +1223,15 @@ sub cronjob {
     };
     $dbh->do($cleanup_query, undef, $logs_limit);
     
-    # Get organisation codes
     my $select_branches_query = qq{
-        SELECT DISTINCT bm.organisationCode 
-        FROM $branches_mapping_table bm
-        WHERE bm.organisationCode IS NOT NULL 
-        AND bm.organisationCode != ''
-        AND bm.organisationCode NOT IN (
-            SELECT DISTINCT l.organisation_code 
-            FROM $logs_table l
-            WHERE DATE(l.created_at) = CURDATE()
-            AND l.page_token_next IS NULL 
-            AND l.data_endpoint = ?
-            AND l.is_processed = 1
-        )
+        SELECT DISTINCT organisationCode 
+        FROM $branches_mapping_table 
+        WHERE organisationCode IS NOT NULL 
+        AND organisationCode != ''
     };
     
     my $sth = $dbh->prepare($select_branches_query);
-    $sth->execute($data_endpoint);
+    $sth->execute();
     
     my @organisation_codes;
     while (my ($org_code) = $sth->fetchrow_array) {
@@ -1261,23 +1239,14 @@ sub cronjob {
     }
     
     if (@organisation_codes) {
-        log_message('Yes', 'Found ' . scalar(@organisation_codes) . ' unprocessed organisation codes, continuing processing');
+        log_message('Yes', 'Found ' . scalar(@organisation_codes) . ' organisation codes in mapping, processing with filtering');
         
         foreach my $org_code (@organisation_codes) {
-            # Check if this specific organisation is already completed
-            my $check_org_query = qq{
-                SELECT 1 FROM $logs_table 
-                WHERE DATE(created_at) = CURDATE()
-                AND organisation_code = ?
-                AND page_token_next IS NULL
-                AND data_endpoint = ?
-                AND is_processed = 1
-            };
-            
-            my ($org_completed) = $dbh->selectrow_array($check_org_query, undef, $org_code, $data_endpoint);
-            if ($org_completed) {
-                log_message('Yes', "Organisation $org_code already processed today, skipping");
-                next;
+            # Check completion again inside the loop
+            ($is_completed) = $dbh->selectrow_array($check_completion, undef, $data_endpoint);
+            if ($is_completed) {
+                print "EndLastPageFromAPI\n";
+                return;
             }
             
             log_message('Yes', "Processing organisation code: $org_code");
@@ -1295,7 +1264,7 @@ sub cronjob {
                 };
                 
                 eval {
-                    my $result = $self->fetchDataFromAPI($data_endpoint, $filter_params, $org_code);
+                    my $result = $self->fetchDataFromAPI($data_endpoint, $filter_params);
                     if ($result == 0) {
                         log_message('Yes', "Processing completed for organisation $org_code");
                     }
@@ -1305,7 +1274,6 @@ sub cronjob {
                     if ($@ =~ /EndLastPageFromAPI/) {
                         log_message('Yes', "Reached last page for organisation $org_code");
                     } elsif ($@ =~ /ErrorVerifyCategorycodeBranchcode/) {
-                        log_message('Yes', "Configuration error for organisation $org_code");
                         print "ErrorVerifyCategorycodeBranchcode\n";
                         die $@;
                     } else {
@@ -1316,19 +1284,11 @@ sub cronjob {
                 log_message('Yes', "Could not get ID for organisation code: $org_code");
             }
         }
-        
-        # Check if all organisations are now processed
-        ($remaining_count) = $dbh->selectrow_array($check_all_completed, undef, $data_endpoint);
-        if ($remaining_count == 0) {
-            log_message('Yes', "All organisations processed successfully");
-            print "EndLastPageFromAPI\n";
-        }
-        
     } else {
-        log_message('Yes', 'No organisations to process, running without filtering');
+        log_message('Yes', 'No organisation codes found in mapping, processing without filtering');
         
         eval {
-            $self->fetchDataFromAPI($data_endpoint, undef, 'NO_ORG');
+            $self->fetchDataFromAPI($data_endpoint);
         };
         
         if ($@) {
@@ -1344,30 +1304,18 @@ sub cronjob {
         }
     }
     
-    # Get and log final statistics
-    my $stats_query = qq{
-        SELECT 
-            COUNT(DISTINCT organisation_code) as orgs_processed,
-            SUM(added_count) as total_added,
-            SUM(updated_count) as total_updated,
-            SUM(processed_count) as total_processed
-        FROM $logs_table 
-        WHERE data_endpoint = ?
-        AND DATE(created_at) = CURDATE()
+    my $delete_query = qq{
+        DELETE FROM $logs_table
+        WHERE created_at <= DATE_SUB(NOW(), INTERVAL $logs_limit DAY)
     };
-    
-    my $sth_stats = $dbh->prepare($stats_query);
-    $sth_stats->execute($data_endpoint);
-    my $stats = $sth_stats->fetchrow_hashref;
-    
-    if ($stats) {
-        log_message('Yes', sprintf(
-            "Daily statistics - Organisations processed: %d, Added: %d, Updated: %d, Total processed: %d",
-            $stats->{orgs_processed} || 0,
-            $stats->{total_added} || 0,
-            $stats->{total_updated} || 0,
-            $stats->{total_processed} || 0
-        ));
+    my $sth_delete = $dbh->prepare($delete_query);
+    eval {
+        if ($sth_delete->execute()) {
+            warn "Deleted old logs older than $logs_limit days";
+        }
+    };
+    if ($@) {
+        warn "Error cleaning old logs: $@";
     }
     
     return;
@@ -1478,7 +1426,7 @@ sub build_filtered_endpoint {
 }
 
 sub fetchDataFromAPI {
-    my ($self, $data_endpoint, $filter_params, $current_org_code) = @_;
+    my ($self, $data_endpoint, $filter_params) = @_;
 
     my $dbh = C4::Context->dbh;
     my $response_page_token;     
@@ -1499,8 +1447,8 @@ sub fetchDataFromAPI {
     my $config_data  = {};
 
     my $insert_error_query = qq{
-            INSERT INTO $logs_table (page_token_next, response, organisation_code)
-            VALUES (?, ?, ?)
+            INSERT INTO $logs_table (page_token_next, response)
+            VALUES (?, ?)
     };
 
     eval {
@@ -1513,8 +1461,9 @@ sub fetchDataFromAPI {
 
     if ($@) {
         warn "Error fetching configuration: $@";
+        # Insert the error message into the $logs_table
         my $sth_insert_error = $dbh->prepare($insert_error_query);
-        $sth_insert_error->execute('Configuration Error', $@, $current_org_code);
+        $sth_insert_error->execute('Configuration Error', $@);
     }
 
     my $client_id     = $config_data->{ist_client_id} || '';
@@ -1533,21 +1482,26 @@ sub fetchDataFromAPI {
     my $excluding_dutyRole_empty = $config_data->{excluding_dutyRole_empty} || 'No';
     
     if ($debug_mode eq "Yes") { 
-        log_message($debug_mode, "Starting processing for endpoint: $data_endpoint, organisation: $current_org_code");
+        log_message($debug_mode, "Starting processing for endpoint: $data_endpoint");
         log_message($debug_mode, "Filter params: " . Dumper($filter_params)) if $filter_params;
     }
 
+    # Request to API IST
     my $ua = LWP::UserAgent->new;
+    my $pageToken = '';
     my $api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/$data_endpoint?limit=$api_limit";
     my $api_url_base = "$ist_url/ss12000v2-api/source/$customerId/v2.0/";
 
+    # Add filter parameters if they exist
     if ($filter_params && ref($filter_params) eq 'HASH') {
         my $encoded_params = join '&', map {
             uri_escape($_) . '=' . uri_escape($filter_params->{$_})
         } keys %$filter_params;
+        
         $api_url .= "&$encoded_params" if $encoded_params;
     }
 
+    # Setting headers for get access_token
     my $request = POST $oauth_url, [
         client_id     => $client_id,
         client_secret => $client_secret,
@@ -1560,21 +1514,19 @@ sub fetchDataFromAPI {
         my $oauth_content = decode_json($oauth_response->decoded_content);
         my $access_token = $oauth_content->{access_token};
 
-        # Get the latest token for current organisation
+        # Take pageToken from the database
         my $select_tokens_query = qq{
             SELECT id, page_token_next
             FROM $logs_table
             WHERE is_processed = 1
             AND data_endpoint = ?
-            AND organisation_code = ?
-            AND DATE(created_at) = CURDATE()
             AND page_token_next IS NOT NULL
             ORDER BY created_at DESC
             LIMIT 1
         };
-        
         my $sth_select_tokens = $dbh->prepare($select_tokens_query);
-        $sth_select_tokens->execute($data_endpoint, $current_org_code);
+        $sth_select_tokens->execute($data_endpoint);
+
         my ($data_id, $page_token_next) = $sth_select_tokens->fetchrow_array;
 
         if (defined $page_token_next) {
@@ -1582,7 +1534,11 @@ sub fetchDataFromAPI {
         } 
 
         my $response_data = getApiResponse($api_url, $access_token);
-        my $response = $debug_mode eq "Yes" ? $response_data : "Debug Mode OFF";
+
+        my $response = $response_data; 
+        if ($debug_mode eq "No") { 
+            $response = "Debug Mode OFF"; 
+        } 
 
         eval {
             $response_data = decode_json($response_data);
@@ -1605,59 +1561,47 @@ sub fetchDataFromAPI {
         $response_page_token = $response_data->{pageToken};
 
         my $md5 = Digest::MD5->new;
-        $md5->add(encode_json($response_data));
+        $md5->add($response_data);
         my $data_hash = $md5->hexdigest;
 
+        # Check if a record with the same $data_hash exists
         my $select_existing_query = qq{
             SELECT is_processed
             FROM $logs_table
             WHERE data_hash = ?
-            AND organisation_code = ?
             ORDER BY created_at DESC
             LIMIT 1
         };
 
         my $sth_select = $dbh->prepare($select_existing_query);
-        $sth_select->execute($data_hash, $current_org_code);
+        $sth_select->execute($data_hash);
 
         if (my ($is_processed) = $sth_select->fetchrow_array) {
-            warn "Record with data_hash=$data_hash for organisation $current_org_code already exists (processed=$is_processed)";
+            warn "Record with data_hash=$data_hash already exists (processed=$is_processed)";
         } else {
             my $insert_query = qq{
-                INSERT INTO $logs_table (
-                    page_token_next, 
-                    response, 
-                    record_count, 
-                    data_hash, 
-                    data_endpoint,
-                    organisation_code
-                )
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO $logs_table (page_token_next, response, record_count, data_hash, data_endpoint)
+                VALUES (?, ?, ?, ?, ?)
             };
 
             my $sth_insert = $dbh->prepare($insert_query);
+
             eval {
-                if ($sth_insert->execute(
-                    $response_page_token, 
-                    $response, 
-                    $api_limit, 
-                    $data_hash, 
-                    $data_endpoint,
-                    $current_org_code
-                )) {
+                if ($sth_insert->execute($response_page_token, $response, $api_limit, $data_hash, $data_endpoint)) {
                     warn "Data from API successfully inserted into $logs_table";
                 } else {
                     die "Error inserting data into $logs_table: " . $dbh->errstr;
                 }
             };
+
             if ($@) {
                 warn "Database error: $@";
             }
         }
 
-        # Get mappings
         my $select_categories_mapping_query = qq{SELECT id, categorycode, dutyRole, not_import FROM $categories_mapping_table};
         my $select_branches_mapping_query = qq{SELECT id, branchcode, organisationCode FROM $branches_mapping_table};
+
         my @categories_mapping;
         my @branches_mapping;
 
@@ -1684,10 +1628,9 @@ sub fetchDataFromAPI {
             SELECT COALESCE(MAX(iteration_number), 0) + 1 
             FROM $logs_table 
             WHERE data_endpoint = ?
-            AND organisation_code = ?
             AND DATE(created_at) = CURDATE()
         };
-        my ($iteration_number) = $dbh->selectrow_array($select_iteration, undef, $data_endpoint, $current_org_code);
+        my ($iteration_number) = $dbh->selectrow_array($select_iteration, undef, $data_endpoint);
 
         if ($response_data && $data_endpoint eq "persons") {
             fetchBorrowers(
@@ -1723,7 +1666,7 @@ sub fetchDataFromAPI {
                 
                 my $sth_update = $dbh->prepare($update_query);
                 $sth_update->execute(
-                    "Processing completed for $current_org_code",
+                    "Processing completed",
                     $added_count,
                     $updated_count,
                     $processed_count,
@@ -1758,7 +1701,7 @@ sub fetchDataFromAPI {
         my $oauth_error_message = "Error get access_token: " . $oauth_response->status_line;
         warn $oauth_error_message;
         my $sth_insert_oauth_error = $dbh->prepare($insert_error_query);
-        $sth_insert_oauth_error->execute('OAuth Error', $oauth_error_message, $current_org_code);
+        $sth_insert_oauth_error->execute('OAuth Error', $oauth_error_message);
         return 0;
     }
 

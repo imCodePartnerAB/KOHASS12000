@@ -59,15 +59,15 @@ our $categories_mapping_table = 'imcode_categories_mapping';
 our $branches_mapping_table   = 'imcode_branches_mapping';
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
-our $processed_count  = 0;
+our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.50001";
+our $VERSION = "1.5";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2024-10-27',
+    date_updated    => '2024-10-29',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -667,19 +667,12 @@ sub configure {
         # /delete
 
         if ($new_branch_mapping && $new_organisationCode_mapping) {
-            # my $check_mapping_query = qq{
-            #     SELECT organisationCode 
-            #     FROM $branches_mapping_table 
-            #     WHERE organisationCode = ? 
-            #     AND branchcode = ?
-            # };            
             my $check_mapping_query = qq{
                 SELECT organisationCode 
                 FROM $branches_mapping_table 
                 WHERE organisationCode = ? 
             };
             my $sth_check_mapping = $dbh->prepare($check_mapping_query);
-            # $sth_check_mapping->execute($new_organisationCode_mapping, $new_branch_mapping);
             $sth_check_mapping->execute($new_organisationCode_mapping);
 
             if (!$sth_check_mapping->fetchrow_array()) {
@@ -693,19 +686,12 @@ sub configure {
         }
 
         if ($new_categories_mapping && $new_dutyRole_mapping) {
-            # my $check_mapping_query = qq{
-            #     SELECT categorycode 
-            #     FROM $categories_mapping_table 
-            #     WHERE categorycode = ? 
-            #     AND dutyRole = ?
-            # };
             my $check_mapping_query = qq{
                 SELECT categorycode 
                 FROM $categories_mapping_table 
                 WHERE categorycode = ? 
             };
             my $sth_check_mapping = $dbh->prepare($check_mapping_query);
-            # $sth_check_mapping->execute($new_categories_mapping, $new_dutyRole_mapping);
             $sth_check_mapping->execute($new_dutyRole_mapping);
 
             if (!$sth_check_mapping->fetchrow_array()) {
@@ -1721,9 +1707,33 @@ sub fetchDataFromAPI {
                     WHERE data_hash = ?
                 };
                 
+                # Get organization-specific totals
+                my $org_stats_query = qq{
+                    SELECT
+                        SUM(added_count) as org_added,
+                        SUM(updated_count) as org_updated,
+                        SUM(processed_count) as org_processed
+                    FROM $logs_table
+                    WHERE organisation_code = ?
+                    AND DATE(created_at) = CURDATE()
+                    AND data_endpoint = 'persons'
+                };
+                my $sth_org_stats = $dbh->prepare($org_stats_query);
+                $sth_org_stats->execute($current_org_code);
+                my ($org_added, $org_updated, $org_processed) = $sth_org_stats->fetchrow_array();
+
+                my $completion_message = sprintf(
+                    "Processing completed for %s. Organization statistics - Updated: %d, Total processed: %d",
+                    $current_org_code,
+                    $org_updated || 0,
+                    $org_processed || 0
+                );
+
+                log_message('Yes', $completion_message);
+
                 my $sth_update = $dbh->prepare($update_query);
                 $sth_update->execute(
-                    "Processing completed for $current_org_code",
+                    $completion_message,
                     $added_count,
                     $updated_count,
                     $processed_count,
@@ -1914,7 +1924,6 @@ sub fetchBorrowers {
                             log_message($debug_mode, 'klass_displayName: '.$klass_displayName);
                             log_message($debug_mode, 'group->{endDate}: '.$group->{endDate});
                             log_message($debug_mode, 'group->{startDate}: '.$group->{startDate});
-                            # warn "klass_displayName: ".$klass_displayName.", to date: ".$group->{endDate}." from date: ".$group->{startDate};
                             last; 
                         }
                     }
@@ -1928,7 +1937,6 @@ sub fetchBorrowers {
                     my $response_data_person;
                     my $duty_role;
 
-                    # warn "access_token: ".$access_token;
 
                     eval {
                         $response_data_person = decode_json(getApiResponse($person_api_url, $access_token));
@@ -1943,10 +1951,8 @@ sub fetchBorrowers {
                             @{$response_data_person->{data}}
                         ) {
                         $duty_role = $response_data_person->{data}[0]->{dutyRole};
-                        # utf8::decode($duty_role); # utf8
                     } 
 
-                    # warn "response_data_person: ".Dumper($response_data_person);
 
                     log_message($debug_mode, '::duty_role BEGIN');
                     if ($duty_role) {
@@ -1989,10 +1995,6 @@ sub fetchBorrowers {
 
                     if ($enroledAtId) {
                         log_message($debug_mode, 'enroledAtId: '.$enroledAtId);
-                        # if ($debug_mode eq "Yes") { 
-                                # warn "organisations user url: ".$person_api_url;
-                                # print STDERR "enroledAtId: ".$enroledAtId."\n";
-                        # }
                         
                         my $person_api_url = $api_url_base."organisations/".$enroledAtId;
                         log_message($debug_mode, 'person_api_url: '.$person_api_url);
@@ -2003,8 +2005,6 @@ sub fetchBorrowers {
                             log_message($debug_mode, 'response_data_person: '.Dumper($response_data_person));
                         };
 
-                        # warn "organisations response_data_person: ".Dumper($response_data_person);
-
                         if (defined $response_data_person && ref($response_data_person) eq 'HASH' && defined $response_data_person->{organisationCode}) {
                             $organisationCode = $response_data_person->{organisationCode};
                         }
@@ -2012,18 +2012,13 @@ sub fetchBorrowers {
                         if ($organisationCode) {
                             log_message($debug_mode, 'organisationCode: '.$organisationCode);
                             log_message($debug_mode, "Checking branches_mapping, in branches_mapping we have: ". Dumper(@branches_mapping));
-                            # warn "organisationCode: $organisationCode";
-                            # warn "Number of elements in \@branches_mapping: " . scalar(@branches_mapping);
                             foreach my $branch_mapping (@branches_mapping) {
                                 if ($branch_mapping->{organisationCode} && $branch_mapping->{organisationCode} eq $organisationCode) {
                                     $koha_branchcode = $branch_mapping->{branchcode};
-                                    # log_message($debug_mode, 'branch_mapping->{organisationCode}: '.$branch_mapping->{organisationCode}.', need: '.$organisationCode);
                                     log_message($debug_mode, 'Checking branch_mapping, koha_branchcode: '.$koha_branchcode);
                                     last; 
                                 } 
                             }
-                            # warn "koha_branchcode set to: ".$koha_branchcode;
-                            # warn "koha_default_branchcode is : ".$koha_default_branchcode;
                             log_message($debug_mode, 'koha_branchcode settled to: '.$koha_branchcode);
                         }
                         # /organisationCode
@@ -2032,10 +2027,6 @@ sub fetchBorrowers {
                         if ($excluding_enrolments_empty eq "Yes") {
                                 $not_import = 1;
                                 log_message($debug_mode, 'Enrolments is empty, not import data, excluding_Enrolments_empty in config settled to Yes');
-                                # if ($debug_mode eq "Yes") { 
-                                    # warn "enrolments is empty, not import data";
-                                    # print STDERR "enrolments is empty, not import data\n";
-                                # }
                         }
 
                     }

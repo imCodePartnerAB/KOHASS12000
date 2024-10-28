@@ -263,7 +263,7 @@
   var tdElements = document.querySelectorAll(".truncate-text");
   tdElements.forEach(function(td) {
     var originalText = td.textContent;
-    if (originalText.length > 32) {
+    if (originalText.length > 128) {
       var truncatedText = originalText.slice(0, 8);
       td.textContent = truncatedText;
       td.setAttribute("title", originalText);

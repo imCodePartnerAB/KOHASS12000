@@ -6,12 +6,12 @@ This is a plugin for [Koha](https://github.com/Koha-Community/Koha) by [imCode](
 
 It exports user data from the API in SS12000 format to your Koha database
 
-Plugin and cron jobs for importing SS12000 v 1.4
+Plugin and cron jobs for importing SS12000 v 1.5
 
 
-2024-10-03:
+2024-10-29:
 
-[1.4 version of koha-plugin-export-users_ss12000](https://github.com/imCodePartnerAB/KOHASS12000/releases/tag/v1.4)
+[1.5 version of koha-plugin-export-users_ss12000](https://github.com/imCodePartnerAB/KOHASS12000/releases/tag/v1.5)
 
 
 
@@ -35,7 +35,7 @@ sudo service memcached restart ; sudo service koha-common restart
 
 Examples of use in cron:
 ```
-4 */12 * * * root /bin/timeout 8h /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.sh >> /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.log
+4 */12 * * * root /bin/timeout 8h /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.sh 
 ```
 ![imcode_ss12000.pl](Doc/KohaSS12000Install_2.png)
 
@@ -53,7 +53,7 @@ sudo /etc/init.d/cron restart
 
 If you need to start parsing data right now and don't want to wait for the script to be called through the cron, run this command on the server:
 ```
-/var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.sh >> /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.log
+/var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run_ss12000.sh 
 ```
 
 **defaultlibraryname** - this should be the name you gave when installing Koha

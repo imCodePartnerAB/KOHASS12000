@@ -1182,7 +1182,25 @@ sub cronjob {
     my ($self, $data_endpoint) = @_;
     
     my $dbh = C4::Context->dbh;
+
+    # Check if all work for today is already done
+    my $check_completed = qq{
+        SELECT COUNT(*) as processed_count
+        FROM $logs_table 
+        WHERE data_endpoint = ?
+        AND DATE(created_at) = CURDATE()
+        AND page_token_next IS NULL 
+        AND is_processed = 1
+    };
     
+    my ($processed_today) = $dbh->selectrow_array($check_completed, undef, $data_endpoint);
+    
+    if ($processed_today > 0) {
+        log_message('Yes', "All work for today is already completed");
+        print "EndLastPageFromAPI\n";
+        return;
+    }
+
     # Check if mapping table has any records
     my $check_mapping_exists = qq{
         SELECT COUNT(*) FROM $branches_mapping_table
@@ -1388,6 +1406,10 @@ sub cronjob {
             $stats->{total_updated} || 0,
             $stats->{total_processed} || 0
         ));
+        if ($stats->{orgs_processed} > 0 && $stats->{total_processed} > 0) {
+            print "EndLastPageFromAPI\n";
+            return;
+        }        
     }
 }
 

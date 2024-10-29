@@ -103,8 +103,10 @@ sub new {
 }
 
 
-our $log_config_dir = C4::Context->config("logdir"); 
-our $my_log_file = File::Spec->catfile($log_config_dir, 'imcode-export-users.log');
+sub get_log_file {
+    my $log_config_dir = C4::Context->config("logdir"); 
+    return File::Spec->catfile($log_config_dir, 'imcode-export-users.log');
+}
 
 # Function to log messages
 # Example usage:
@@ -114,26 +116,44 @@ sub log_message {
 
     # If debug mode is "Yes"
     if ($debug_mode eq 'Yes') {
+        my $my_log_file = get_log_file();
+
         # Check if the file exists, if not - create it
         unless (-e $my_log_file) {
-            open my $fh, '>', $my_log_file or die "Cannot create $my_log_file: $!";
-            flock($fh, LOCK_EX) or die "Cannot lock $my_log_file: $!";
-            print $fh "";  # Create an empty file
-            close $fh;
+            eval {
+                open my $fh, '>', $my_log_file 
+                    or die "Cannot create $my_log_file: $!";
+                flock($fh, LOCK_EX) 
+                    or die "Cannot lock $my_log_file: $!";
+                print $fh "";  # Create an empty file
+                close $fh;
+            };
+            if ($@) {
+                warn "Error creating log file: $@";
+                return;
+            }
         }
 
         # Open the file for appending data
-        open my $fh, '>>', $my_log_file or die "Cannot open $my_log_file: $!";
-        flock($fh, LOCK_EX) or die "Cannot lock $my_log_file: $!";
+        eval {
+            open my $fh, '>>', $my_log_file 
+                or die "Cannot open $my_log_file: $!";
+            flock($fh, LOCK_EX) 
+                or die "Cannot lock $my_log_file: $!";
 
-        # Get the current date and time
-        my $timestamp = strftime "%Y-%m-%d %H:%M:%S", localtime;
+            # Get the current date and time
+            my $timestamp = strftime "%Y-%m-%d %H:%M:%S", localtime;
 
-        # Write the message to the log file with a timestamp
-        print $fh "$timestamp - $message\n";
+            # Write the message to the log file with a timestamp
+            print $fh "$timestamp - $message\n";
 
-        # Close the file
-        close $fh;
+            # Close the file
+            close $fh;
+        };
+        if ($@) {
+            warn "Error writing to log file: $@";
+            return;
+        }
     }
 }
 
@@ -143,6 +163,15 @@ sub install {
     my $dbh = C4::Context->dbh;
 
     $self->store_data( { plugin_version => $Koha::Plugin::imCode::KohaSS12000::ExportUsers::VERSION || '1.0' } );
+
+    log_message("Yes", "Starting installation process");
+    log_message("Yes", "Storing initial version: $VERSION");
+    
+    $self->store_data( { installed_version => $VERSION } );
+    $self->store_data( { plugin_version => $VERSION } );
+
+    my $stored_version = $self->retrieve_data('installed_version');
+    log_message("Yes", "Verified stored version: " . ($stored_version || 'none'));
 
     my @installer_statements = (
     qq{CREATE TABLE IF NOT EXISTS imcode_config (
@@ -216,6 +245,7 @@ sub install {
 
     if ($@) {
         warn "Install Error: $@";
+        log_message("Yes", "Install Error: $@");
         return 0;
     }
 
@@ -305,6 +335,7 @@ sub install {
 
     if ($@) {
         warn "Install, CREATE TRIGGER log_user_changes, Error: $@";
+        log_message("Yes", "Install, CREATE TRIGGER log_user_changes, Error: $@");
         return 0;
     }
 
@@ -319,14 +350,14 @@ sub upgrade {
 
     # Ensure $VERSION is defined
     our $VERSION = $VERSION || '1.0';
-    warn "Starting upgrade process for plugin version $VERSION";
+    log_message("Yes", "Starting upgrade process for plugin version $VERSION");
 
     # Check if this is a new installation
     my $installed_version = $self->retrieve_data('installed_version') || '0';
     my $is_new_install = ($installed_version eq '0');
 
-    warn "Is new install: " . ($is_new_install ? "Yes" : "No");
-    warn "Installed version: $installed_version";
+    log_message("Yes", "Is new install: " . ($is_new_install ? "Yes" : "No"));
+    log_message("Yes", "Installed version: $installed_version");
 
     # Add new columns to imcode_logs table
     my $alter_table_sql = q{
@@ -340,7 +371,7 @@ sub upgrade {
 
     eval {
         $dbh->do($alter_table_sql) or die "Failed to alter table: " . $dbh->errstr;
-        warn "Table imcode_logs altered successfully";
+        log_message("Yes", "Table imcode_logs altered successfully");
     };
     if ($@) {
         warn "Error altering table: $@";
@@ -354,10 +385,10 @@ sub upgrade {
 
     eval {
         $dbh->do($drop_trigger_sql) or die "Failed to drop trigger: " . $dbh->errstr;
-        warn "Existing trigger dropped successfully (if it existed)";
+        log_message("Yes", "Existing trigger dropped successfully (if it existed)");
     };
     if ($@) {
-        warn "Error dropping trigger: $@";
+        log_message("Yes", "Error dropping trigger: $@");
         $success = 0;
     }
 
@@ -442,10 +473,10 @@ sub upgrade {
 
     eval {
         $dbh->do($create_trigger_sql) or die "Failed to create trigger: " . $dbh->errstr;
-        warn "New trigger created successfully";
+        log_message("Yes", "New trigger created successfully");
     };
     if ($@) {
-        warn "Error creating trigger: $@";
+        log_message("Yes", "Error creating trigger: $@");
         $success = 0;
     }
 
@@ -460,26 +491,27 @@ sub upgrade {
     my ($verified_trigger) = $verify_sth->fetchrow_array;
 
     if ($verified_trigger) {
-        warn "Trigger verified: log_user_changes exists in the database";
+        log_message("Yes", "Trigger verified: log_user_changes exists in the database");
     } else {
-        warn "Error: Trigger log_user_changes not found in the database after creation attempt";
+        log_message("Yes", "Error: Trigger log_user_changes not found in the database after creation attempt");
         $success = 0;
     }
 
     # Log the upgrade or installation result
     if ($success) {
         if ($is_new_install) {
-            warn "Plugin installed successfully (version $VERSION)";
+            log_message("Yes", "Plugin installed successfully (version $VERSION)");
         } else {
-            warn "Plugin upgraded successfully to version $VERSION";
+            log_message("Yes", "Plugin upgraded successfully to version $VERSION");
         }
         # Store the new version
         $self->store_data({ installed_version => $VERSION });
+        $self->store_data({ plugin_version => $VERSION });
     } else {
         if ($is_new_install) {
-            warn "Plugin installation failed (version $VERSION)";
+            log_message("Yes", "Plugin installation failed (version $VERSION)");
         } else {
-            warn "Plugin upgrade to version $VERSION failed";
+            log_message("Yes", "Plugin upgrade to version $VERSION failed");
         }
     }
 
@@ -529,6 +561,7 @@ sub insertConfigValue {
 
         if ($@) {
             warn "Error while inserting config value: $@";
+            log_message("Yes", "Error while inserting config value: $@");
         }
     } else {
         # warn "Config value with name '$name' already exists";
@@ -559,6 +592,7 @@ sub configure {
     };
     if ($@) {
         warn "Missing required module: URI::Encode qw(uri_encode) \n";
+        log_message("Yes", "Missing required module: URI::Encode qw(uri_encode)");
         $missing_modules = 1;
     }
 
@@ -728,11 +762,14 @@ sub configure {
                 eval {
                     if ($sth_delete->execute()) {
                         warn "Deleted old records from $logs_table. Configuration change \n";
+                        log_message("Yes", "Deleted old records from $logs_table. Configuration change");
                     } else {
+                        log_message("Yes", "Error deleting data from $logs_table: " . $dbh->errstr);
                         die "Error deleting data from $logs_table: " . $dbh->errstr . "\n";
                     }
                 };
                 if ($@) {
+                    log_message("Yes", "Database error: $@");
                     warn "Database error: $@\n";
                 }
         }
@@ -796,6 +833,7 @@ sub configure {
         };
 
         if ($@) {
+            log_message("Yes","Error updating configuration: $@");
             warn "Error updating configuration: $@";
         }
     }
@@ -806,6 +844,7 @@ sub configure {
         eval { $dbh->do($clean_query) };
 
         if ($@) {
+            log_message("Yes", "Error while run clean_query: $@");
             warn "Error while run clean_query: $@";
         }
     }
@@ -820,6 +859,7 @@ sub configure {
     eval { $dbh->do($add_column_query) };
 
     if ($@) {
+        log_message("Yes", "Error while adding column: $@");
         warn "Error while adding column: $@";
     }
 
@@ -868,11 +908,13 @@ sub configure {
     };
 
     if ($@) {
+        log_message("Yes", "Error fetching configuration: $@");
         warn "Error fetching configuration: $@";
     }
 
     my $session_id = $cgi->cookie('CGISESSID');
     unless ($session_id) {
+        log_message("Yes", "Session ID not found");
         warn "Session ID not found";
         return;
     }
@@ -931,6 +973,7 @@ sub tool {
 
     my $session_id = $cgi->cookie('CGISESSID');
     unless ($session_id) {
+        log_message("Yes", "Session ID not found");
         warn "Session ID not found";
         return;
     }
@@ -957,6 +1000,7 @@ sub tool {
     };
 
     if ($@) {
+        log_message("Yes","Error fetching configuration values: $@");
         warn "Error fetching configuration values: $@";
     }
 
@@ -1018,6 +1062,7 @@ sub tool {
         };
 
         if ($@) {
+            log_message("Yes", "Error fetching, info about users data update: $@");
             warn "Error fetching, info about users data update: $@";
         }
 
@@ -1097,6 +1142,7 @@ sub tool {
         };
 
         if ($@) {
+            log_message("Yes", "Error fetching data from $logs_table, details: $@");
             warn "Error fetching data from $logs_table, details: $@";
         }
 
@@ -1158,6 +1204,7 @@ sub tool {
             };
 
         if ($@) {
+            log_message("Yes", "Error fetching Statistics: $@");
             warn "Error fetching Statistics: $@";
         }
 
@@ -1465,6 +1512,7 @@ sub get_organisation_id {
         }
     }
     
+    log_message("Yes", "Failed to get organisation ID for code $org_code: " . $response->status_line);
     warn "Failed to get organisation ID for code $org_code: " . $response->status_line;
     return;
 }
@@ -1488,7 +1536,8 @@ sub get_api_token {
         my $token_data = decode_json($token_response->content);
         return $token_data->{access_token};
     }
-    
+
+    log_message("Yes","Failed to get API token: " . $token_response->status_line);
     warn "Failed to get API token: " . $token_response->status_line;
     return;
 }

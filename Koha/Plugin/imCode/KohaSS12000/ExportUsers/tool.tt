@@ -53,7 +53,7 @@
                     [% IF debug_mode == "No" %]<th>[% 'Data Status' | gettext %]</th>[% END %]
                     <th>[% 'Created At' | gettext %]</th>
                     <th>[% 'Is Processed' | gettext %]</th>
-                    <th>[% 'Data Hash' | gettext %]</th>
+                    <!--<th>[% 'Data Hash' | gettext %]</th>-->
                 </tr>
             </thead>
             <tbody>
@@ -65,7 +65,7 @@
                         <td class="truncate-text">[% log.response %]</td>
                         <td>[% log.created_at %]</td>
                         <td>[% IF log.is_processed == 1 %][% 'Yes' | gettext %][% ELSE %][% 'No' | gettext %][% END %]</td>
-                        <td>[% log.data_hash %]</td>
+                        <!--<td>[% log.data_hash %]</td>-->
                     </tr>
                 [% END %]
             </tbody>

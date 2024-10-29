@@ -104,7 +104,7 @@ sub new {
 
 
 our $log_config_dir = C4::Context->config("logdir"); 
-our $my_log_file = File::Spec->catfile($log_config_dir, 'imcode.log');
+our $my_log_file = File::Spec->catfile($log_config_dir, 'imcode_export_users.log');
 
 # Function to log messages
 # Example usage:
@@ -1183,34 +1183,15 @@ sub cronjob {
     
     my $dbh = C4::Context->dbh;
     
+    # Check if mapping table has any records
+    my $check_mapping_exists = qq{
+        SELECT COUNT(*) FROM $branches_mapping_table
+    };
+    my ($mapping_exists) = $dbh->selectrow_array($check_mapping_exists);
+    
     # Get current date
     my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
     my $today = sprintf("%04d-%02d-%02d", $year + 1900, $mon + 1, $mday);
-    
-    # Check if all organisations are processed for today
-    my $check_all_completed = qq{
-        SELECT COUNT(*) FROM (
-            SELECT DISTINCT organisationCode 
-            FROM $branches_mapping_table 
-            WHERE organisationCode IS NOT NULL 
-            AND organisationCode != ''
-            AND organisationCode NOT IN (
-                SELECT DISTINCT organisation_code 
-                FROM $logs_table 
-                WHERE DATE(created_at) = CURDATE()
-                AND page_token_next IS NULL 
-                AND data_endpoint = ?
-                AND is_processed = 1
-            )
-        ) AS remaining_orgs
-    };
-    
-    my ($remaining_count) = $dbh->selectrow_array($check_all_completed, undef, $data_endpoint);
-    if ($remaining_count == 0) {
-        log_message('Yes', "All organisations already processed for today");
-        print "EndLastPageFromAPI\n";
-        return;
-    }
     
     # Clean old logs
     my $config_data = $self->get_config_data();
@@ -1222,110 +1203,163 @@ sub cronjob {
     };
     $dbh->do($cleanup_query, undef, $logs_limit);
     
-    # Get organisation codes
-    my $select_branches_query = qq{
-        SELECT DISTINCT bm.organisationCode 
-        FROM $branches_mapping_table bm
-        WHERE bm.organisationCode IS NOT NULL 
-        AND bm.organisationCode != ''
-        AND bm.organisationCode NOT IN (
-            SELECT DISTINCT l.organisation_code 
-            FROM $logs_table l
-            WHERE DATE(l.created_at) = CURDATE()
-            AND l.page_token_next IS NULL 
-            AND l.data_endpoint = ?
-            AND l.is_processed = 1
-        )
-    };
-    
-    my $sth = $dbh->prepare($select_branches_query);
-    $sth->execute($data_endpoint);
-    
-    my @organisation_codes;
-    while (my ($org_code) = $sth->fetchrow_array) {
-        push @organisation_codes, $org_code;
-    }
-    
-    if (@organisation_codes) {
-        log_message('Yes', 'Found ' . scalar(@organisation_codes) . ' unprocessed organisation codes, continuing processing');
+    if ($mapping_exists > 0) {
+        # Process with organization filtering
+        my $select_branches_query = qq{
+            SELECT DISTINCT bm.organisationCode 
+            FROM $branches_mapping_table bm
+            WHERE bm.organisationCode IS NOT NULL 
+            AND bm.organisationCode != ''
+            AND bm.organisationCode NOT IN (
+                SELECT DISTINCT l.organisation_code 
+                FROM $logs_table l
+                WHERE DATE(l.created_at) = CURDATE()
+                AND l.page_token_next IS NULL 
+                AND l.data_endpoint = ?
+                AND l.is_processed = 1
+            )
+        };
         
-        foreach my $org_code (@organisation_codes) {
-            # Check if this specific organisation is already completed
-            my $check_org_query = qq{
-                SELECT 1 FROM $logs_table 
-                WHERE DATE(created_at) = CURDATE()
-                AND organisation_code = ?
-                AND page_token_next IS NULL
-                AND data_endpoint = ?
-                AND is_processed = 1
+        my $sth = $dbh->prepare($select_branches_query);
+        $sth->execute($data_endpoint);
+        
+        my @organisation_codes;
+        while (my ($org_code) = $sth->fetchrow_array) {
+            push @organisation_codes, $org_code;
+        }
+        
+        if (@organisation_codes) {
+            log_message('Yes', 'Found ' . scalar(@organisation_codes) . ' unprocessed organisation codes');
+            
+            foreach my $org_code (@organisation_codes) {
+                # Check if this specific organisation is already completed
+                my $check_org_query = qq{
+                    SELECT 1 FROM $logs_table 
+                    WHERE DATE(created_at) = CURDATE()
+                    AND organisation_code = ?
+                    AND page_token_next IS NULL
+                    AND data_endpoint = ?
+                    AND is_processed = 1
+                };
+                
+                my ($org_completed) = $dbh->selectrow_array($check_org_query, undef, $org_code, $data_endpoint);
+                if ($org_completed) {
+                    log_message('Yes', "Organisation $org_code already processed today, skipping");
+                    next;
+                }
+                
+                log_message('Yes', "Processing organisation code: $org_code");
+                
+                my $org_id = $self->get_organisation_id($org_code, $config_data);
+                
+                if ($org_id) {
+                    log_message('Yes', "Got organisation ID: $org_id for code: $org_code");
+                    
+                    my $filter_params = {
+                        'relationship.organisation' => $org_id,
+                        'relationship.startDate.onOrBefore' => $today,
+                        'relationship.endDate.onOrAfter' => $today,
+                        'relationship.entity.type' => 'enrolment'
+                    };
+                    
+                    eval {
+                        my $result = $self->fetchDataFromAPI($data_endpoint, $filter_params, $org_code);
+                        if ($result == 0) {
+                            log_message('Yes', "Processing completed for organisation $org_code");
+                        }
+                    };
+                    
+                    if ($@) {
+                        if ($@ =~ /EndLastPageFromAPI/) {
+                            log_message('Yes', "Reached last page for organisation $org_code");
+                        } elsif ($@ =~ /ErrorVerifyCategorycodeBranchcode/) {
+                            log_message('Yes', "Configuration error for organisation $org_code");
+                            print "ErrorVerifyCategorycodeBranchcode\n";
+                            die $@;
+                        } else {
+                            log_message('Yes', "Error processing organisation $org_code: $@");
+                        }
+                    }
+                } else {
+                    log_message('Yes', "Could not get ID for organisation code: $org_code");
+                }
+            }
+            
+            # Check if all organisations are now processed
+            my $check_all_completed = qq{
+                SELECT COUNT(*) FROM (
+                    SELECT DISTINCT organisationCode 
+                    FROM $branches_mapping_table 
+                    WHERE organisationCode IS NOT NULL 
+                    AND organisationCode != ''
+                    AND organisationCode NOT IN (
+                        SELECT DISTINCT organisation_code 
+                        FROM $logs_table 
+                        WHERE DATE(created_at) = CURDATE()
+                        AND page_token_next IS NULL 
+                        AND data_endpoint = ?
+                        AND is_processed = 1
+                    )
+                ) AS remaining_orgs
             };
             
-            my ($org_completed) = $dbh->selectrow_array($check_org_query, undef, $org_code, $data_endpoint);
-            if ($org_completed) {
-                log_message('Yes', "Organisation $org_code already processed today, skipping");
-                next;
-            }
-            
-            log_message('Yes', "Processing organisation code: $org_code");
-            
-            my $org_id = $self->get_organisation_id($org_code, $config_data);
-            
-            if ($org_id) {
-                log_message('Yes', "Got organisation ID: $org_id for code: $org_code");
-                
-                my $filter_params = {
-                    'relationship.organisation' => $org_id,
-                    'relationship.startDate.onOrBefore' => $today,
-                    'relationship.endDate.onOrAfter' => $today,
-                    'relationship.entity.type' => 'enrolment'
-                };
-                
-                eval {
-                    my $result = $self->fetchDataFromAPI($data_endpoint, $filter_params, $org_code);
-                    if ($result == 0) {
-                        log_message('Yes', "Processing completed for organisation $org_code");
-                    }
-                };
-                
-                if ($@) {
-                    if ($@ =~ /EndLastPageFromAPI/) {
-                        log_message('Yes', "Reached last page for organisation $org_code");
-                    } elsif ($@ =~ /ErrorVerifyCategorycodeBranchcode/) {
-                        log_message('Yes', "Configuration error for organisation $org_code");
-                        print "ErrorVerifyCategorycodeBranchcode\n";
-                        die $@;
-                    } else {
-                        log_message('Yes', "Error processing organisation $org_code: $@");
-                    }
-                }
-            } else {
-                log_message('Yes', "Could not get ID for organisation code: $org_code");
+            my ($remaining_count) = $dbh->selectrow_array($check_all_completed, undef, $data_endpoint);
+            if ($remaining_count == 0) {
+                log_message('Yes', "All organisations processed successfully");
+                print "EndLastPageFromAPI\n";
             }
         }
-        
-        # Check if all organisations are now processed
-        ($remaining_count) = $dbh->selectrow_array($check_all_completed, undef, $data_endpoint);
-        if ($remaining_count == 0) {
-            log_message('Yes', "All organisations processed successfully");
-            print "EndLastPageFromAPI\n";
-        }
-        
     } else {
-        log_message('Yes', 'No organisations to process, running without filtering');
+        # Process without organization filtering
+        log_message('Yes', 'No organisation mappings found, processing all data without filtering');
+        
+        my $filter_params = {
+            'relationship.startDate.onOrBefore' => $today,
+            'relationship.endDate.onOrAfter' => $today,
+            'relationship.entity.type' => 'enrolment'
+        };
+        
+        # log_message('Yes', 'Filter params: ' . Dumper($filter_params));
+        
+        # Get configuration
+        my $config_data = $self->get_config_data();
+        log_message('Yes', 'Got config data');
+        
+        # Get API token
+        my $ua = LWP::UserAgent->new;
+        my $token = $self->get_api_token($config_data, $ua);
+        
+        if (!$token) {
+            log_message('Yes', 'Failed to get API token');
+            return;
+        }
+        log_message('Yes', 'Got API token successfully');
         
         eval {
-            $self->fetchDataFromAPI($data_endpoint, undef, 'NO_ORG');
+            log_message('Yes', "Starting fetchDataFromAPI for endpoint: $data_endpoint");
+            my $result = $self->fetchDataFromAPI($data_endpoint, $filter_params, 'NO_ORG');
+            log_message('Yes', "fetchDataFromAPI result: " . ($result // 'undef'));
+            
+            if (defined $result && $result == 0) {
+                log_message('Yes', "Processing completed without organisation filtering");
+                print "EndLastPageFromAPI\n";
+                return;
+            }
         };
         
         if ($@) {
+            log_message('Yes', "Caught error: $@");
             if ($@ =~ /EndLastPageFromAPI/) {
                 print "EndLastPageFromAPI\n";
                 log_message('Yes', "Processing completed without organisation filtering");
+                return;
             } elsif ($@ =~ /ErrorVerifyCategorycodeBranchcode/) {
                 print "ErrorVerifyCategorycodeBranchcode\n";
+                log_message('Yes', "Configuration error detected");
                 die $@;
             } else {
-                log_message('Yes', "Error during processing: $@");
+                log_message('Yes', "Unknown error during processing: $@");
+                die $@;
             }
         }
     }
@@ -1355,8 +1389,6 @@ sub cronjob {
             $stats->{total_processed} || 0
         ));
     }
-    
-    return;
 }
 
 

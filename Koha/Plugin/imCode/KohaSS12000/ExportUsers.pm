@@ -104,7 +104,7 @@ sub new {
 
 
 our $log_config_dir = C4::Context->config("logdir"); 
-our $my_log_file = File::Spec->catfile($log_config_dir, 'imcode_export_users.log');
+our $my_log_file = File::Spec->catfile($log_config_dir, 'imcode-export-users.log');
 
 # Function to log messages
 # Example usage:

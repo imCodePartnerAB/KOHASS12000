@@ -45,6 +45,8 @@ use Locale::Messages qw(:locale_h :libintl_h);
 use POSIX qw(setlocale);
 use POSIX qw(strftime); # To format date/time
 use Encode;
+use URI::Escape qw(uri_escape);
+
 
 our $config_table     = 'imcode_config';
 our $logs_table       = 'imcode_logs';
@@ -57,14 +59,15 @@ our $categories_mapping_table = 'imcode_categories_mapping';
 our $branches_mapping_table   = 'imcode_branches_mapping';
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
+our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.4";
+our $VERSION = "1.5";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2024-10-03',
+    date_updated    => '2024-10-30',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -100,8 +103,10 @@ sub new {
 }
 
 
-our $log_config_dir = C4::Context->config("logdir"); 
-our $my_log_file = File::Spec->catfile($log_config_dir, 'imcode-debug.log');
+sub get_log_file {
+    my $log_config_dir = C4::Context->config("logdir"); 
+    return File::Spec->catfile($log_config_dir, 'imcode-export-users.log');
+}
 
 # Function to log messages
 # Example usage:
@@ -111,26 +116,44 @@ sub log_message {
 
     # If debug mode is "Yes"
     if ($debug_mode eq 'Yes') {
+        my $my_log_file = get_log_file();
+
         # Check if the file exists, if not - create it
         unless (-e $my_log_file) {
-            open my $fh, '>', $my_log_file or die "Cannot create $my_log_file: $!";
-            flock($fh, LOCK_EX) or die "Cannot lock $my_log_file: $!";
-            print $fh "";  # Create an empty file
-            close $fh;
+            eval {
+                open my $fh, '>', $my_log_file 
+                    or die "Cannot create $my_log_file: $!";
+                flock($fh, LOCK_EX) 
+                    or die "Cannot lock $my_log_file: $!";
+                print $fh "";  # Create an empty file
+                close $fh;
+            };
+            if ($@) {
+                warn "Error creating log file: $@";
+                return;
+            }
         }
 
         # Open the file for appending data
-        open my $fh, '>>', $my_log_file or die "Cannot open $my_log_file: $!";
-        flock($fh, LOCK_EX) or die "Cannot lock $my_log_file: $!";
+        eval {
+            open my $fh, '>>', $my_log_file 
+                or die "Cannot open $my_log_file: $!";
+            flock($fh, LOCK_EX) 
+                or die "Cannot lock $my_log_file: $!";
 
-        # Get the current date and time
-        my $timestamp = strftime "%Y-%m-%d %H:%M:%S", localtime;
+            # Get the current date and time
+            my $timestamp = strftime "%Y-%m-%d %H:%M:%S", localtime;
 
-        # Write the message to the log file with a timestamp
-        print $fh "$timestamp - $message\n";
+            # Write the message to the log file with a timestamp
+            print $fh "$timestamp - $message\n";
 
-        # Close the file
-        close $fh;
+            # Close the file
+            close $fh;
+        };
+        if ($@) {
+            warn "Error writing to log file: $@";
+            return;
+        }
     }
 }
 
@@ -139,7 +162,14 @@ sub install {
 
     my $dbh = C4::Context->dbh;
 
+    $self->store_data( { installed_version => $VERSION } );
     $self->store_data( { plugin_version => $Koha::Plugin::imCode::KohaSS12000::ExportUsers::VERSION || '1.0' } );
+
+    log_message("Yes", "Starting installation process");
+    log_message("Yes", "Storing initial version: $VERSION");
+
+    my $stored_version = $self->retrieve_data('installed_version');
+    log_message("Yes", "Verified stored version: " . ($stored_version || 'none'));
 
     my @installer_statements = (
     qq{CREATE TABLE IF NOT EXISTS imcode_config (
@@ -177,6 +207,11 @@ sub install {
         is_processed tinyint(1) DEFAULT NULL,
         data_endpoint varchar(255) DEFAULT NULL,
         data_hash varchar(255) DEFAULT NULL,
+        added_count INT DEFAULT 0,
+        updated_count INT DEFAULT 0,
+        processed_count INT DEFAULT 0,
+        iteration_number INT DEFAULT 0,
+        organisation_code VARCHAR(255) DEFAULT NULL,
         created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
     );},
     qq{INSERT INTO imcode_config (name,value) VALUES ('ist_client_id','your_client_id');},
@@ -208,6 +243,7 @@ sub install {
 
     if ($@) {
         warn "Install Error: $@";
+        log_message("Yes", "Install Error: $@");
         return 0;
     }
 
@@ -297,6 +333,7 @@ sub install {
 
     if ($@) {
         warn "Install, CREATE TRIGGER log_user_changes, Error: $@";
+        log_message("Yes", "Install, CREATE TRIGGER log_user_changes, Error: $@");
         return 0;
     }
 
@@ -311,14 +348,33 @@ sub upgrade {
 
     # Ensure $VERSION is defined
     our $VERSION = $VERSION || '1.0';
-    warn "Starting upgrade process for plugin version $VERSION";
+    log_message("Yes", "Starting upgrade process for plugin version $VERSION");
 
     # Check if this is a new installation
     my $installed_version = $self->retrieve_data('installed_version') || '0';
     my $is_new_install = ($installed_version eq '0');
 
-    warn "Is new install: " . ($is_new_install ? "Yes" : "No");
-    warn "Installed version: $installed_version";
+    log_message("Yes", "Is new install: " . ($is_new_install ? "Yes" : "No"));
+    log_message("Yes", "Installed version: $installed_version");
+
+    # Add new columns to imcode_logs table
+    my $alter_table_sql = q{
+        ALTER TABLE imcode_logs
+        ADD COLUMN IF NOT EXISTS added_count INT DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS updated_count INT DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS processed_count INT DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS iteration_number INT DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS organisation_code VARCHAR(255) DEFAULT NULL
+    };
+
+    eval {
+        $dbh->do($alter_table_sql) or die "Failed to alter table: " . $dbh->errstr;
+        log_message("Yes", "Table imcode_logs altered successfully");
+    };
+    if ($@) {
+        warn "Error altering table: $@";
+        $success = 0;
+    }
 
     # Always attempt to drop the trigger first
     my $drop_trigger_sql = q{
@@ -327,10 +383,10 @@ sub upgrade {
 
     eval {
         $dbh->do($drop_trigger_sql) or die "Failed to drop trigger: " . $dbh->errstr;
-        warn "Existing trigger dropped successfully (if it existed)";
+        log_message("Yes", "Existing trigger dropped successfully (if it existed)");
     };
     if ($@) {
-        warn "Error dropping trigger: $@";
+        log_message("Yes", "Error dropping trigger: $@");
         $success = 0;
     }
 
@@ -415,10 +471,10 @@ sub upgrade {
 
     eval {
         $dbh->do($create_trigger_sql) or die "Failed to create trigger: " . $dbh->errstr;
-        warn "New trigger created successfully";
+        log_message("Yes", "New trigger created successfully");
     };
     if ($@) {
-        warn "Error creating trigger: $@";
+        log_message("Yes", "Error creating trigger: $@");
         $success = 0;
     }
 
@@ -433,26 +489,27 @@ sub upgrade {
     my ($verified_trigger) = $verify_sth->fetchrow_array;
 
     if ($verified_trigger) {
-        warn "Trigger verified: log_user_changes exists in the database";
+        log_message("Yes", "Trigger verified: log_user_changes exists in the database");
     } else {
-        warn "Error: Trigger log_user_changes not found in the database after creation attempt";
+        log_message("Yes", "Error: Trigger log_user_changes not found in the database after creation attempt");
         $success = 0;
     }
 
     # Log the upgrade or installation result
     if ($success) {
         if ($is_new_install) {
-            warn "Plugin installed successfully (version $VERSION)";
+            log_message("Yes", "Plugin installed successfully (version $VERSION)");
         } else {
-            warn "Plugin upgraded successfully to version $VERSION";
+            log_message("Yes", "Plugin upgraded successfully to version $VERSION");
         }
         # Store the new version
         $self->store_data({ installed_version => $VERSION });
+        $self->store_data({ plugin_version => $VERSION });
     } else {
         if ($is_new_install) {
-            warn "Plugin installation failed (version $VERSION)";
+            log_message("Yes", "Plugin installation failed (version $VERSION)");
         } else {
-            warn "Plugin upgrade to version $VERSION failed";
+            log_message("Yes", "Plugin upgrade to version $VERSION failed");
         }
     }
 
@@ -502,6 +559,7 @@ sub insertConfigValue {
 
         if ($@) {
             warn "Error while inserting config value: $@";
+            log_message("Yes", "Error while inserting config value: $@");
         }
     } else {
         # warn "Config value with name '$name' already exists";
@@ -532,6 +590,7 @@ sub configure {
     };
     if ($@) {
         warn "Missing required module: URI::Encode qw(uri_encode) \n";
+        log_message("Yes", "Missing required module: URI::Encode qw(uri_encode)");
         $missing_modules = 1;
     }
 
@@ -640,19 +699,12 @@ sub configure {
         # /delete
 
         if ($new_branch_mapping && $new_organisationCode_mapping) {
-            # my $check_mapping_query = qq{
-            #     SELECT organisationCode 
-            #     FROM $branches_mapping_table 
-            #     WHERE organisationCode = ? 
-            #     AND branchcode = ?
-            # };            
             my $check_mapping_query = qq{
                 SELECT organisationCode 
                 FROM $branches_mapping_table 
                 WHERE organisationCode = ? 
             };
             my $sth_check_mapping = $dbh->prepare($check_mapping_query);
-            # $sth_check_mapping->execute($new_organisationCode_mapping, $new_branch_mapping);
             $sth_check_mapping->execute($new_organisationCode_mapping);
 
             if (!$sth_check_mapping->fetchrow_array()) {
@@ -666,19 +718,12 @@ sub configure {
         }
 
         if ($new_categories_mapping && $new_dutyRole_mapping) {
-            # my $check_mapping_query = qq{
-            #     SELECT categorycode 
-            #     FROM $categories_mapping_table 
-            #     WHERE categorycode = ? 
-            #     AND dutyRole = ?
-            # };
             my $check_mapping_query = qq{
                 SELECT categorycode 
                 FROM $categories_mapping_table 
                 WHERE categorycode = ? 
             };
             my $sth_check_mapping = $dbh->prepare($check_mapping_query);
-            # $sth_check_mapping->execute($new_categories_mapping, $new_dutyRole_mapping);
             $sth_check_mapping->execute($new_dutyRole_mapping);
 
             if (!$sth_check_mapping->fetchrow_array()) {
@@ -715,11 +760,14 @@ sub configure {
                 eval {
                     if ($sth_delete->execute()) {
                         warn "Deleted old records from $logs_table. Configuration change \n";
+                        log_message("Yes", "Deleted old records from $logs_table. Configuration change");
                     } else {
+                        log_message("Yes", "Error deleting data from $logs_table: " . $dbh->errstr);
                         die "Error deleting data from $logs_table: " . $dbh->errstr . "\n";
                     }
                 };
                 if ($@) {
+                    log_message("Yes", "Database error: $@");
                     warn "Database error: $@\n";
                 }
         }
@@ -783,6 +831,7 @@ sub configure {
         };
 
         if ($@) {
+            log_message("Yes","Error updating configuration: $@");
             warn "Error updating configuration: $@";
         }
     }
@@ -793,6 +842,7 @@ sub configure {
         eval { $dbh->do($clean_query) };
 
         if ($@) {
+            log_message("Yes", "Error while run clean_query: $@");
             warn "Error while run clean_query: $@";
         }
     }
@@ -807,6 +857,7 @@ sub configure {
     eval { $dbh->do($add_column_query) };
 
     if ($@) {
+        log_message("Yes", "Error while adding column: $@");
         warn "Error while adding column: $@";
     }
 
@@ -855,11 +906,13 @@ sub configure {
     };
 
     if ($@) {
+        log_message("Yes", "Error fetching configuration: $@");
         warn "Error fetching configuration: $@";
     }
 
     my $session_id = $cgi->cookie('CGISESSID');
     unless ($session_id) {
+        log_message("Yes", "Session ID not found");
         warn "Session ID not found";
         return;
     }
@@ -918,6 +971,7 @@ sub tool {
 
     my $session_id = $cgi->cookie('CGISESSID');
     unless ($session_id) {
+        log_message("Yes", "Session ID not found");
         warn "Session ID not found";
         return;
     }
@@ -944,6 +998,7 @@ sub tool {
     };
 
     if ($@) {
+        log_message("Yes","Error fetching configuration values: $@");
         warn "Error fetching configuration values: $@";
     }
 
@@ -1005,6 +1060,7 @@ sub tool {
         };
 
         if ($@) {
+            log_message("Yes", "Error fetching, info about users data update: $@");
             warn "Error fetching, info about users data update: $@";
         }
 
@@ -1084,6 +1140,7 @@ sub tool {
         };
 
         if ($@) {
+            log_message("Yes", "Error fetching data from $logs_table, details: $@");
             warn "Error fetching data from $logs_table, details: $@";
         }
 
@@ -1145,6 +1202,7 @@ sub tool {
             };
 
         if ($@) {
+            log_message("Yes", "Error fetching Statistics: $@");
             warn "Error fetching Statistics: $@";
         }
 
@@ -1153,8 +1211,6 @@ sub tool {
             stats => \@stats
         );
     }
-
-    # $self->cronjob();
 
     $template->param(
             language => C4::Languages::getlanguage($cgi) || 'en',
@@ -1168,16 +1224,313 @@ sub tool {
 
 
 sub cronjob {
-    # script for run in cron here cron/imcode_ss12000.pl
     my ($self, $data_endpoint) = @_;
-    $self->fetchDataFromAPI($data_endpoint);
+    
+    my $dbh = C4::Context->dbh;
+
+    # Check if mapping table has any records
+    my $check_mapping_exists = qq{
+        SELECT COUNT(*) FROM $branches_mapping_table
+    };
+    my ($mapping_exists) = $dbh->selectrow_array($check_mapping_exists);
+    
+    # Get current date
+    my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+    my $today = sprintf("%04d-%02d-%02d", $year + 1900, $mon + 1, $mday);
+    
+    # Clean old logs
+    my $config_data = $self->get_config_data();
+    my $logs_limit = int($config_data->{logs_limit}) || 3;
+    
+    my $cleanup_query = qq{
+        DELETE FROM $logs_table
+        WHERE created_at < DATE_SUB(CURDATE(), INTERVAL ? DAY)
+    };
+    $dbh->do($cleanup_query, undef, $logs_limit);
+    
+    if ($mapping_exists > 0) {
+        # Process with organization filtering
+        my $select_branches_query = qq{
+            SELECT DISTINCT bm.organisationCode 
+            FROM $branches_mapping_table bm
+            WHERE bm.organisationCode IS NOT NULL 
+            AND bm.organisationCode != ''
+            AND bm.organisationCode NOT IN (
+                SELECT DISTINCT l.organisation_code 
+                FROM $logs_table l
+                WHERE DATE(l.created_at) = CURDATE()
+                AND l.page_token_next IS NULL 
+                AND l.data_endpoint = ?
+                AND l.is_processed = 1
+            )
+        };
+        
+        my $sth = $dbh->prepare($select_branches_query);
+        $sth->execute($data_endpoint);
+        
+        my @organisation_codes;
+        while (my ($org_code) = $sth->fetchrow_array) {
+            push @organisation_codes, $org_code;
+        }
+        
+        if (@organisation_codes) {
+            log_message('Yes', 'Found ' . scalar(@organisation_codes) . ' unprocessed organisation codes');
+            
+            foreach my $org_code (@organisation_codes) {
+                # Check if this specific organisation is already completed
+                my $check_org_query = qq{
+                    SELECT 1 FROM $logs_table 
+                    WHERE DATE(created_at) = CURDATE()
+                    AND organisation_code = ?
+                    AND page_token_next IS NULL
+                    AND data_endpoint = ?
+                    AND is_processed = 1
+                };
+                
+                my ($org_completed) = $dbh->selectrow_array($check_org_query, undef, $org_code, $data_endpoint);
+                if ($org_completed) {
+                    log_message('Yes', "Organisation $org_code already processed today, skipping");
+                    next;
+                }
+                
+                log_message('Yes', "Processing organisation code: $org_code");
+                
+                my $org_id = $self->get_organisation_id($org_code, $config_data);
+                
+                if ($org_id) {
+                    log_message('Yes', "Got organisation ID: $org_id for code: $org_code");
+                    
+                    my $filter_params = {
+                        'relationship.organisation' => $org_id,
+                        'relationship.startDate.onOrBefore' => $today,
+                        'relationship.endDate.onOrAfter' => $today,
+                        'relationship.entity.type' => 'enrolment'
+                    };
+                    
+                    eval {
+                        my $result = $self->fetchDataFromAPI($data_endpoint, $filter_params, $org_code);
+                        if ($result == 0) {
+                            log_message('Yes', "Processing completed for organisation $org_code");
+                        }
+                    };
+                    
+                    if ($@) {
+                        if ($@ =~ /EndLastPageFromAPI/) {
+                            log_message('Yes', "Reached last page for organisation $org_code");
+                        } elsif ($@ =~ /ErrorVerifyCategorycodeBranchcode/) {
+                            log_message('Yes', "Configuration error for organisation $org_code");
+                            print "ErrorVerifyCategorycodeBranchcode\n";
+                            die $@;
+                        } else {
+                            log_message('Yes', "Error processing organisation $org_code: $@");
+                        }
+                    }
+                } else {
+                    log_message('Yes', "Could not get ID for organisation code: $org_code");
+                }
+            }
+            
+            # Check if all organisations are now processed
+            my $check_all_completed = qq{
+                SELECT COUNT(*) FROM (
+                    SELECT DISTINCT organisationCode 
+                    FROM $branches_mapping_table 
+                    WHERE organisationCode IS NOT NULL 
+                    AND organisationCode != ''
+                    AND organisationCode NOT IN (
+                        SELECT DISTINCT organisation_code 
+                        FROM $logs_table 
+                        WHERE DATE(created_at) = CURDATE()
+                        AND page_token_next IS NULL 
+                        AND data_endpoint = ?
+                        AND is_processed = 1
+                    )
+                ) AS remaining_orgs
+            };
+            
+            my ($remaining_count) = $dbh->selectrow_array($check_all_completed, undef, $data_endpoint);
+            if ($remaining_count == 0) {
+                log_message('Yes', "All organisations processed successfully");
+
+                # Get and log final statistics
+                my $stats_query = qq{
+                    SELECT 
+                        COUNT(DISTINCT organisation_code) as orgs_processed,
+                        SUM(added_count) as total_added,
+                        SUM(updated_count) as total_updated,
+                        SUM(processed_count) as total_processed
+                    FROM $logs_table 
+                    WHERE data_endpoint = ?
+                    AND DATE(created_at) = CURDATE()
+                };
+                
+                my $sth_stats = $dbh->prepare($stats_query);
+                $sth_stats->execute($data_endpoint);
+                my $stats = $sth_stats->fetchrow_hashref;
+                
+                if ($stats) {
+                    log_message('Yes', sprintf(
+                        "Daily statistics - Organisations processed: %d, Added: %d, Updated: %d, Total processed: %d",
+                        $stats->{orgs_processed} || 0,
+                        $stats->{total_added} || 0,
+                        $stats->{total_updated} || 0,
+                        $stats->{total_processed} || 0
+                    ));      
+                }
+
+                print "EndLastPageFromAPI\n";
+            }
+        }
+    } else {
+        # Process without organization filtering
+        log_message('Yes', 'No organisation mappings found, processing all data without filtering');
+        
+        my $filter_params = {
+            'relationship.startDate.onOrBefore' => $today,
+            'relationship.endDate.onOrAfter' => $today,
+            'relationship.entity.type' => 'enrolment'
+        };
+        
+        # log_message('Yes', 'Filter params: ' . Dumper($filter_params));
+        
+        # Get configuration
+        my $config_data = $self->get_config_data();
+        log_message('Yes', 'Got config data');
+        
+        # Get API token
+        my $ua = LWP::UserAgent->new;
+        my $token = $self->get_api_token($config_data, $ua);
+        
+        if (!$token) {
+            log_message('Yes', 'Failed to get API token');
+            return;
+        }
+        log_message('Yes', 'Got API token successfully');
+        
+        eval {
+            log_message('Yes', "Starting fetchDataFromAPI for endpoint: $data_endpoint");
+            my $result = $self->fetchDataFromAPI($data_endpoint, $filter_params, 'NO_ORG');
+            log_message('Yes', "fetchDataFromAPI result: " . ($result // 'undef'));
+            
+            if (defined $result && $result == 0) {
+                log_message('Yes', "Processing completed without organisation filtering");
+                print "EndLastPageFromAPI\n";
+                return;
+            }
+        };
+        
+        if ($@) {
+            log_message('Yes', "Caught error: $@");
+            if ($@ =~ /EndLastPageFromAPI/) {
+                print "EndLastPageFromAPI\n";
+                log_message('Yes', "Processing completed without organisation filtering");
+                return;
+            } elsif ($@ =~ /ErrorVerifyCategorycodeBranchcode/) {
+                print "ErrorVerifyCategorycodeBranchcode\n";
+                log_message('Yes', "Configuration error detected");
+                die $@;
+            } else {
+                log_message('Yes', "Unknown error during processing: $@");
+                die $@;
+            }
+        }
+    }
+    
+}
+
+
+# Helper function to get configuration data
+sub get_config_data {
+    my ($self) = @_;
+    my $dbh = C4::Context->dbh;
+    
+    my $select_query = qq{SELECT name, value FROM $config_table};
+    my $config_data = {};
+    
+    eval {
+        my $sth = $dbh->prepare($select_query);
+        $sth->execute();
+        while (my ($name, $value) = $sth->fetchrow_array) {
+            $config_data->{$name} = $value;
+        }
+    };
+    
+    return $config_data;
+}
+
+# Helper function to get organisation ID by code
+sub get_organisation_id {
+    my ($self, $org_code, $config_data) = @_;
+    
+    # Get API access token first
+    my $ua = LWP::UserAgent->new;
+    my $token = $self->get_api_token($config_data, $ua);
+    return unless $token;
+    
+    # Build URL for organisations endpoint
+    my $ist_url = $config_data->{ist_api_url} || '';
+    my $customerId = $config_data->{ist_customer_id} || '';
+    my $org_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/organisations?organisationCode=$org_code";
+    
+    # Make request to get organisation details
+    my $request = HTTP::Request->new(
+        'GET',
+        $org_url,
+        [
+            'Accept' => 'application/json',
+            'Authorization' => "Bearer $token"
+        ]
+    );
+    
+    my $response = $ua->request($request);
+    if ($response->is_success) {
+        my $org_data = decode_json($response->content);
+        if ($org_data && $org_data->{data} && @{$org_data->{data}}) {
+            return $org_data->{data}[0]->{id};
+        }
+    }
+    
+    log_message("Yes", "Failed to get organisation ID for code $org_code: " . $response->status_line);
+    warn "Failed to get organisation ID for code $org_code: " . $response->status_line;
     return;
 }
 
+# Helper function to get API token
+sub get_api_token {
+    my ($self, $config_data, $ua) = @_;
+    
+    my $client_id = $config_data->{ist_client_id} || '';
+    my $client_secret = xor_encrypt($config_data->{ist_client_secret}, $skey) || '';
+    my $oauth_url = $config_data->{ist_oauth_url} || '';
+    
+    my $token_request = POST $oauth_url, [
+        client_id => $client_id,
+        client_secret => $client_secret,
+        grant_type => 'client_credentials'
+    ];
+    
+    my $token_response = $ua->request($token_request);
+    if ($token_response->is_success) {
+        my $token_data = decode_json($token_response->content);
+        return $token_data->{access_token};
+    }
+
+    log_message("Yes","Failed to get API token: " . $token_response->status_line);
+    warn "Failed to get API token: " . $token_response->status_line;
+    return;
+}
+
+
 sub fetchDataFromAPI {
-    my ($self, $data_endpoint) = @_;
+    my ($self, $data_endpoint, $filter_params, $current_org_code) = @_;
 
     my $dbh = C4::Context->dbh;
+    my $response_page_token;     
+
+    # Reset counters at start of processing
+    our $added_count = 0;
+    our $updated_count = 0;
+    our $processed_count = 0;
 
     if (verify_categorycode_and_branchcode() eq "No") {
         warn "WARNING: branches mapping and/or categories mapping not configured correctly";
@@ -1186,27 +1539,12 @@ sub fetchDataFromAPI {
 
     my $cgi = $self->{'cgi'};
 
-    my $missing_modules = 0;
-    eval {
-            require URI::Encode;
-            URI::Encode->import(qw(uri_encode));
-    };
-    if ($@) {
-        warn "Missing required module: URI::Encode qw(uri_encode) \n";
-        $missing_modules = 1;
-    }
-
-    if ($missing_modules) {
-        return 0;
-    }
-
-
     my $select_query = qq{SELECT name, value FROM $config_table};
     my $config_data  = {};
 
     my $insert_error_query = qq{
-            INSERT INTO $logs_table (page_token_next, response)
-            VALUES (?, ?)
+            INSERT INTO $logs_table (page_token_next, response, organisation_code)
+            VALUES (?, ?, ?)
     };
 
     eval {
@@ -1219,9 +1557,8 @@ sub fetchDataFromAPI {
 
     if ($@) {
         warn "Error fetching configuration: $@";
-        # Insert the error message into the $logs_table
         my $sth_insert_error = $dbh->prepare($insert_error_query);
-        $sth_insert_error->execute('Configuration Error', $@);
+        $sth_insert_error->execute('Configuration Error', $@, $current_org_code);
     }
 
     my $client_id     = $config_data->{ist_client_id} || '';
@@ -1239,14 +1576,22 @@ sub fetchDataFromAPI {
     my $excluding_enrolments_empty = $config_data->{excluding_enrolments_empty} || 'No';
     my $excluding_dutyRole_empty = $config_data->{excluding_dutyRole_empty} || 'No';
     
-    # Request to API IST
+    if ($debug_mode eq "Yes") { 
+        log_message($debug_mode, "Starting processing for endpoint: $data_endpoint, organisation: $current_org_code");
+        log_message($debug_mode, "Filter params: " . Dumper($filter_params)) if $filter_params;
+    }
+
     my $ua = LWP::UserAgent->new;
-    my $pageToken = '';
-    # my $data_endpoint = "persons";
     my $api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/$data_endpoint?limit=$api_limit";
     my $api_url_base = "$ist_url/ss12000v2-api/source/$customerId/v2.0/";
 
-    # Setting headers for get access_token
+    if ($filter_params && ref($filter_params) eq 'HASH') {
+        my $encoded_params = join '&', map {
+            uri_escape($_) . '=' . uri_escape($filter_params->{$_})
+        } keys %$filter_params;
+        $api_url .= "&$encoded_params" if $encoded_params;
+    }
+
     my $request = POST $oauth_url, [
         client_id     => $client_id,
         client_secret => $client_secret,
@@ -1259,33 +1604,29 @@ sub fetchDataFromAPI {
         my $oauth_content = decode_json($oauth_response->decoded_content);
         my $access_token = $oauth_content->{access_token};
 
-        # Take pageToken= from the database and append it to $api_url
+        # Get the latest token for current organisation
         my $select_tokens_query = qq{
             SELECT id, page_token_next
             FROM $logs_table
             WHERE is_processed = 1
             AND data_endpoint = ?
+            AND organisation_code = ?
+            AND DATE(created_at) = CURDATE()
+            AND page_token_next IS NOT NULL
             ORDER BY created_at DESC
             LIMIT 1
         };
+        
         my $sth_select_tokens = $dbh->prepare($select_tokens_query);
-        $sth_select_tokens->execute($data_endpoint);
-
+        $sth_select_tokens->execute($data_endpoint, $current_org_code);
         my ($data_id, $page_token_next) = $sth_select_tokens->fetchrow_array;
 
         if (defined $page_token_next) {
-            # The result string is not empty, and you can use the values from the database.
             $api_url = $api_url."&pageToken=$page_token_next";
         } 
 
-        # api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/$data_endpoint?limit=$api_limit";
-
         my $response_data = getApiResponse($api_url, $access_token);
-
-        my $response = $response_data; 
-        if ($debug_mode eq "No") { 
-            $response = "Debug Mode OFF"; 
-        } 
+        my $response = $debug_mode eq "Yes" ? $response_data : "Debug Mode OFF";
 
         eval {
             $response_data = decode_json($response_data);
@@ -1305,61 +1646,62 @@ sub fetchDataFromAPI {
             die "Error when decoding JSON: $@";
         }
 
-        my $response_page_token = $response_data->{pageToken};
+        $response_page_token = $response_data->{pageToken};
 
         my $md5 = Digest::MD5->new;
-        $md5->add($response_data);
-        # Generate a hash for checking
+        $md5->add(encode_json($response_data));
         my $data_hash = $md5->hexdigest;
 
-        # Check if a record with the same $data_hash and is_processed flag exists
         my $select_existing_query = qq{
-                    SELECT is_processed
-                    FROM $logs_table
-                    WHERE data_hash = ?
-                    ORDER BY created_at DESC
-                    LIMIT 1
+            SELECT is_processed
+            FROM $logs_table
+            WHERE data_hash = ?
+            AND organisation_code = ?
+            ORDER BY created_at DESC
+            LIMIT 1
         };
 
         my $sth_select = $dbh->prepare($select_existing_query);
-        $sth_select->execute($data_hash);
+        $sth_select->execute($data_hash, $current_org_code);
 
         if (my ($is_processed) = $sth_select->fetchrow_array) {
-            if ($is_processed) {
-                    # Record with data_hash=$data_hash already processed
-                    warn "Record with data_hash=$data_hash has already been processed.\n";
-            } else {
-                    # Record with data_hash=$data_hash exists but not processed
-                    warn "Record with data_hash=$data_hash exists but has not been processed.\n";
-            }
+            warn "Record with data_hash=$data_hash for organisation $current_org_code already exists (processed=$is_processed)";
         } else {
-                # Record with data_hash=$data_hash not found
-                warn "Record with data_hash=$data_hash not found in the database.\n";
+            my $insert_query = qq{
+                INSERT INTO $logs_table (
+                    page_token_next, 
+                    response, 
+                    record_count, 
+                    data_hash, 
+                    data_endpoint,
+                    organisation_code
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+            };
 
-                # Perform INSERT of a new record
-                my $insert_query = qq{
-                    INSERT INTO $logs_table (page_token_next, response, record_count, data_hash, data_endpoint)
-                    VALUES (?, ?, ?, ?, ?)
-                };
-
-                my $sth_insert = $dbh->prepare($insert_query);
-
-                eval {
-                    if ($sth_insert->execute($response_page_token, $response, $api_limit, $data_hash, $data_endpoint)) {
-                        warn "Data from the API successfully inserted into $logs_table.\n";
-                    } else {
-                        die "Error inserting data into $logs_table: " . $dbh->errstr . "\n";
-                    }
-                };
-
-                if ($@) {
-                    warn "Database error: $@\n";
+            my $sth_insert = $dbh->prepare($insert_query);
+            eval {
+                if ($sth_insert->execute(
+                    $response_page_token, 
+                    $response, 
+                    $api_limit, 
+                    $data_hash, 
+                    $data_endpoint,
+                    $current_org_code
+                )) {
+                    warn "Data from API successfully inserted into $logs_table";
+                } else {
+                    die "Error inserting data into $logs_table: " . $dbh->errstr;
                 }
+            };
+            if ($@) {
+                warn "Database error: $@";
+            }
         }
 
+        # Get mappings
         my $select_categories_mapping_query = qq{SELECT id, categorycode, dutyRole, not_import FROM $categories_mapping_table};
         my $select_branches_mapping_query = qq{SELECT id, branchcode, organisationCode FROM $branches_mapping_table};
-
         my @categories_mapping;
         my @branches_mapping;
 
@@ -1378,82 +1720,114 @@ sub fetchDataFromAPI {
         };
 
         if ($@) {
-            warn "Error fetching categories_mapping/branches_mapping: $@";
+            warn "Error fetching mappings: $@";
         }
+
+        # Get current iteration number
+        my $select_iteration = qq{
+            SELECT COALESCE(MAX(iteration_number), 0) + 1 
+            FROM $logs_table 
+            WHERE data_endpoint = ?
+            AND organisation_code = ?
+            AND DATE(created_at) = CURDATE()
+        };
+        my ($iteration_number) = $dbh->selectrow_array($select_iteration, undef, $data_endpoint, $current_org_code);
 
         if ($response_data && $data_endpoint eq "persons") {
-                fetchBorrowers(
-                    $response_data, 
-                    $api_limit, 
-                    $debug_mode, 
-                    $koha_default_categorycode, 
-                    $koha_default_branchcode,
-                    $cardnumberPlugin,
-                    $useridPlugin,
-                    $response_page_token,
-                    $data_hash,
-                    $access_token,
-                    $api_url_base,
-                    $excluding_enrolments_empty,
-                    $excluding_dutyRole_empty,                    
-                    \@categories_mapping,
-                    \@branches_mapping
-                );
+            fetchBorrowers(
+                $response_data, 
+                $api_limit,
+                $debug_mode,
+                $koha_default_categorycode, 
+                $koha_default_branchcode,
+                $cardnumberPlugin,
+                $useridPlugin,
+                $response_page_token,
+                $data_hash,
+                $access_token,
+                $api_url_base,
+                $excluding_enrolments_empty,
+                $excluding_dutyRole_empty,
+                \@categories_mapping,
+                \@branches_mapping
+            );
 
             if (!defined $response_page_token || $response_page_token eq "") {
-                    die "EndLastPageFromAPI"; # last page from API, flag for bash script Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/run.sh
-            }                
+                my $update_query = qq{
+                    UPDATE $logs_table
+                    SET is_processed = 1,
+                        page_token_next = NULL,
+                        response = ?,
+                        added_count = ?,
+                        updated_count = ?,
+                        processed_count = ?,
+                        iteration_number = ?
+                    WHERE data_hash = ?
+                };
+                
+                # Get organization-specific totals
+                my $org_stats_query = qq{
+                    SELECT
+                        SUM(processed_count) as org_processed
+                    FROM $logs_table
+                    WHERE organisation_code = ?
+                    AND DATE(created_at) = CURDATE()
+                    AND data_endpoint = 'persons'
+                };
+                my $sth_org_stats = $dbh->prepare($org_stats_query);
+                $sth_org_stats->execute($current_org_code);
+                my ($org_processed) = $sth_org_stats->fetchrow_array();
 
-        }        
-        else {
-            my $error_message = "Error from API: " . $response->status_line . "\n";
-            warn $error_message;
-            # Insert the error message into the $logs_table
-            my $sth_insert_error = $dbh->prepare($insert_error_query);
-            $sth_insert_error->execute('API Error', $error_message);
-            # if an API error, add this entry to the logs_table as well - to start a new playthrough cycle
-            # if ($response->code == 410) {
-                # "code": "NEW_DATA_RESTART_FROM_FIRST_PAGE"
-                my $insert_query = qq{
-                    INSERT INTO $logs_table (page_token_next, is_processed, data_endpoint)
-                    VALUES (?, ?, ?)
-                };
-                my $sth_insert = $dbh->prepare($insert_query);
-                eval {
-                    if ($sth_insert->execute("", 1, $data_endpoint)) {
-                        warn "Pagination error: There is new data since the previous page load and you need to restart from the first page.\n";
-                    } else {
-                        die "Error inserting data into $logs_table: " . $dbh->errstr . "\n";
-                    }
-                };
+                my $completion_message = sprintf(
+                    "Processing completed for %s. Organization statistics, total processed: %d",
+                    $current_org_code,
+                    $org_processed || 0
+                );
 
-                my $delete_query = qq{
-                    DELETE FROM $logs_table
-                    WHERE created_at <= DATE_SUB(NOW(), INTERVAL $logs_limit DAY)
-                };
-                my $sth_delete = $dbh->prepare($delete_query);
-                eval {
-                    if ($sth_delete->execute()) {
-                        print "Deleted old records from $logs_table. Interval $logs_limit day/s \n";
-                    } else {
-                        die "Error deleting data from $logs_table: " . $dbh->errstr . "\n";
-                    }
-                };
+                log_message('Yes', $completion_message);
 
-                if ($@) {
-                    warn "Database error: $@\n";
-                }
-            # }
+                my $sth_update = $dbh->prepare($update_query);
+                $sth_update->execute(
+                    $completion_message,
+                    $added_count,
+                    $updated_count,
+                    $processed_count,
+                    $iteration_number,
+                    $data_hash
+                );
+
+                die "EndLastPageFromAPI";
+            }
+
+            # Update the current record with counts
+            my $update_query = qq{
+                UPDATE $logs_table
+                SET is_processed = 1,
+                    added_count = ?,
+                    updated_count = ?,
+                    processed_count = ?,
+                    iteration_number = ?
+                WHERE data_hash = ?
+            };
+
+            my $sth_update = $dbh->prepare($update_query);
+            $sth_update->execute(
+                $added_count,
+                $updated_count,
+                $processed_count,
+                $iteration_number,
+                $data_hash
+            );
         }
     } else {
-        my $oauth_error_message = "Error get access_token: " . $oauth_response->status_line . "\n";
+        my $oauth_error_message = "Error get access_token: " . $oauth_response->status_line;
         warn $oauth_error_message;
-        # Insert the OAuth error message into the $logs_table
         my $sth_insert_oauth_error = $dbh->prepare($insert_error_query);
-        $sth_insert_oauth_error->execute('OAuth Error', $oauth_error_message);
+        $sth_insert_oauth_error->execute('OAuth Error', $oauth_error_message, $current_org_code);
+        return 0;
     }
 
-    return;
+    return 1;
 }
 
 sub getTranslation {
@@ -1556,6 +1930,13 @@ sub fetchBorrowers {
 
     my $dbh = C4::Context->dbh;
 
+    my $select_iteration = qq{
+        SELECT COALESCE(MAX(iteration_number), 0) + 1 
+        FROM $logs_table 
+        WHERE data_endpoint = 'persons'
+    };
+    my ($iteration_number) = $dbh->selectrow_array($select_iteration);
+
             my $j = 0;
             for my $i (1..$api_limit) {
 
@@ -1598,7 +1979,6 @@ sub fetchBorrowers {
                             log_message($debug_mode, 'klass_displayName: '.$klass_displayName);
                             log_message($debug_mode, 'group->{endDate}: '.$group->{endDate});
                             log_message($debug_mode, 'group->{startDate}: '.$group->{startDate});
-                            # warn "klass_displayName: ".$klass_displayName.", to date: ".$group->{endDate}." from date: ".$group->{startDate};
                             last; 
                         }
                     }
@@ -1612,7 +1992,6 @@ sub fetchBorrowers {
                     my $response_data_person;
                     my $duty_role;
 
-                    # warn "access_token: ".$access_token;
 
                     eval {
                         $response_data_person = decode_json(getApiResponse($person_api_url, $access_token));
@@ -1627,10 +2006,8 @@ sub fetchBorrowers {
                             @{$response_data_person->{data}}
                         ) {
                         $duty_role = $response_data_person->{data}[0]->{dutyRole};
-                        # utf8::decode($duty_role); # utf8
                     } 
 
-                    # warn "response_data_person: ".Dumper($response_data_person);
 
                     log_message($debug_mode, '::duty_role BEGIN');
                     if ($duty_role) {
@@ -1673,10 +2050,6 @@ sub fetchBorrowers {
 
                     if ($enroledAtId) {
                         log_message($debug_mode, 'enroledAtId: '.$enroledAtId);
-                        # if ($debug_mode eq "Yes") { 
-                                # warn "organisations user url: ".$person_api_url;
-                                # print STDERR "enroledAtId: ".$enroledAtId."\n";
-                        # }
                         
                         my $person_api_url = $api_url_base."organisations/".$enroledAtId;
                         log_message($debug_mode, 'person_api_url: '.$person_api_url);
@@ -1687,8 +2060,6 @@ sub fetchBorrowers {
                             log_message($debug_mode, 'response_data_person: '.Dumper($response_data_person));
                         };
 
-                        # warn "organisations response_data_person: ".Dumper($response_data_person);
-
                         if (defined $response_data_person && ref($response_data_person) eq 'HASH' && defined $response_data_person->{organisationCode}) {
                             $organisationCode = $response_data_person->{organisationCode};
                         }
@@ -1696,18 +2067,13 @@ sub fetchBorrowers {
                         if ($organisationCode) {
                             log_message($debug_mode, 'organisationCode: '.$organisationCode);
                             log_message($debug_mode, "Checking branches_mapping, in branches_mapping we have: ". Dumper(@branches_mapping));
-                            # warn "organisationCode: $organisationCode";
-                            # warn "Number of elements in \@branches_mapping: " . scalar(@branches_mapping);
                             foreach my $branch_mapping (@branches_mapping) {
                                 if ($branch_mapping->{organisationCode} && $branch_mapping->{organisationCode} eq $organisationCode) {
                                     $koha_branchcode = $branch_mapping->{branchcode};
-                                    # log_message($debug_mode, 'branch_mapping->{organisationCode}: '.$branch_mapping->{organisationCode}.', need: '.$organisationCode);
                                     log_message($debug_mode, 'Checking branch_mapping, koha_branchcode: '.$koha_branchcode);
                                     last; 
                                 } 
                             }
-                            # warn "koha_branchcode set to: ".$koha_branchcode;
-                            # warn "koha_default_branchcode is : ".$koha_default_branchcode;
                             log_message($debug_mode, 'koha_branchcode settled to: '.$koha_branchcode);
                         }
                         # /organisationCode
@@ -1716,10 +2082,6 @@ sub fetchBorrowers {
                         if ($excluding_enrolments_empty eq "Yes") {
                                 $not_import = 1;
                                 log_message($debug_mode, 'Enrolments is empty, not import data, excluding_Enrolments_empty in config settled to Yes');
-                                # if ($debug_mode eq "Yes") { 
-                                    # warn "enrolments is empty, not import data";
-                                    # print STDERR "enrolments is empty, not import data\n";
-                                # }
                         }
 
                     }
@@ -1842,6 +2204,7 @@ sub fetchBorrowers {
                     if (!defined $email || $email eq "") { $email = undef; }
                     # warn "not_import, must be !=1, now is: ".$not_import;
                     log_message($debug_mode, 'addOrUpdateBorrower data from api to our Koha: '.($not_import ? 'no' : 'yes'));
+                    $processed_count++; 
 
                     if ($not_import != 1) {
                         log_message($debug_mode, 'addOrUpdateBorrower, cardnumber: '.$cardnumber);
@@ -1892,36 +2255,68 @@ sub fetchBorrowers {
                     log_message($debug_mode, 'ENDED DEBUGGING THE CURRENT USER');
                     log_message($debug_mode, ' ');
                 } 
+                # here
             }
 
-            if ($j == $api_limit) {
+            if ($j >0) {
                 if ($debug_mode eq "No") { 
                     my $update_query = qq{
                         UPDATE $logs_table
                         SET is_processed = 1,
-                            response = ?
+                            response = ?,
+                            added_count = ?,
+                            updated_count = ?,
+                            processed_count = ?,
+                            iteration_number = ?
                         WHERE data_hash = ?
                     };
-                    my $update_response = "Added: $added_count, Updated: $updated_count";
+                    my $update_response = "Added: $added_count, Updated: $updated_count, Total: $processed_count";
                     my $sth_update = $dbh->prepare($update_query);
-                    unless ($sth_update->execute($update_response, $data_hash)) {
-                        die "An error occurred while executing the request: " . $sth_update->errstr;
+                    
+                    eval {
+                        $sth_update->execute(
+                            $update_response,
+                            $added_count,
+                            $updated_count,
+                            $processed_count,
+                            $iteration_number,
+                            $data_hash
+                        );
+                        
+                        # Логуємо завершення ітерації незалежно від debug_mode
+                        my $message = "Iteration $iteration_number completed. Added: $added_count, Updated: $updated_count, Total processed: $processed_count";
+                        log_message('Yes', $message);
+                    };
+                    
+                    if ($@) {
+                        warn "Error updating statistics: $@";
                     }
+
                     $sth_update->finish();
                 } elsif ($debug_mode eq "Yes") {
                     my $update_query = qq{
                         UPDATE $logs_table
-                        SET is_processed = 1
+                        SET is_processed = 1,
+                            added_count = ?,
+                            updated_count = ?,
+                            processed_count = ?,
+                            iteration_number = ?
                         WHERE data_hash = ?
                     };
                     my $sth_update = $dbh->prepare($update_query);
-                    unless ($sth_update->execute($data_hash)) {
+                    unless ($sth_update->execute(
+                            $added_count,
+                            $updated_count,
+                            $processed_count,
+                            $iteration_number,
+                            $data_hash
+                        )) {
                         die "An error occurred while executing the request: " . $sth_update->errstr;
                     }
                     $sth_update->finish();
                 }
-            }
 
+            }
 }
 
 # Function to add or update user data in the borrowers table

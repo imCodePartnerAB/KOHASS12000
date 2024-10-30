@@ -67,7 +67,7 @@ our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2024-10-29',
+    date_updated    => '2024-10-30',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -1351,6 +1351,33 @@ sub cronjob {
             my ($remaining_count) = $dbh->selectrow_array($check_all_completed, undef, $data_endpoint);
             if ($remaining_count == 0) {
                 log_message('Yes', "All organisations processed successfully");
+
+                # Get and log final statistics
+                my $stats_query = qq{
+                    SELECT 
+                        COUNT(DISTINCT organisation_code) as orgs_processed,
+                        SUM(added_count) as total_added,
+                        SUM(updated_count) as total_updated,
+                        SUM(processed_count) as total_processed
+                    FROM $logs_table 
+                    WHERE data_endpoint = ?
+                    AND DATE(created_at) = CURDATE()
+                };
+                
+                my $sth_stats = $dbh->prepare($stats_query);
+                $sth_stats->execute($data_endpoint);
+                my $stats = $sth_stats->fetchrow_hashref;
+                
+                if ($stats) {
+                    log_message('Yes', sprintf(
+                        "Daily statistics - Organisations processed: %d, Added: %d, Updated: %d, Total processed: %d",
+                        $stats->{orgs_processed} || 0,
+                        $stats->{total_added} || 0,
+                        $stats->{total_updated} || 0,
+                        $stats->{total_processed} || 0
+                    ));      
+                }
+
                 print "EndLastPageFromAPI\n";
             }
         }
@@ -1409,31 +1436,6 @@ sub cronjob {
         }
     }
     
-    # Get and log final statistics
-    my $stats_query = qq{
-        SELECT 
-            COUNT(DISTINCT organisation_code) as orgs_processed,
-            SUM(added_count) as total_added,
-            SUM(updated_count) as total_updated,
-            SUM(processed_count) as total_processed
-        FROM $logs_table 
-        WHERE data_endpoint = ?
-        AND DATE(created_at) = CURDATE()
-    };
-    
-    my $sth_stats = $dbh->prepare($stats_query);
-    $sth_stats->execute($data_endpoint);
-    my $stats = $sth_stats->fetchrow_hashref;
-    
-    if ($stats) {
-        log_message('Yes', sprintf(
-            "Daily statistics - Organisations processed: %d, Added: %d, Updated: %d, Total processed: %d",
-            $stats->{orgs_processed} || 0,
-            $stats->{total_added} || 0,
-            $stats->{total_updated} || 0,
-            $stats->{total_processed} || 0
-        ));      
-    }
 }
 
 

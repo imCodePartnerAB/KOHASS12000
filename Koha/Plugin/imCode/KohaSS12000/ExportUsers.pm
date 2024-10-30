@@ -1768,8 +1768,6 @@ sub fetchDataFromAPI {
                 # Get organization-specific totals
                 my $org_stats_query = qq{
                     SELECT
-                        SUM(added_count) as org_added,
-                        SUM(updated_count) as org_updated,
                         SUM(processed_count) as org_processed
                     FROM $logs_table
                     WHERE organisation_code = ?
@@ -1778,12 +1776,11 @@ sub fetchDataFromAPI {
                 };
                 my $sth_org_stats = $dbh->prepare($org_stats_query);
                 $sth_org_stats->execute($current_org_code);
-                my ($org_added, $org_updated, $org_processed) = $sth_org_stats->fetchrow_array();
+                my ($org_processed) = $sth_org_stats->fetchrow_array();
 
                 my $completion_message = sprintf(
-                    "Processing completed for %s. Organization statistics - Updated: %d, Total processed: %d",
+                    "Processing completed for %s. Organization statistics, total processed: %d",
                     $current_org_code,
-                    $org_updated || 0,
                     $org_processed || 0
                 );
 

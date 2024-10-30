@@ -1520,29 +1520,6 @@ sub get_api_token {
     return;
 }
 
-# Helper function to build filtered endpoint URL
-sub build_filtered_endpoint {
-    my ($self, $data_endpoint, $org_id) = @_;
-    
-    # Get current date in YYYY-MM-DD format
-    my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
-    my $today = sprintf("%04d-%02d-%02d", $year + 1900, $mon + 1, $mday);
-    
-    # Add filtering parameters
-    my %query_params = (
-        'relationship.organisation' => $org_id,
-        'relationship.startDate.onOrBefore' => $today,
-        'relationship.endDate.onOrAfter' => $today,
-        'relationship.entity.type' => 'enrolment'
-    );
-    
-    # Build query string
-    my $encoded_params = join '&', map {
-        uri_escape($_) . '=' . uri_escape($query_params{$_})
-    } keys %query_params;
-    
-    return "$data_endpoint?$encoded_params";
-}
 
 sub fetchDataFromAPI {
     my ($self, $data_endpoint, $filter_params, $current_org_code) = @_;

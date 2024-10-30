@@ -61,7 +61,7 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.571";
+our $VERSION = "1.5";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
@@ -2340,34 +2340,6 @@ sub fetchBorrowers {
                     $sth_update->finish();
                 }
 
-                if (!defined $response_page_token || $response_page_token eq "") {
-                    # Total stat
-                    my $total_stats_query = qq{
-                        SELECT 
-                            SUM(added_count) as total_added,
-                            SUM(updated_count) as total_updated,
-                            SUM(processed_count) as total_processed,
-                            MAX(iteration_number) as total_iterations
-                        FROM $logs_table 
-                        WHERE data_endpoint = 'persons'
-                        AND created_at >= CURDATE()
-                    };
-                    
-                    my $sth_stats = $dbh->prepare($total_stats_query);
-                    $sth_stats->execute();
-                    my ($total_added, $total_updated, $total_processed, $total_iterations) 
-                        = $sth_stats->fetchrow_array();
-                        
-                    # Save total stat
-                    my $final_message = sprintf(
-                        "Processing completed. Total iterations: %d, Total added: %d, Total updated: %d, Total processed: %d",
-                        $total_iterations || 0,
-                        $total_added || 0,
-                        $total_updated || 0,
-                        $total_processed || 0
-                    );
-                    log_message('Yes', $final_message);
-                }
             }
 }
 

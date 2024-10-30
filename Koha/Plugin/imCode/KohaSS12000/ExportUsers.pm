@@ -61,7 +61,7 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.5";
+our $VERSION = "1.571";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
@@ -162,13 +162,11 @@ sub install {
 
     my $dbh = C4::Context->dbh;
 
+    $self->store_data( { installed_version => $VERSION } );
     $self->store_data( { plugin_version => $Koha::Plugin::imCode::KohaSS12000::ExportUsers::VERSION || '1.0' } );
 
     log_message("Yes", "Starting installation process");
     log_message("Yes", "Storing initial version: $VERSION");
-    
-    $self->store_data( { installed_version => $VERSION } );
-    $self->store_data( { plugin_version => $VERSION } );
 
     my $stored_version = $self->retrieve_data('installed_version');
     log_message("Yes", "Verified stored version: " . ($stored_version || 'none'));
@@ -1230,24 +1228,6 @@ sub cronjob {
     
     my $dbh = C4::Context->dbh;
 
-    # Check if all work for today is already done
-    my $check_completed = qq{
-        SELECT COUNT(*) as processed_count
-        FROM $logs_table 
-        WHERE data_endpoint = ?
-        AND DATE(created_at) = CURDATE()
-        AND page_token_next IS NULL 
-        AND is_processed = 1
-    };
-    
-    my ($processed_today) = $dbh->selectrow_array($check_completed, undef, $data_endpoint);
-    
-    if ($processed_today > 0) {
-        log_message('Yes', "All work for today is already completed");
-        print "EndLastPageFromAPI\n";
-        return;
-    }
-
     # Check if mapping table has any records
     my $check_mapping_exists = qq{
         SELECT COUNT(*) FROM $branches_mapping_table
@@ -1452,11 +1432,7 @@ sub cronjob {
             $stats->{total_added} || 0,
             $stats->{total_updated} || 0,
             $stats->{total_processed} || 0
-        ));
-        if ($stats->{orgs_processed} > 0 && $stats->{total_processed} > 0) {
-            print "EndLastPageFromAPI\n";
-            return;
-        }        
+        ));      
     }
 }
 

@@ -1228,6 +1228,43 @@ sub cronjob {
     
     my $dbh = C4::Context->dbh;
 
+    # First, check if full processing was already completed today
+    my $check_completed_query = qq{
+        SELECT COUNT(*) 
+        FROM $logs_table 
+        WHERE DATE(created_at) = CURDATE()
+        AND data_endpoint = ?
+        AND page_token_next IS NULL 
+        AND is_processed = 1
+        GROUP BY organisation_code
+    };
+    
+    my $sth_check = $dbh->prepare($check_completed_query);
+    $sth_check->execute($data_endpoint);
+    my $completed_orgs = $sth_check->fetchall_arrayref();
+    
+    # Get total number of organizations that need processing
+    my $total_orgs_query = qq{
+        SELECT COUNT(DISTINCT organisationCode) 
+        FROM $branches_mapping_table 
+        WHERE organisationCode IS NOT NULL 
+        AND organisationCode != ''
+    };
+    
+    my ($total_orgs) = $dbh->selectrow_array($total_orgs_query);
+    
+    # If no organizations configured, treat as single process
+    if ($total_orgs == 0) {
+        $total_orgs = 1;
+    }
+    
+    # If number of completed organizations equals total organizations, exit
+    if (scalar(@$completed_orgs) >= $total_orgs) {
+        log_message("Yes", "Full processing cycle already completed today for all organizations");
+        print "EndLastPageFromAPI\n";
+        return 0;
+    }
+
     # Check if mapping table has any records
     my $check_mapping_exists = qq{
         SELECT COUNT(*) FROM $branches_mapping_table
@@ -1380,9 +1417,30 @@ sub cronjob {
 
                 print "EndLastPageFromAPI\n";
             }
+        } else {
+            log_message('Yes', "No organizations left to process today");
+            return 0;
         }
     } else {
         # Process without organization filtering
+        # First check if already processed today
+        my $check_processed = qq{
+            SELECT COUNT(*) 
+            FROM $logs_table 
+            WHERE DATE(created_at) = CURDATE()
+            AND data_endpoint = ?
+            AND page_token_next IS NULL 
+            AND is_processed = 1
+            AND organisation_code = 'NO_ORG'
+        };
+        
+        my ($already_processed) = $dbh->selectrow_array($check_processed, undef, $data_endpoint);
+        
+        if ($already_processed) {
+            log_message('Yes', 'Processing already completed today for non-organization mode');
+            return 0;
+        }
+        
         log_message('Yes', 'No organisation mappings found, processing all data without filtering');
         
         my $filter_params = {
@@ -1391,19 +1449,15 @@ sub cronjob {
             'relationship.entity.type' => 'enrolment'
         };
         
-        # log_message('Yes', 'Filter params: ' . Dumper($filter_params));
-        
-        # Get configuration
         my $config_data = $self->get_config_data();
         log_message('Yes', 'Got config data');
         
-        # Get API token
         my $ua = LWP::UserAgent->new;
         my $token = $self->get_api_token($config_data, $ua);
         
         if (!$token) {
             log_message('Yes', 'Failed to get API token');
-            return;
+            return 0;
         }
         log_message('Yes', 'Got API token successfully');
         
@@ -1415,7 +1469,7 @@ sub cronjob {
             if (defined $result && $result == 0) {
                 log_message('Yes', "Processing completed without organisation filtering");
                 print "EndLastPageFromAPI\n";
-                return;
+                return 0;
             }
         };
         
@@ -1424,7 +1478,7 @@ sub cronjob {
             if ($@ =~ /EndLastPageFromAPI/) {
                 print "EndLastPageFromAPI\n";
                 log_message('Yes', "Processing completed without organisation filtering");
-                return;
+                return 0;
             } elsif ($@ =~ /ErrorVerifyCategorycodeBranchcode/) {
                 print "ErrorVerifyCategorycodeBranchcode\n";
                 log_message('Yes', "Configuration error detected");
@@ -1436,6 +1490,7 @@ sub cronjob {
         }
     }
     
+    return 1;
 }
 
 

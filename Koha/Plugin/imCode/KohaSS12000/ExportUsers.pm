@@ -6,6 +6,7 @@
 # Category: Koha, https://koha-community.org 
 # Plugin:   imCode::KohaSS12000::ExportUsers
 # Author:   Tkachuk Serge, https://github.com/fly304625, <tkachuk.serge@gmail.com>
+# Author:   Jacob Sandin, https://github.com/JacobSandin, <jacob@imcode.com>
 # License:  https://www.gnu.org/licenses/gpl-3.0.html GNU General Public License v3.0
 #
 package Koha::Plugin::imCode::KohaSS12000::ExportUsers;

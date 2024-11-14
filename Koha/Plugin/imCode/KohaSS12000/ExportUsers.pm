@@ -62,7 +62,7 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.51";
+our $VERSION = "1.52";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
@@ -2162,25 +2162,44 @@ sub fetchBorrowers {
                     my $emails = $response_page_data->{emails}; # we get an array
                     my $email = "";
                     my $B_email = ""; # field B_email in DB
+
+                    # if (defined $emails && ref $emails eq 'ARRAY') {
+                    #     foreach my $selectedEmail (@$emails) {
+                    #         my $email_value = $selectedEmail->{value};
+                    #         my $email_type  = $selectedEmail->{type};
+                    #         if ($email_type eq "Privat") {
+                    #             if (defined $email_value) {
+                    #                 $B_email = lc($email_value);
+                    #             }
+                    #         } elsif ($email_type eq "Skola personal") {
+                    #             if (defined $email_value) {
+                    #                 $email = lc($email_value);
+                    #             }
+                    #         } elsif ($email_type eq "Skola elev") {
+                    #             if (defined $email_value) {
+                    #                 $email = lc($email_value);
+                    #             }
+                    #         }                            
+                    #     }
+                    # }
+
                     if (defined $emails && ref $emails eq 'ARRAY') {
                         foreach my $selectedEmail (@$emails) {
                             my $email_value = $selectedEmail->{value};
                             my $email_type  = $selectedEmail->{type};
-                            if ($email_type eq "Privat") {
-                                if (defined $email_value) {
-                                    $B_email = lc($email_value);
-                                }
-                            } elsif ($email_type eq "Skola personal") {
-                                if (defined $email_value) {
-                                    $email = lc($email_value);
-                                }
-                            } elsif ($email_type eq "Skola elev") {
-                                if (defined $email_value) {
-                                    $email = lc($email_value);
-                                }
-                            }                            
+                            
+                            next unless defined $email_value;
+                            
+                            if (!defined $email) {
+                                $email = lc($email_value);
+                                $B_email = ($email_type eq "Privat") ? undef : "";
+                            } elsif ($B_email eq "" && $email_type ne "Privat") {
+                                $B_email = $email;
+                                $email = lc($email_value);
+                            }
                         }
                     }
+
                     log_message($debug_mode, 'Geted emails from api: '.Dumper($emails));
                     log_message($debug_mode, 'email: '.$email);
                     log_message($debug_mode, 'B_email: '.$B_email);

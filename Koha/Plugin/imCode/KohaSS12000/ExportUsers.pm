@@ -5,7 +5,7 @@
 #
 # Category: Koha, https://koha-community.org 
 # Plugin:   imCode::KohaSS12000::ExportUsers
-# Author:   Tkachuk Serge, https://github.com/fly304625, <tkachuk.serge@gmail.com>
+# Author:   Serge Tkachuk, https://github.com/fly304625, <tkachuk.serge@gmail.com>
 # Author:   Jacob Sandin, https://github.com/JacobSandin, <jacob@imcode.com>
 # License:  https://www.gnu.org/licenses/gpl-3.0.html GNU General Public License v3.0
 #
@@ -62,13 +62,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.5";
+our $VERSION = "1.51";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2024-10-30',
+    date_updated    => '2024-11-14',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -2174,7 +2174,11 @@ sub fetchBorrowers {
                                 if (defined $email_value) {
                                     $email = lc($email_value);
                                 }
-                            }
+                            } elsif ($email_type eq "Skola elev") {
+                                if (defined $email_value) {
+                                    $email = lc($email_value);
+                                }
+                            }                            
                         }
                     }
                     log_message($debug_mode, 'Geted emails from api: '.Dumper($emails));

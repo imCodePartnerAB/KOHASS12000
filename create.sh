@@ -1,2 +1,2 @@
 #!/bin/sh
-zip -r koha-plugin-export-users_ss12000_v1_52.kpz Koha
+zip -r koha-plugin-export-users_ss12000_v1_521.kpz Koha

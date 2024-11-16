@@ -62,13 +62,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.52";
+our $VERSION = "1.521";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2024-11-14',
+    date_updated    => '2024-11-16',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -2183,19 +2183,37 @@ sub fetchBorrowers {
                     #     }
                     # }
 
+                    # ver 1.52: 
+                    # if (defined $emails && ref $emails eq 'ARRAY') {
+                    #     foreach my $selectedEmail (@$emails) {
+                    #         my $email_value = $selectedEmail->{value};
+                    #         my $email_type  = $selectedEmail->{type};
+                            
+                    #         next unless defined $email_value;
+                            
+                    #         if (!defined $email) {
+                    #             $email = lc($email_value);
+                    #             $B_email = ($email_type eq "Privat") ? undef : "";
+                    #         } elsif ($B_email eq "" && $email_type ne "Privat") {
+                    #             $B_email = $email;
+                    #             $email = lc($email_value);
+                    #         }
+                    #     }
+                    # }
+
+                    # ver 1.521:
                     if (defined $emails && ref $emails eq 'ARRAY') {
+                        # Set the first email as the primary one
+                        if (@$emails && defined $emails->[0]->{value}) {
+                            $email = lc($emails->[0]->{value});
+                        }
+                        
+                        # Looking for a private email for B_email
                         foreach my $selectedEmail (@$emails) {
-                            my $email_value = $selectedEmail->{value};
-                            my $email_type  = $selectedEmail->{type};
-                            
-                            next unless defined $email_value;
-                            
-                            if (!defined $email) {
-                                $email = lc($email_value);
-                                $B_email = ($email_type eq "Privat") ? undef : "";
-                            } elsif ($B_email eq "" && $email_type ne "Privat") {
-                                $B_email = $email;
-                                $email = lc($email_value);
+                            next unless defined $selectedEmail->{value};
+                            if ($selectedEmail->{type} eq "Privat") {
+                                $B_email = lc($selectedEmail->{value});
+                                last;
                             }
                         }
                     }

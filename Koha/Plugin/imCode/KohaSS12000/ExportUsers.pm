@@ -2203,18 +2203,24 @@ sub fetchBorrowers {
 
                     # ver 1.521:
                     if (defined $emails && ref $emails eq 'ARRAY') {
-                        # Set the first email as the primary one
-                        if (@$emails && defined $emails->[0]->{value}) {
-                            $email = lc($emails->[0]->{value});
-                        }
+                        my $found_private = 0;
+                        my $first_non_private;
                         
-                        # Looking for a private email for B_email
+                        # Спочатку знайдемо приватний і перший не приватний email
                         foreach my $selectedEmail (@$emails) {
                             next unless defined $selectedEmail->{value};
+                            
                             if ($selectedEmail->{type} eq "Privat") {
                                 $B_email = lc($selectedEmail->{value});
-                                last;
+                                $found_private = 1;
+                            } elsif (!defined $first_non_private) {
+                                $first_non_private = lc($selectedEmail->{value});
                             }
+                        }
+                        
+                        # В email завжди має йти не приватна адреса
+                        if (defined $first_non_private) {
+                            $email = $first_non_private;
                         }
                     }
 

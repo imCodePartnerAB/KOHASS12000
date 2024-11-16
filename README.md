@@ -9,9 +9,9 @@ It exports user data from the API in SS12000 format to your Koha database
 Plugin and cron jobs for importing SS12000 v 1.52
 
 
-2024-11-14:
+2024-11-16:
 
-[1.52 version of koha-plugin-export-users_ss12000](https://github.com/imCodePartnerAB/KOHASS12000/releases/tag/v1.52)
+[1.521 version of koha-plugin-export-users_ss12000](https://github.com/imCodePartnerAB/KOHASS12000/releases/tag/v1.521)
 
 
 

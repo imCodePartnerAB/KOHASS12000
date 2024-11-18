@@ -2205,8 +2205,7 @@ sub fetchBorrowers {
                     if (defined $emails && ref $emails eq 'ARRAY') {
                         my $found_private = 0;
                         my $first_non_private;
-                        
-                        # Спочатку знайдемо приватний і перший не приватний email
+  
                         foreach my $selectedEmail (@$emails) {
                             next unless defined $selectedEmail->{value};
                             
@@ -2217,8 +2216,7 @@ sub fetchBorrowers {
                                 $first_non_private = lc($selectedEmail->{value});
                             }
                         }
-                        
-                        # В email завжди має йти не приватна адреса
+
                         if (defined $first_non_private) {
                             $email = $first_non_private;
                         }

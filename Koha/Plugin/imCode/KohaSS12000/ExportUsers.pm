@@ -62,13 +62,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.521";
+our $VERSION = "1.53";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2024-11-16',
+    date_updated    => '2025-01-14',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -2493,7 +2493,8 @@ sub addOrUpdateBorrower {
             WHERE borrowernumber = ?
         };
         my $update_sth = $dbh->prepare($update_query);
-        $update_sth->execute(
+        eval {
+            $update_sth->execute(
                 $birthdate, 
                 $email, 
                 $sex, 
@@ -2512,8 +2513,14 @@ sub addOrUpdateBorrower {
                 $newCardnumber,
                 $existing_borrower->{'borrowernumber'}
             );
-        $updated_count++;
-        $borrowernumber = $existing_borrower->{'borrowernumber'};
+        };
+        if ($@) {
+            # Log any error that occurs during the update
+            log_message('Yes', "Error updating user: $@");
+        } else {
+            $updated_count++;
+            $borrowernumber = $existing_borrower->{'borrowernumber'};
+        }
     } else {
         # If the user doesn't exist, insert their data
         my $insert_query = qq{
@@ -2536,9 +2543,27 @@ sub addOrUpdateBorrower {
                     userid
                 )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                dateofbirth = VALUES(dateofbirth),
+                email = VALUES(email),
+                sex = VALUES(sex),
+                phone = VALUES(phone),
+                mobile = VALUES(mobile),
+                surname = VALUES(surname),
+                firstname = VALUES(firstname),
+                categorycode = VALUES(categorycode),
+                branchcode = VALUES(branchcode),
+                address = VALUES(address),
+                city = VALUES(city),
+                zipcode = VALUES(zipcode),
+                country = VALUES(country),
+                B_email = VALUES(B_email),
+                userid = VALUES(userid),
+                cardnumber = VALUES(cardnumber)
         };
         my $insert_sth = $dbh->prepare($insert_query);
-        $insert_sth->execute(
+        eval {
+            $insert_sth->execute(
                 $newCardnumber,
                 $surname,
                 $firstname,
@@ -2556,13 +2581,18 @@ sub addOrUpdateBorrower {
                 $B_email,
                 $newUserID
             );
+        };
+        if ($@) {
+            # Log any error that occurs during the insert
+            log_message('Yes', "Error inserting user: $@");
+        } else {
             $added_count++;
             $borrowernumber = $dbh->last_insert_id(undef, undef, $borrowers_table, undef);
+        }
     }
 
     if ($klass_displayName) {
         # add to borrower_attributes
-        # warn "borrowernumber: $borrowernumber, klass_displayName: $klass_displayName";
         my $code = 'CL';
         my $attribute = $klass_displayName;
 
@@ -2581,7 +2611,13 @@ sub addOrUpdateBorrower {
                 VALUES ('CL', 'Klass', 0, 0, 0, 0, 0, '', 0, NULL, '', 0, 0)
             };
             my $insert_types_sth = $dbh->prepare($insert_types_query);
-            $insert_types_sth->execute();
+            eval {
+                $insert_types_sth->execute();
+            };
+            if ($@) {
+                # Log any error that occurs during the insert
+                log_message('Yes', "Error inserting into borrower_attribute_types: $@");
+            }
         }
 
         # Check if the record exists
@@ -2602,7 +2638,13 @@ sub addOrUpdateBorrower {
                         WHERE borrowernumber = ? AND code = ?
                     };
                     my $update_sth = $dbh->prepare($update_query);
-                    $update_sth->execute($attribute, $borrowernumber, $code);
+                    eval {
+                        $update_sth->execute($attribute, $borrowernumber, $code);
+                    };
+                    if ($@) {
+                        # Log any error that occurs during the update
+                        log_message('Yes', "Error updating borrower_attributes: $@");
+                    }
                 }
         } else {
             # If there is no record, insert a new one
@@ -2611,7 +2653,13 @@ sub addOrUpdateBorrower {
                         VALUES (?, ?, ?)
                     };
             my $insert_sth = $dbh->prepare($insert_query);
-            $insert_sth->execute($borrowernumber, $code, $attribute);
+            eval {
+                $insert_sth->execute($borrowernumber, $code, $attribute);
+            };
+            if ($@) {
+                # Log any error that occurs during the insert
+                log_message('Yes', "Error inserting into borrower_attributes: $@");
+            }
         }
         # end borrower_attributes
     }

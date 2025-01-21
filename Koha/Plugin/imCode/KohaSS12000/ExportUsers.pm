@@ -62,13 +62,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.53";
+our $VERSION = "1.54";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2025-01-14',
+    date_updated    => '2025-01-21',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -2450,27 +2450,155 @@ sub addOrUpdateBorrower {
     my $newUserID;
     my $newCardnumber;
 
+    # Determine the new userid based on plugin settings
     if ($useridPlugin eq "civicNo" || $useridPlugin eq "externalIdentifier") {
         $newUserID = ($useridPlugin eq "civicNo") ? $userid : $externalIdentifier;
     }
 
+    # Determine the new cardnumber based on plugin settings
     if ($cardnumberPlugin eq "civicNo" || $cardnumberPlugin eq "externalIdentifier") {
         $newCardnumber = ($cardnumberPlugin eq "civicNo") ? $cardnumber : $externalIdentifier;
     }
 
-    ## Check if a user with the specified cardnumber already exists in the database
-    my $select_query = qq{
-        SELECT borrowernumber 
-        FROM $borrowers_table 
-        WHERE cardnumber = ? OR cardnumber = ? OR userid = ?
+    # Find all duplicates with comprehensive information about their usage
+    my $find_duplicates_query = qq{
+        SELECT b.*, 
+            (SELECT COUNT(*) FROM issues i WHERE i.borrowernumber = b.borrowernumber) as issues_count,
+            (SELECT COUNT(*) FROM old_issues oi WHERE oi.borrowernumber = b.borrowernumber) as old_issues_count,
+            (SELECT COUNT(*) FROM reserves r WHERE r.borrowernumber = b.borrowernumber) as reserves_count,
+            (SELECT COUNT(*) FROM borrower_attributes ba WHERE ba.borrowernumber = b.borrowernumber) as attributes_count,
+            (SELECT COUNT(*) FROM accountlines al WHERE al.borrowernumber = b.borrowernumber) as accountlines_count,
+            (SELECT COUNT(*) FROM message_queue mq WHERE mq.borrowernumber = b.borrowernumber) as messages_count
+        FROM $borrowers_table b
+        WHERE userid = ? OR cardnumber = ? OR userid = ? OR cardnumber = ?
+        ORDER BY 
+            (issues_count + old_issues_count + reserves_count + attributes_count + accountlines_count + messages_count) DESC,
+            updated_on DESC
     };
-    my $select_sth = $dbh->prepare($select_query);
-    $select_sth->execute($cardnumber, $externalIdentifier, $newUserID);
-    my $existing_borrower = $select_sth->fetchrow_hashref;
     my $borrowernumber;
+    my $find_sth = $dbh->prepare($find_duplicates_query);
+    $find_sth->execute($userid, $cardnumber, $newUserID, $newCardnumber);
+    
+    my @duplicates = ();
+    while (my $row = $find_sth->fetchrow_hashref) {
+        push @duplicates, $row;
+    }
+    
+    my $existing_borrower;
+    
+    if (@duplicates > 1) {
+        # Select the record with the most activity as the main record
+        my $main_record = shift @duplicates;
+        
+        # Log detailed information about the main record
+        log_message('Yes', sprintf(
+            "Selected main record borrowernumber: %d (issues: %d, old_issues: %d, reserves: %d, attributes: %d, accountlines: %d, messages: %d)",
+            $main_record->{borrowernumber},
+            $main_record->{issues_count},
+            $main_record->{old_issues_count},
+            $main_record->{reserves_count},
+            $main_record->{attributes_count},
+            $main_record->{accountlines_count},
+            $main_record->{messages_count}
+        ));
+        
+        # Process and merge each duplicate record
+        for my $duplicate (@duplicates) {
+            # Log information about the duplicate being processed
+            log_message('Yes', sprintf(
+                "Processing duplicate borrowernumber: %d (issues: %d, old_issues: %d, reserves: %d, attributes: %d, accountlines: %d, messages: %d)",
+                $duplicate->{borrowernumber},
+                $duplicate->{issues_count},
+                $duplicate->{old_issues_count},
+                $duplicate->{reserves_count},
+                $duplicate->{attributes_count},
+                $duplicate->{accountlines_count},
+                $duplicate->{messages_count}
+            ));
+            
+            # List of tables that need to be updated with the new borrowernumber
+            my @tables_to_update = (
+                'issues',             # Current checkouts
+                'old_issues',         # Checkout history
+                'reserves',           # Current holds
+                'old_reserves',       # Hold history
+                'borrower_attributes', # Additional borrower information
+                'accountlines',       # Financial transactions
+                'message_queue'       # Messages
+                # 'statistics',         # Usage statistics
+                # 'suggestions',        # Purchase suggestions
+                # 'borrower_files',     # Attached files
+                # 'borrower_debarments', # Borrower restrictions
+                # 'borrower_modifications', # Modification requests
+                # 'club_enrollments',   # Club memberships
+                # 'patron_lists',       # List memberships
+                # 'virtualshelves',     # List ownerships
+                # 'illrequests',        # Interlibrary loan requests
+                # 'pending_offline_operations', # Offline operations
+                # 'search_history',     # Search history
+                # 'tags',               # User tags
+                # 'reviews'             # User reviews
+            );
+            
+            # Update each table to point to the main record
+            foreach my $table (@tables_to_update) {
+                my $update_query = qq{
+                    UPDATE $table 
+                    SET borrowernumber = ? 
+                    WHERE borrowernumber = ?
+                };
+                eval {
+                    my $update_sth = $dbh->prepare($update_query);
+                    $update_sth->execute($main_record->{borrowernumber}, $duplicate->{borrowernumber});
+                    my $rows_affected = $update_sth->rows;
+                    if ($rows_affected > 0) {
+                        log_message('Yes', "Updated $rows_affected records in table $table");
+                    }
+                };
+                if ($@) {
+                    log_message('Yes', "Error updating $table: $@");
+                }
+            }
+            
+            # Delete the duplicate record only after successful data transfer
+            # Instead of deleting, mark the duplicate record as archived
+            eval {
+                my $archive_query = qq{
+                    UPDATE $borrowers_table 
+                    SET 
+                        userid = CONCAT('ARCHIVED_', userid, '_', borrowernumber),
+                        cardnumber = CONCAT('ARCHIVED_', cardnumber, '_', borrowernumber),
+                        flags = -1,  # Special flag to mark as archived
+                        dateexpiry = NOW(),  # Expire the card
+                        gonenoaddress = 1,   # Mark as invalid address
+                        lost = 1,            # Mark as lost card
+                        debarred = '9999-12-31',  # Permanently block
+                        debarredcomment = CONCAT('Merged with borrowernumber: ', ?, ' at ', NOW())
+                    WHERE borrowernumber = ?
+                };
+                my $archive_sth = $dbh->prepare($archive_query);
+                $archive_sth->execute(
+                    $main_record->{borrowernumber}, 
+                    $duplicate->{borrowernumber}
+                );
+                log_message('Yes', "Archived duplicate borrowernumber: " . $duplicate->{borrowernumber} . 
+                                " (merged with: " . $main_record->{borrowernumber} . ")");
+            };
+            if ($@) {
+                log_message('Yes', "Error archiving duplicate: $@");
+            }
+        }
+        
+        # Use the main record for further updates
+        $existing_borrower = $main_record;
+        
+    } elsif (@duplicates == 1) {
+        # If only one record exists, use it
+        $existing_borrower = $duplicates[0];
+    }
 
     if ($existing_borrower) {
-        # If the user exists, update their data
+        # Update the existing record with new information
         my $update_query = qq{
             UPDATE $borrowers_table
             SET 
@@ -2489,7 +2617,8 @@ sub addOrUpdateBorrower {
                 country = ?,
                 B_email = ?,
                 userid = ?,
-                cardnumber = ?
+                cardnumber = ?,                
+                updated_on = NOW()
             WHERE borrowernumber = ?
         };
         my $update_sth = $dbh->prepare($update_query);
@@ -2510,56 +2639,41 @@ sub addOrUpdateBorrower {
                 $country,
                 $B_email,
                 $newUserID,
-                $newCardnumber,
+                $newCardnumber,                
                 $existing_borrower->{'borrowernumber'}
             );
         };
         if ($@) {
-            # Log any error that occurs during the update
             log_message('Yes', "Error updating user: $@");
         } else {
             $updated_count++;
             $borrowernumber = $existing_borrower->{'borrowernumber'};
         }
     } else {
-        # If the user doesn't exist, insert their data
+        # Insert a new borrower record if no existing record was found
         my $insert_query = qq{
             INSERT INTO $borrowers_table (
-                    cardnumber,
-                    surname,
-                    firstname,
-                    dateofbirth,
-                    email,
-                    sex,
-                    phone,
-                    mobile,
-                    categorycode,
-                    branchcode,
-                    address,
-                    city,
-                    zipcode,
-                    country,
-                    B_email,
-                    userid
-                )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-                dateofbirth = VALUES(dateofbirth),
-                email = VALUES(email),
-                sex = VALUES(sex),
-                phone = VALUES(phone),
-                mobile = VALUES(mobile),
-                surname = VALUES(surname),
-                firstname = VALUES(firstname),
-                categorycode = VALUES(categorycode),
-                branchcode = VALUES(branchcode),
-                address = VALUES(address),
-                city = VALUES(city),
-                zipcode = VALUES(zipcode),
-                country = VALUES(country),
-                B_email = VALUES(B_email),
-                userid = VALUES(userid),
-                cardnumber = VALUES(cardnumber)
+                cardnumber,
+                surname,
+                firstname,
+                dateofbirth,
+                email,
+                sex,
+                phone,
+                mobile,
+                categorycode,
+                branchcode,
+                address,
+                city,
+                zipcode,
+                country,
+                B_email,
+                userid,
+                dateenrolled,
+                dateexpiry,
+                updated_on
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 1 YEAR), NOW())
         };
         my $insert_sth = $dbh->prepare($insert_query);
         eval {
@@ -2583,7 +2697,6 @@ sub addOrUpdateBorrower {
             );
         };
         if ($@) {
-            # Log any error that occurs during the insert
             log_message('Yes', "Error inserting user: $@");
         } else {
             $added_count++;
@@ -2591,12 +2704,12 @@ sub addOrUpdateBorrower {
         }
     }
 
-    if ($klass_displayName) {
-        # add to borrower_attributes
+    # Process class attribute if provided
+    if ($borrowernumber && $klass_displayName) {
         my $code = 'CL';
         my $attribute = $klass_displayName;
 
-        # Check if an entry exists in borrower_attribute_types
+        # Check if entry exists in borrower_attribute_types
         my $check_types_query = qq{
             SELECT 1 FROM borrower_attribute_types WHERE code = ?
         };
@@ -2604,65 +2717,79 @@ sub addOrUpdateBorrower {
         $check_types_sth->execute($code);
         my ($exists) = $check_types_sth->fetchrow_array();
 
+        # Create attribute type if it doesn't exist
         unless ($exists) {
-            # If there is no record, insert it
             my $insert_types_query = qq{
-                INSERT INTO borrower_attribute_types (code, description, repeatable, unique_id, opac_display, opac_editable, staff_searchable, authorised_value_category, display_checkout, category_code, class, keep_for_pseudonymization, mandatory)
-                VALUES ('CL', 'Klass', 0, 0, 0, 0, 0, '', 0, NULL, '', 0, 0)
+                INSERT INTO borrower_attribute_types (
+                    code, 
+                    description, 
+                    repeatable, 
+                    unique_id, 
+                    opac_display, 
+                    opac_editable, 
+                    staff_searchable, 
+                    authorised_value_category, 
+                    display_checkout, 
+                    category_code, 
+                    class, 
+                    keep_for_pseudonymization, 
+                    mandatory
+                )
+                VALUES (
+                    'CL', 'Klass', 0, 0, 0, 0, 0, '', 0, NULL, '', 0, 0
+                )
             };
             my $insert_types_sth = $dbh->prepare($insert_types_query);
             eval {
                 $insert_types_sth->execute();
             };
             if ($@) {
-                # Log any error that occurs during the insert
                 log_message('Yes', "Error inserting into borrower_attribute_types: $@");
             }
         }
 
-        # Check if the record exists
+        # Check if attribute record exists
         my $check_query = qq{
-                SELECT attribute FROM borrower_attributes 
-                WHERE borrowernumber = ? AND code = ?
-                };
+            SELECT attribute FROM borrower_attributes 
+            WHERE borrowernumber = ? AND code = ?
+        };
         my $check_sth = $dbh->prepare($check_query);
         $check_sth->execute($borrowernumber, $code);
         my $existing_attribute = $check_sth->fetchrow_array();
 
         if (defined $existing_attribute) {
-                # If the record exists but the attribute is different, update it
-                if ($existing_attribute ne $attribute) {
-                    my $update_query = qq{
-                        UPDATE borrower_attributes
-                        SET attribute = ?
-                        WHERE borrowernumber = ? AND code = ?
-                    };
-                    my $update_sth = $dbh->prepare($update_query);
-                    eval {
-                        $update_sth->execute($attribute, $borrowernumber, $code);
-                    };
-                    if ($@) {
-                        # Log any error that occurs during the update
-                        log_message('Yes', "Error updating borrower_attributes: $@");
-                    }
+            # Update existing attribute if value is different
+            if ($existing_attribute ne $attribute) {
+                my $update_query = qq{
+                    UPDATE borrower_attributes
+                    SET attribute = ?
+                    WHERE borrowernumber = ? AND code = ?
+                };
+                my $update_sth = $dbh->prepare($update_query);
+                eval {
+                    $update_sth->execute($attribute, $borrowernumber, $code);
+                };
+                if ($@) {
+                    log_message('Yes', "Error updating borrower_attributes: $@");
                 }
+            }
         } else {
-            # If there is no record, insert a new one
+            # Insert new attribute
             my $insert_query = qq{
-                        INSERT INTO borrower_attributes (borrowernumber, code, attribute)
-                        VALUES (?, ?, ?)
-                    };
+                INSERT INTO borrower_attributes (borrowernumber, code, attribute)
+                VALUES (?, ?, ?)
+            };
             my $insert_sth = $dbh->prepare($insert_query);
             eval {
                 $insert_sth->execute($borrowernumber, $code, $attribute);
             };
             if ($@) {
-                # Log any error that occurs during the insert
                 log_message('Yes', "Error inserting into borrower_attributes: $@");
             }
         }
-        # end borrower_attributes
     }
+
+    # return $borrowernumber;
 }
 
 1;

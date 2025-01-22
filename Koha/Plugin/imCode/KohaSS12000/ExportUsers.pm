@@ -2518,26 +2518,26 @@ sub addOrUpdateBorrower {
             
             # List of tables that need to be updated with the new borrowernumber
             my @tables_to_update = (
-                'issues',             # Current checkouts
-                'old_issues',         # Checkout history
-                'reserves',           # Current holds
-                'old_reserves',       # Hold history
+                'issues',              # Current checkouts
+                'old_issues',          # Checkout history
+                'reserves',            # Current holds
+                'old_reserves',        # Hold history
                 'borrower_attributes', # Additional borrower information
-                'accountlines',       # Financial transactions
-                'message_queue'       # Messages
-                # 'statistics',         # Usage statistics
-                # 'suggestions',        # Purchase suggestions
-                # 'borrower_files',     # Attached files
-                # 'borrower_debarments', # Borrower restrictions
-                # 'borrower_modifications', # Modification requests
-                # 'club_enrollments',   # Club memberships
-                # 'patron_lists',       # List memberships
-                # 'virtualshelves',     # List ownerships
-                # 'illrequests',        # Interlibrary loan requests
-                # 'pending_offline_operations', # Offline operations
-                # 'search_history',     # Search history
-                # 'tags',               # User tags
-                # 'reviews'             # User reviews
+                'accountlines',        # Financial transactions
+                'message_queue',       # Messages
+                'statistics',          # Usage statistics (very big db table)
+                'borrower_files',      # Attached files
+                'borrower_debarments', # Borrower restrictions
+                'borrower_modifications', # Modification requests
+                'club_enrollments',     # Club memberships
+                'illrequests',          # Interlibrary loan requests
+                'tags_all',             # User tags
+                'reviews'               # User reviews
+                # 'pending_offline_operations', # Offline operations (cardnumber?)
+                # 'search_history',     # Search history (userid?)
+                # 'suggestions',        # Purchase suggestions (suggestedby? managedby? acceptedby? rejectedby? lastmodificationby?)
+                # 'patron_lists',       # List memberships (borrowernumber = owner)
+                # 'virtualshelves',     # List ownerships (borrowernumber = owner)
             );
             
             # Update each table to point to the main record

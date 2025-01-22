@@ -62,7 +62,7 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.54";
+our $VERSION = "1.55";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),

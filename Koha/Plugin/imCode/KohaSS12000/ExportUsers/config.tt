@@ -326,8 +326,10 @@
         $('select[name="debug_mode"]').on('change', function () {
             if ($(this).val() === 'Yes') {
                 $(this).css('color', 'red'); 
+                $('div[name="DivClearLogForm"]').css('display', 'block');
             } else {
                 $(this).css('color', ''); 
+                $('div[name="DivClearLogForm"]').css('display', 'none');
             }
         });
         if ($('select[name="debug_mode"]').val() === 'Yes') {

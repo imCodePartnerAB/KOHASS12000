@@ -352,3 +352,6 @@ msgstr ""
 msgid "Excluding all users that does not have enrolments"
 msgstr ""
 
+
+msgid "Delete users who have been marked as ARCHIVED?"
+msgstr ""

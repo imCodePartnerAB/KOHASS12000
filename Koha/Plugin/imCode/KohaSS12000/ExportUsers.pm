@@ -62,13 +62,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.55";
+our $VERSION = "1.56";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2025-01-22',
+    date_updated    => '2025-01-26',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -227,6 +227,7 @@ sub install {
     qq{INSERT INTO imcode_config (name,value) VALUES ('cardnumberPlugin','civicNo');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('useridPlugin','civicNo');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('logs_limit','3');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('archived_limit','0');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('excluding_dutyRole_empty','No');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('excluding_enrolments_empty','No');},
     qq{INSERT INTO imcode_categories_mapping (categorycode,dutyRole) VALUES ('SKOLA','Lärare');},
@@ -580,6 +581,7 @@ sub configure {
     # update for version 1.32 
     insertConfigValue($dbh, 'excluding_dutyRole_empty', 'No');
     insertConfigValue($dbh, 'excluding_enrolments_empty', 'No');
+    insertConfigValue($dbh, 'archived_limit', '0');
 
     my $select_query = qq{SELECT name, value FROM $config_table};
     my $config_data  = {};
@@ -642,6 +644,7 @@ sub configure {
         my $cardnumberPlugin    = $cgi->param('cardnumberPlugin');
         my $useridPlugin        = $cgi->param('useridPlugin');
         my $logs_limit          = int($cgi->param('logs_limit'));
+        my $archived_limit      = int($cgi->param('archived_limit'));
 
         my $new_organisationCode_mapping = $cgi->param('new_organisationCode_mapping');
         my $new_branch_mapping           = $cgi->param('new_branch_mapping');
@@ -788,6 +791,7 @@ sub configure {
                 WHEN name = 'cardnumberPlugin' THEN ?
                 WHEN name = 'useridPlugin' THEN ?
                 WHEN name = 'logs_limit' THEN ?
+                WHEN name = 'archived_limit' THEN ?
                 WHEN name = 'excluding_dutyRole_empty' THEN ?
                 WHEN name = 'excluding_enrolments_empty' THEN ?
             END
@@ -804,6 +808,7 @@ sub configure {
                 'cardnumberPlugin',
                 'useridPlugin',
                 'logs_limit',
+                'archived_limit',
                 'excluding_dutyRole_empty',
                 'excluding_enrolments_empty'
                 )
@@ -825,6 +830,7 @@ sub configure {
                 $cardnumberPlugin,
                 $useridPlugin,
                 $logs_limit,
+                $archived_limit,
                 $excluding_dutyRole_empty,
                 $excluding_enrolments_empty
                 );
@@ -847,7 +853,6 @@ sub configure {
             warn "Error while run clean_query: $@";
         }
     }
-
 
     # update for version 1.31
     # Check for 'not_import' field
@@ -937,6 +942,7 @@ sub configure {
         cardnumberPlugin    => $config_data->{cardnumberPlugin} || 'civicNo',
         useridPlugin        => $config_data->{useridPlugin} || 'civicNo',
         logs_limit          => int($config_data->{logs_limit}) || 3,
+        archived_limit      => int($config_data->{archived_limit}) || 0,
         language            => C4::Languages::getlanguage($cgi) || 'en',
         mbf_path            => abs_path( $self->mbf_path('translations') ),
         verify_config       => verify_categorycode_and_branchcode(),
@@ -1285,6 +1291,20 @@ sub cronjob {
         WHERE created_at < DATE_SUB(CURDATE(), INTERVAL ? DAY)
     };
     $dbh->do($cleanup_query, undef, $logs_limit);
+
+    # Clean archived userid/cardnumber
+    my $archived_limit = int($config_data->{archived_limit}) || 0;
+
+    if ($archived_limit > 0) {
+        my $cleanup_query = qq{
+            DELETE FROM borrowers
+            WHERE 
+                (cardnumber LIKE 'ARCHIVED_%' OR userid LIKE 'ARCHIVED_%')
+                AND updated_on < DATE_SUB(NOW(), INTERVAL ? DAY)
+        };
+        my $rows_deleted = $dbh->do($cleanup_query, undef, $archived_limit);
+        log_message("Yes", "Deleted $rows_deleted archived users older than $archived_limit days");
+    }
     
     if ($mapping_exists > 0) {
         # Process with organization filtering
@@ -1629,6 +1649,7 @@ sub fetchDataFromAPI {
     my $cardnumberPlugin    = $config_data->{cardnumberPlugin} || 'civicNo';
     my $useridPlugin        = $config_data->{useridPlugin} || 'civicNo';
     my $logs_limit          = int($config_data->{logs_limit}) || 3;
+    my $archived_limit      = int($config_data->{archived_limit}) || 0;
     my $excluding_enrolments_empty = $config_data->{excluding_enrolments_empty} || 'No';
     my $excluding_dutyRole_empty = $config_data->{excluding_dutyRole_empty} || 'No';
     

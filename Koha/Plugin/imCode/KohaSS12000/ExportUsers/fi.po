@@ -347,3 +347,7 @@ msgstr "Sulje pois tyhjät käyttäjät, ilmoittautumiset"
 
 msgid "Excluding all users that does not have enrolments"
 msgstr "Sulkee pois kaikki käyttäjät, joilla ei ole ilmoittautumisia"
+
+
+msgid "Delete users who have been marked as ARCHIVED?"
+msgstr "Poista käyttäjät, jotka on merkitty ARKISTOITUiksi?"

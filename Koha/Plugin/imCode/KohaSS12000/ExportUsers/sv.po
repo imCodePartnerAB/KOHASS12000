@@ -347,3 +347,7 @@ msgstr "Uteslut tomma användare, registreringar"
 
 msgid "Excluding all users that does not have enrolments"
 msgstr "Exkluderar alla användare som inte har registreringar"
+
+
+msgid "Delete users who have been marked as ARCHIVED?"
+msgstr "Ta bort användare som har markerats som ARKIVERADE?"

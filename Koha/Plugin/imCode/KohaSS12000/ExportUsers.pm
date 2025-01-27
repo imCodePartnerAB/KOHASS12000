@@ -1302,8 +1302,10 @@ sub cronjob {
                 (cardnumber LIKE 'ARCHIVED_%' OR userid LIKE 'ARCHIVED_%')
                 AND updated_on < DATE_SUB(NOW(), INTERVAL ? DAY)
         };
-        my $rows_deleted = $dbh->do($cleanup_query, undef, $archived_limit);
-        log_message("Yes", "Deleted $rows_deleted archived users older than $archived_limit days");
+        my $rows_deleted = int($dbh->do($cleanup_query, undef, $archived_limit));
+        if ($rows_deleted) {
+            log_message("Yes", "Deleted $rows_deleted archived users older than $archived_limit days");
+        }
     }
     
     if ($mapping_exists > 0) {

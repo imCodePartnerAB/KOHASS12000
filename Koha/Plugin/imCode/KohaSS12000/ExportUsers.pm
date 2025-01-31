@@ -62,18 +62,24 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.56";
+our $VERSION = "1.57";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2025-01-26',
+    date_updated    => '2025-01-29',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
     description     => getTranslation('This plugin implements export users from SS12000')
 };
+
+# our $update_date = $metadata->{date_updated};
+# $update_date =~ s/-//g;
+our $update_date = $metadata->{date_updated} =~ s/-//gr;
+
+our $version_info = "$update_date v$VERSION";
 
 # set locale settings for gettext
 my $self = new('Koha::Plugin::imCode::KohaSS12000::ExportUsers');
@@ -615,7 +621,7 @@ sub configure {
     # Pass success or error message to the template
     $template->param(success => $self->{'success'}) if $self->{'success'};
     $template->param(error => $self->{'error'}) if $self->{'error'};
-    my $count_log_query = "SELECT COUNT(*) FROM imcode_logs";
+    my $count_log_query = "SELECT COUNT(*) FROM imcode_logs WHERE DATE(created_at) = CURDATE() AND is_processed = 1";
     my ($log_count) = $dbh->selectrow_array($count_log_query);
     $template->param(log_count => $log_count);
 
@@ -843,9 +849,15 @@ sub configure {
         }
     }
     elsif ($op eq 'cud-clearlog-config') {
-        my $clean_query = qq{
-            TRUNCATE TABLE imcode_logs
-        };
+         # my $clean_query = qq{
+         #     TRUNCATE TABLE imcode_logs
+         # };
+            my $clean_query = qq{
+                UPDATE imcode_logs 
+                SET is_processed = 0,
+                    page_token_next = NULL
+                WHERE DATE(created_at) = CURDATE()
+            };
         eval { $dbh->do($clean_query) };
 
         if ($@) {
@@ -2186,44 +2198,6 @@ sub fetchBorrowers {
                     my $email = "";
                     my $B_email = ""; # field B_email in DB
 
-                    # if (defined $emails && ref $emails eq 'ARRAY') {
-                    #     foreach my $selectedEmail (@$emails) {
-                    #         my $email_value = $selectedEmail->{value};
-                    #         my $email_type  = $selectedEmail->{type};
-                    #         if ($email_type eq "Privat") {
-                    #             if (defined $email_value) {
-                    #                 $B_email = lc($email_value);
-                    #             }
-                    #         } elsif ($email_type eq "Skola personal") {
-                    #             if (defined $email_value) {
-                    #                 $email = lc($email_value);
-                    #             }
-                    #         } elsif ($email_type eq "Skola elev") {
-                    #             if (defined $email_value) {
-                    #                 $email = lc($email_value);
-                    #             }
-                    #         }                            
-                    #     }
-                    # }
-
-                    # ver 1.52: 
-                    # if (defined $emails && ref $emails eq 'ARRAY') {
-                    #     foreach my $selectedEmail (@$emails) {
-                    #         my $email_value = $selectedEmail->{value};
-                    #         my $email_type  = $selectedEmail->{type};
-                            
-                    #         next unless defined $email_value;
-                            
-                    #         if (!defined $email) {
-                    #             $email = lc($email_value);
-                    #             $B_email = ($email_type eq "Privat") ? undef : "";
-                    #         } elsif ($B_email eq "" && $email_type ne "Privat") {
-                    #             $B_email = $email;
-                    #             $email = lc($email_value);
-                    #         }
-                    #     }
-                    # }
-
                     # ver 1.521:
                     if (defined $emails && ref $emails eq 'ARRAY') {
                         my $found_private = 0;
@@ -2588,19 +2562,22 @@ sub addOrUpdateBorrower {
             eval {
                 my $archive_query = qq{
                     UPDATE $borrowers_table 
-                    SET 
+                    SET
                         userid = CONCAT('ARCHIVED_', userid, '_', borrowernumber),
                         cardnumber = CONCAT('ARCHIVED_', cardnumber, '_', borrowernumber),
                         flags = -1,  # Special flag to mark as archived
                         dateexpiry = NOW(),  # Expire the card
                         gonenoaddress = 1,   # Mark as invalid address
                         lost = 1,            # Mark as lost card
-                        debarred = '9999-12-31',  # Permanently block
-                        debarredcomment = CONCAT('Merged with borrowernumber: ', ?, ' at ', NOW())
+                        debarredcomment = CONCAT('Updated by SS12000: plugin ', '$version_info', '. Merged with borrowernumber: ', ?, ' at ', NOW()),
+                        opacnote = CONCAT('Updated by SS12000: plugin ', '$version_info', '. Merged with borrowernumber: ', ?, ' at ', NOW()),
+                        borrowernotes  = CONCAT('Updated by SS12000: plugin ', '$version_info', '. Merged with borrowernumber: ', ?, ' at ', NOW())
                     WHERE borrowernumber = ?
                 };
                 my $archive_sth = $dbh->prepare($archive_query);
                 $archive_sth->execute(
+                    $main_record->{borrowernumber}, 
+                    $main_record->{borrowernumber}, 
                     $main_record->{borrowernumber}, 
                     $duplicate->{borrowernumber}
                 );
@@ -2640,7 +2617,23 @@ sub addOrUpdateBorrower {
                 country = ?,
                 B_email = ?,
                 userid = ?,
-                cardnumber = ?,                
+                cardnumber = ?,
+                opacnote = CASE 
+                    WHEN opacnote LIKE '%Updated by SS12000: plugin%' 
+                    THEN CONCAT(
+                        SUBSTRING_INDEX(opacnote, 'Updated by SS12000: plugin', 1),
+                        'Updated by SS12000: plugin ', '$version_info', ' at ', NOW()
+                    )
+                    ELSE opacnote 
+                END,
+                borrowernotes = CASE 
+                    WHEN borrowernotes LIKE '%Updated by SS12000: plugin%' 
+                    THEN CONCAT(
+                        SUBSTRING_INDEX(borrowernotes, 'Updated by SS12000: plugin', 1),
+                        'Updated by SS12000: plugin ', '$version_info', ' at ', NOW()
+                    )
+                    ELSE borrowernotes 
+                END,
                 updated_on = NOW()
             WHERE borrowernumber = ?
         };
@@ -2694,9 +2687,18 @@ sub addOrUpdateBorrower {
                 userid,
                 dateenrolled,
                 dateexpiry,
-                updated_on
+                updated_on,
+                opacnote,
+                borrowernotes
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 1 YEAR), NOW())
+            VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+                CURDATE(), 
+                DATE_ADD(CURDATE(), INTERVAL 1 YEAR), 
+                NOW(),
+                CONCAT('Added by SS12000: plugin ', '$version_info', ' at ', NOW()),
+                CONCAT('Added by SS12000: plugin ', '$version_info', ' at ', NOW())
+            )
         };
         my $insert_sth = $dbh->prepare($insert_query);
         eval {
@@ -2814,5 +2816,6 @@ sub addOrUpdateBorrower {
 
     # return $borrowernumber;
 }
+
 
 1;

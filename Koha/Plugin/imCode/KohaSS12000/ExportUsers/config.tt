@@ -292,7 +292,7 @@
         </form>
 
         [% IF log_count %]
-        <div name="DivClearLogForm" style="display:none;">
+        <div name="DivClearLogForm" style="display:block;">
             <!-- Separate form for clearing logs -->
             <form method="post" action="" id="clearLogForm">
                 <input type="hidden" name="class" value="[% CLASS %]" />
@@ -341,15 +341,12 @@
         $('select[name="debug_mode"]').on('change', function () {
             if ($(this).val() === 'Yes') {
                 $(this).css('color', 'red'); 
-                $('div[name="DivClearLogForm"]').css('display', 'block');
             } else {
                 $(this).css('color', ''); 
-                $('div[name="DivClearLogForm"]').css('display', 'none');
             }
         });
         if ($('select[name="debug_mode"]').val() === 'Yes') {
             $('select[name="debug_mode"]').css('color', 'red');
-            $('div[name="DivClearLogForm"]').css('display', 'block');
         }
     });
 </script>

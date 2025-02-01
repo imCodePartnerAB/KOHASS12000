@@ -22,6 +22,8 @@ while true; do
     fi
 
     echo "$(date '+%Y-%m-%d %H:%M:%S') : Running iteration $i"
+    # if you have more than one koha instance and you want to run on only one instance
+    # output=$(timeout 10m sudo koha-shell <instance-name> -c /usr/share/koha/bin/cronjobs/imcode_ss12000.pl 2>&1)
     output=$(timeout 10m sudo koha-foreach --chdir --enabled /usr/share/koha/bin/cronjobs/imcode_ss12000.pl 2>&1)
     
     if echo "$output" | grep -q "EndLastPageFromAPI"; then

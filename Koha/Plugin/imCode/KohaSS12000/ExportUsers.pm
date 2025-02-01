@@ -1780,7 +1780,8 @@ sub fetchDataFromAPI {
                     $data_endpoint,
                     $current_org_code
                 )) {
-                    warn "Data from API successfully inserted into $logs_table";
+                    # warn "Data from API successfully inserted into $logs_table";
+                    log_message($debug_mode, "Data from API successfully inserted into $logs_table ");
                 } else {
                     die "Error inserting data into $logs_table: " . $dbh->errstr;
                 }

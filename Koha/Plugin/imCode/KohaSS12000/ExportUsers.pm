@@ -2601,13 +2601,13 @@ sub addOrUpdateBorrower {
         # Update the existing record with new information
         my $update_query = qq{
             UPDATE $borrowers_table
-            SET 
-                dateofbirth = ?, 
-                email = ?, 
-                sex = ?, 
-                phone = ?, 
-                mobile = ?, 
-                surname = ?, 
+            SET
+                dateofbirth = ?,
+                email = ?,
+                sex = ?,
+                phone = ?,
+                mobile = ?,
+                surname = ?,
                 firstname = ?,
                 categorycode = ?,
                 branchcode = ?,
@@ -2619,20 +2619,30 @@ sub addOrUpdateBorrower {
                 userid = ?,
                 cardnumber = ?,
                 opacnote = CASE 
-                    WHEN opacnote LIKE '%Updated by SS12000: plugin%' 
-                    THEN CONCAT(
-                        SUBSTRING_INDEX(opacnote, 'Updated by SS12000: plugin', 1),
-                        'Updated by SS12000: plugin ', '$version_info', ' at ', NOW()
+                    WHEN opacnote IS NULL OR opacnote = '' 
+                        THEN CONCAT('Updated by SS12000: plugin ', '$version_info', ' at ', NOW())
+                    WHEN opacnote LIKE '%Updated by SS12000: plugin%'
+                        THEN CONCAT(
+                            SUBSTRING_INDEX(opacnote, 'Updated by SS12000: plugin', 1),
+                            'Updated by SS12000: plugin ', '$version_info', ' at ', NOW()
+                        )
+                    ELSE CONCAT(
+                        opacnote,
+                        '\nUpdated by SS12000: plugin ', '$version_info', ' at ', NOW()
                     )
-                    ELSE opacnote 
                 END,
-                borrowernotes = CASE 
-                    WHEN borrowernotes LIKE '%Updated by SS12000: plugin%' 
-                    THEN CONCAT(
-                        SUBSTRING_INDEX(borrowernotes, 'Updated by SS12000: plugin', 1),
-                        'Updated by SS12000: plugin ', '$version_info', ' at ', NOW()
+                borrowernotes = CASE
+                    WHEN borrowernotes IS NULL OR borrowernotes = ''
+                        THEN CONCAT('Updated by SS12000: plugin ', '$version_info', ' at ', NOW())
+                    WHEN borrowernotes LIKE '%Updated by SS12000: plugin%'
+                        THEN CONCAT(
+                            SUBSTRING_INDEX(borrowernotes, 'Updated by SS12000: plugin', 1),
+                            'Updated by SS12000: plugin ', '$version_info', ' at ', NOW()
+                        )
+                    ELSE CONCAT(
+                        borrowernotes,
+                        '\nUpdated by SS12000: plugin ', '$version_info', ' at ', NOW()
                     )
-                    ELSE borrowernotes 
                 END,
                 updated_on = NOW()
             WHERE borrowernumber = ?

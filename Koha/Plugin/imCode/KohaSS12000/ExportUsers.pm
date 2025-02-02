@@ -2619,12 +2619,20 @@ sub addOrUpdateBorrower {
                 B_email = ?,
                 userid = ?,
                 cardnumber = ?,
-                opacnote = CASE 
-                    WHEN opacnote IS NULL OR opacnote = '' 
+                opacnote = CASE
+                    WHEN opacnote IS NULL OR opacnote = ''
                         THEN CONCAT('Updated by SS12000: plugin ', '$version_info', ' at ', NOW())
                     WHEN opacnote LIKE '%Updated by SS12000: plugin%'
                         THEN CONCAT(
                             SUBSTRING_INDEX(opacnote, 'Updated by SS12000: plugin', 1),
+                            'Updated by SS12000: plugin ', '$version_info', ' at ', NOW()
+                        )
+                    WHEN opacnote LIKE '%Added by SS12000: plugin%'
+                        THEN CONCAT(
+                            REPLACE(
+                                SUBSTRING_INDEX(opacnote, 'Added by SS12000: plugin', 1),
+                                'Added by', 'Updated by'
+                            ),
                             'Updated by SS12000: plugin ', '$version_info', ' at ', NOW()
                         )
                     ELSE CONCAT(
@@ -2638,6 +2646,14 @@ sub addOrUpdateBorrower {
                     WHEN borrowernotes LIKE '%Updated by SS12000: plugin%'
                         THEN CONCAT(
                             SUBSTRING_INDEX(borrowernotes, 'Updated by SS12000: plugin', 1),
+                            'Updated by SS12000: plugin ', '$version_info', ' at ', NOW()
+                        )
+                    WHEN borrowernotes LIKE '%Added by SS12000: plugin%'
+                        THEN CONCAT(
+                            REPLACE(
+                                SUBSTRING_INDEX(borrowernotes, 'Added by SS12000: plugin', 1),
+                                'Added by', 'Updated by'
+                            ),
                             'Updated by SS12000: plugin ', '$version_info', ' at ', NOW()
                         )
                     ELSE CONCAT(

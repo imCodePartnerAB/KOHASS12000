@@ -219,7 +219,7 @@
                 <label for="api_limit" class="col-sm-2 col-form-label">[% 'SS12000 API limit per page' | gettext %]:</label>
                 <div class="col-sm-4">
                     <select class="form-control" name="api_limit" id="api_limit">
-                        [% FOREACH limit IN [10, 20, 30, 40, 50, 75, 100] %]
+                        [% FOREACH limit IN [10, 20, 30, 40, 50, 75, 100, 300, 500] %]
                             <option value="[% limit %]" [% IF limit == api_limit %]selected="selected"[% END %]>[% limit %]</option>
                         [% END %]
                     </select>

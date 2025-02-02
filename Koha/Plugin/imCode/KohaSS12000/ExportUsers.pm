@@ -765,15 +765,21 @@ sub configure {
                 defined $checkUseridPlugin && 
                 ($checkCardnumberPlugin ne $cardnumberPlugin || $checkUseridPlugin ne $useridPlugin)
             ) {
-                my $delete_query = qq{TRUNCATE $logs_table};
-                my $sth_delete = $dbh->prepare($delete_query);
+                my $update_query = qq{
+                    UPDATE $logs_table 
+                    SET is_processed = 0,
+                        page_token_next = NULL
+                    WHERE DATE(created_at) = CURDATE()
+                };
+
+                my $sth_update = $dbh->prepare($update_query);
                 eval {
-                    if ($sth_delete->execute()) {
-                        warn "Deleted old records from $logs_table. Configuration change \n";
-                        log_message("Yes", "Deleted old records from $logs_table. Configuration change");
+                    if ($sth_update->execute()) {
+                        warn "Updated records in $logs_table for current date. Configuration change \n";
+                        log_message("Yes", "Updated records in $logs_table for current date. Configuration change");
                     } else {
-                        log_message("Yes", "Error deleting data from $logs_table: " . $dbh->errstr);
-                        die "Error deleting data from $logs_table: " . $dbh->errstr . "\n";
+                        log_message("Yes", "Error updating data in $logs_table: " . $dbh->errstr);
+                        die "Error updating data in $logs_table: " . $dbh->errstr . "\n";
                     }
                 };
                 if ($@) {

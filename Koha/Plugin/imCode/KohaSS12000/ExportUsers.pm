@@ -62,13 +62,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.57";
+our $VERSION = "1.6";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2025-01-31',
+    date_updated    => '2025-02-04',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -2577,13 +2577,11 @@ sub addOrUpdateBorrower {
                         gonenoaddress = 1,   # Mark as invalid address
                         lost = 1,            # Mark as lost card
                         debarredcomment = CONCAT('Updated by SS12000: plugin ', '$version_info', '. Merged with borrowernumber: ', ?, ' at ', NOW()),
-                        opacnote = CONCAT('Updated by SS12000: plugin ', '$version_info', '. Merged with borrowernumber: ', ?, ' at ', NOW()),
-                        borrowernotes  = CONCAT('Updated by SS12000: plugin ', '$version_info', '. Merged with borrowernumber: ', ?, ' at ', NOW())
+                        opacnote = CONCAT('Updated by SS12000: plugin ', '$version_info', '. Merged with borrowernumber: ', ?, ' at ', NOW())
                     WHERE borrowernumber = ?
                 };
                 my $archive_sth = $dbh->prepare($archive_query);
                 $archive_sth->execute(
-                    $main_record->{borrowernumber}, 
                     $main_record->{borrowernumber}, 
                     $main_record->{borrowernumber}, 
                     $duplicate->{borrowernumber}
@@ -2608,7 +2606,7 @@ sub addOrUpdateBorrower {
         # Update the existing record with new information
         my $update_query = qq{
             UPDATE $borrowers_table
-            SET
+            SET 
                 dateofbirth = ?,
                 email = ?,
                 sex = ?,
@@ -2619,7 +2617,7 @@ sub addOrUpdateBorrower {
                 categorycode = ?,
                 branchcode = ?,
                 address = ?,
-                city = ?,
+                city = ?,                
                 zipcode = ?,
                 country = ?,
                 B_email = ?,
@@ -2643,27 +2641,6 @@ sub addOrUpdateBorrower {
                         )
                     ELSE CONCAT(
                         opacnote,
-                        '\nUpdated by SS12000: plugin ', '$version_info', ' at ', NOW()
-                    )
-                END,
-                borrowernotes = CASE
-                    WHEN borrowernotes IS NULL OR borrowernotes = ''
-                        THEN CONCAT('Updated by SS12000: plugin ', '$version_info', ' at ', NOW())
-                    WHEN borrowernotes LIKE '%Updated by SS12000: plugin%'
-                        THEN CONCAT(
-                            SUBSTRING_INDEX(borrowernotes, 'Updated by SS12000: plugin', 1),
-                            'Updated by SS12000: plugin ', '$version_info', ' at ', NOW()
-                        )
-                    WHEN borrowernotes LIKE '%Added by SS12000: plugin%'
-                        THEN CONCAT(
-                            REPLACE(
-                                SUBSTRING_INDEX(borrowernotes, 'Added by SS12000: plugin', 1),
-                                'Added by', 'Updated by'
-                            ),
-                            'Updated by SS12000: plugin ', '$version_info', ' at ', NOW()
-                        )
-                    ELSE CONCAT(
-                        borrowernotes,
                         '\nUpdated by SS12000: plugin ', '$version_info', ' at ', NOW()
                     )
                 END,
@@ -2721,15 +2698,13 @@ sub addOrUpdateBorrower {
                 dateenrolled,
                 dateexpiry,
                 updated_on,
-                opacnote,
-                borrowernotes
+                opacnote
             )
             VALUES (
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
                 CURDATE(), 
                 DATE_ADD(CURDATE(), INTERVAL 1 YEAR), 
                 NOW(),
-                CONCAT('Added by SS12000: plugin ', '$version_info', ' at ', NOW()),
                 CONCAT('Added by SS12000: plugin ', '$version_info', ' at ', NOW())
             )
         };

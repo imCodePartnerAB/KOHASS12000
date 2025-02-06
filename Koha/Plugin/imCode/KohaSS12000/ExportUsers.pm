@@ -62,7 +62,7 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.6";
+our $VERSION = "1.61";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
@@ -2424,6 +2424,47 @@ sub fetchBorrowers {
             }
 }
 
+sub has_changes {
+    my ($old_data, $new_values) = @_;
+    
+    my %fields_to_compare = (
+        'dateofbirth' => $new_values->{birthdate},
+        'email' => $new_values->{email},
+        'sex' => $new_values->{sex},
+        'phone' => $new_values->{phone},
+        'mobile' => $new_values->{mobile_phone},
+        'surname' => $new_values->{surname},
+        'firstname' => $new_values->{firstname},
+        'categorycode' => $new_values->{categorycode},
+        'branchcode' => $new_values->{branchcode},
+        'address' => $new_values->{streetAddress},
+        'city' => $new_values->{locality},
+        'zipcode' => $new_values->{postalCode},
+        'country' => $new_values->{country},
+        'B_email' => $new_values->{B_email},
+        'userid' => $new_values->{newUserID},
+        'cardnumber' => $new_values->{newCardnumber}
+    );
+    
+    my @changed_fields;
+    
+    while (my ($field, $new_value) = each %fields_to_compare) {
+        my $old_value = $old_data->{$field};
+        $old_value = '' if !defined $old_value;
+        $new_value = '' if !defined $new_value;
+        
+        if ($old_value ne $new_value) {
+            push @changed_fields, {
+                field => $field,
+                old_value => $old_value,
+                new_value => $new_value
+            };
+        }
+    }
+    
+    return @changed_fields;
+}
+
 # Function to add or update user data in the borrowers table
 sub addOrUpdateBorrower {
     my (
@@ -2467,6 +2508,10 @@ sub addOrUpdateBorrower {
     # Find all duplicates with comprehensive information about their usage
     my $find_duplicates_query = qq{
         SELECT b.*, 
+            dateofbirth, email, sex, phone, mobile, 
+            surname, firstname, categorycode, branchcode,
+            address, city, zipcode, country, B_email,
+            userid, cardnumber, opacnote,
             (SELECT COUNT(*) FROM issues i WHERE i.borrowernumber = b.borrowernumber) as issues_count,
             (SELECT COUNT(*) FROM old_issues oi WHERE oi.borrowernumber = b.borrowernumber) as old_issues_count,
             (SELECT COUNT(*) FROM reserves r WHERE r.borrowernumber = b.borrowernumber) as reserves_count,
@@ -2475,7 +2520,7 @@ sub addOrUpdateBorrower {
             (SELECT COUNT(*) FROM message_queue mq WHERE mq.borrowernumber = b.borrowernumber) as messages_count
         FROM $borrowers_table b
         WHERE userid = ? OR cardnumber = ? OR userid = ? OR cardnumber = ?
-        ORDER BY 
+        ORDER BY
             (issues_count + old_issues_count + reserves_count + attributes_count + accountlines_count + messages_count) DESC,
             updated_on DESC
     };
@@ -2602,78 +2647,116 @@ sub addOrUpdateBorrower {
         $existing_borrower = $duplicates[0];
     }
 
+
     if ($existing_borrower) {
-        # Update the existing record with new information
-        my $update_query = qq{
-            UPDATE $borrowers_table
-            SET 
-                dateofbirth = ?,
-                email = ?,
-                sex = ?,
-                phone = ?,
-                mobile = ?,
-                surname = ?,
-                firstname = ?,
-                categorycode = ?,
-                branchcode = ?,
-                address = ?,
-                city = ?,                
-                zipcode = ?,
-                country = ?,
-                B_email = ?,
-                userid = ?,
-                cardnumber = ?,
-                opacnote = CASE
-                    WHEN opacnote IS NULL OR opacnote = ''
-                        THEN CONCAT('Updated by SS12000: plugin ', '$version_info', ' at ', NOW())
-                    WHEN opacnote LIKE '%Updated by SS12000: plugin%'
-                        THEN CONCAT(
-                            SUBSTRING_INDEX(opacnote, 'Updated by SS12000: plugin', 1),
-                            'Updated by SS12000: plugin ', '$version_info', ' at ', NOW()
+        my @changes = has_changes($existing_borrower, {
+            birthdate => $birthdate,
+            email => $email,
+            sex => $sex,
+            phone => $phone,
+            mobile_phone => $mobile_phone,
+            surname => $surname,
+            firstname => $firstname,
+            categorycode => $categorycode,
+            branchcode => $branchcode,
+            streetAddress => $streetAddress,
+            locality => $locality,
+            postalCode => $postalCode,
+            country => $country,
+            B_email => $B_email,
+            newUserID => $newUserID,
+            newCardnumber => $newCardnumber
+        });
+        
+        if (@changes) {
+            foreach my $change (@changes) {
+                log_message('Yes', sprintf(
+                    "Field %s changed from '%s' to '%s'",
+                    $change->{field},
+                    $change->{old_value},
+                    $change->{new_value}
+                ));
+            }
+            
+            my $update_query = qq{
+                UPDATE $borrowers_table
+                SET 
+                    dateofbirth = ?,
+                    email = ?,
+                    sex = ?,
+                    phone = ?,
+                    mobile = ?,
+                    surname = ?,
+                    firstname = ?,
+                    categorycode = ?,
+                    branchcode = ?,
+                    address = ?,
+                    city = ?,
+                    zipcode = ?,
+                    country = ?,
+                    B_email = ?,
+                    userid = ?,
+                    cardnumber = ?,
+                    opacnote = CASE
+                        WHEN opacnote IS NULL OR opacnote = ''
+                            THEN CONCAT('Updated by SS12000: plugin ', '$version_info', ' at ', NOW(), ' Fields changed: ', ?)
+                        WHEN opacnote LIKE '%Updated by SS12000: plugin%'
+                            THEN CONCAT(
+                                SUBSTRING_INDEX(opacnote, 'Updated by SS12000: plugin', 1),
+                                'Updated by SS12000: plugin ', '$version_info', ' at ', NOW(), ' Fields changed: ', ?
+                            )
+                        WHEN opacnote LIKE '%Added by SS12000: plugin%'
+                            THEN CONCAT(
+                                REPLACE(
+                                    SUBSTRING_INDEX(opacnote, 'Added by SS12000: plugin', 1),
+                                    'Added by', 'Updated by'
+                                ),
+                                'Updated by SS12000: plugin ', '$version_info', ' at ', NOW(), ' Fields changed: ', ?
+                            )
+                        ELSE CONCAT(
+                            opacnote,
+                            '\nUpdated by SS12000: plugin ', '$version_info', ' at ', NOW(), ' Fields changed: ', ?
                         )
-                    WHEN opacnote LIKE '%Added by SS12000: plugin%'
-                        THEN CONCAT(
-                            REPLACE(
-                                SUBSTRING_INDEX(opacnote, 'Added by SS12000: plugin', 1),
-                                'Added by', 'Updated by'
-                            ),
-                            'Updated by SS12000: plugin ', '$version_info', ' at ', NOW()
-                        )
-                    ELSE CONCAT(
-                        opacnote,
-                        '\nUpdated by SS12000: plugin ', '$version_info', ' at ', NOW()
-                    )
-                END,
-                updated_on = NOW()
-            WHERE borrowernumber = ?
-        };
-        my $update_sth = $dbh->prepare($update_query);
-        eval {
-            $update_sth->execute(
-                $birthdate, 
-                $email, 
-                $sex, 
-                $phone, 
-                $mobile_phone, 
-                $surname, 
-                $firstname, 
-                $categorycode, 
-                $branchcode, 
-                $streetAddress,
-                $locality,
-                $postalCode,
-                $country,
-                $B_email,
-                $newUserID,
-                $newCardnumber,                
-                $existing_borrower->{'borrowernumber'}
-            );
-        };
-        if ($@) {
-            log_message('Yes', "Error updating user: $@");
+                    END,
+                    updated_on = NOW()
+                WHERE borrowernumber = ?
+            };
+            
+            my $update_sth = $dbh->prepare($update_query);
+            eval {
+                $update_sth->execute(
+                    $birthdate, 
+                    $email, 
+                    $sex, 
+                    $phone, 
+                    $mobile_phone, 
+                    $surname, 
+                    $firstname, 
+                    $categorycode, 
+                    $branchcode, 
+                    $streetAddress,
+                    $locality,
+                    $postalCode,
+                    $country,
+                    $B_email,
+                    $newUserID,
+                    $newCardnumber,
+                    join(', ', map { $_->{field} } @changes),
+                    join(', ', map { $_->{field} } @changes),
+                    join(', ', map { $_->{field} } @changes),
+                    join(', ', map { $_->{field} } @changes),
+                    $existing_borrower->{'borrowernumber'}
+                );
+            };
+            if ($@) {
+                log_message('Yes', "Error updating user: $@");
+            } else {
+                $updated_count++;
+                $borrowernumber = $existing_borrower->{'borrowernumber'};
+                log_message('Yes', "Successfully updated borrower: " . $existing_borrower->{'borrowernumber'});
+            }
         } else {
-            $updated_count++;
-            $borrowernumber = $existing_borrower->{'borrowernumber'};
+            log_message('Yes', "No changes detected for borrower: " . $existing_borrower->{'borrowernumber'});
         }
     } else {
         # Insert a new borrower record if no existing record was found

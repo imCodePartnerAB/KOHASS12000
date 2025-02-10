@@ -775,8 +775,9 @@ sub configure {
                 my $sth_update = $dbh->prepare($update_query);
                 eval {
                     if ($sth_update->execute()) {
-                        warn "Updated records in $logs_table for current date. Configuration change \n";
+                        # warn "Updated records in $logs_table for current date. Configuration change \n";
                         log_message("Yes", "Updated records in $logs_table for current date. Configuration change");
+                        sleep(1); # sleep for 1 second 
                     } else {
                         log_message("Yes", "Error updating data in $logs_table: " . $dbh->errstr);
                         die "Error updating data in $logs_table: " . $dbh->errstr . "\n";

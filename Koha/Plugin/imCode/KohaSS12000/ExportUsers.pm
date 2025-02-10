@@ -62,13 +62,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.61";
+our $VERSION = "1.62";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2025-02-06',
+    date_updated    => '2025-02-10',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -860,7 +860,7 @@ sub configure {
          # };
             my $clean_query = qq{
                 UPDATE imcode_logs 
-                SET is_processed = 0,
+                SET is_processed = 0, updated_count = 0, added_count = 0, 
                     page_token_next = NULL
                 WHERE DATE(created_at) = CURDATE()
             };

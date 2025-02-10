@@ -1,41 +1,61 @@
 #!/bin/bash
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# Check if another instance of the script is already running
 if pgrep -f "imcode_ss12000.pl" > /dev/null; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') : Script is already running. Exiting."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') : Script already running. Exiting."
     exit 1
 fi
 
-# Record the start time of script execution
+script_paths=$(find /var/lib/koha -type f -name "imcode_ss12000.pl" | grep "Plugin/imCode/KohaSS12000/ExportUsers/cron")
+script_count=$(echo "$script_paths" | wc -l)
+
+if [ $script_count -eq 0 ]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') : Script not found"
+    exit 1
+fi
+
 start_time=$(date +%s)
+max_iterations=100  
+max_empty_iterations=5  
 
-i=1
-while true; do
-    # Check the elapsed time
-    current_time=$(date +%s)
-    elapsed_time=$((current_time - start_time))
-
-    if [ $elapsed_time -gt 28800 ]; then  # 4 hours = 4 * 3600 seconds = 14400, 8h = 28800
-        echo "$(date '+%Y-%m-%d %H:%M:%S') : Script has been running for more than 8 hours. Forcing termination."
-        exit 1
-    fi
-
-    echo "$(date '+%Y-%m-%d %H:%M:%S') : Running iteration $i"
-    # if you have more than one koha instance and you want to run on only one instance
-    # output=$(timeout 10m sudo koha-shell <instance-name> -c /usr/share/koha/bin/cronjobs/imcode_ss12000.pl 2>&1)
-    output=$(timeout 10m sudo koha-foreach --chdir --enabled /usr/share/koha/bin/cronjobs/imcode_ss12000.pl 2>&1)
+while IFS= read -r script_path; do
+    instance=$(echo "$script_path" | cut -d/ -f5)
+    echo "$(date '+%Y-%m-%d %H:%M:%S') : Processing instance $instance"
     
-    if echo "$output" | grep -q "EndLastPageFromAPI"; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') : Received 'EndLastPageFromAPI'. Exiting loop."
-        break
-    fi
-
-    if echo "$output" | grep -q "ErrorVerifyCategorycodeBranchcode"; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') : Received 'ErrorVerifyCategorycodeBranchcode'. Exiting loop."
-        break
-    fi
-
-    echo "$(date '+%Y-%m-%d %H:%M:%S') : Iteration $i completed"
-    i=$((i+1))
-done
+    i=1
+    empty_iterations=0
+    
+    while [ $i -le $max_iterations ]; do
+        output=$(timeout 10m sudo koha-shell "$instance" -c "$script_path" 2>&1)
+        
+        if echo "$output" | grep -q "EndLastPageFromAPI"; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') : Finished processing for $instance"
+            break
+        fi
+        
+        if echo "$output" | grep -q "ErrorVerifyCategorycodeBranchcode"; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') : Error occurred for $instance"
+            break
+        fi
+        
+        if [ -z "$output" ]; then
+            empty_iterations=$((empty_iterations + 1))
+            if [ $empty_iterations -ge $max_empty_iterations ]; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') : Too many empty iterations for $instance"
+                break
+            fi
+        else
+            empty_iterations=0
+        fi
+        
+        echo "$(date '+%Y-%m-%d %H:%M:%S') : Iteration $i for $instance"
+        
+        i=$((i+1))
+        
+        [ $(($(date +%s) - start_time)) -gt 28800 ] && { 
+            echo "$(date '+%Y-%m-%d %H:%M:%S') : Exceeded 8 hours. Terminating."; 
+            exit 1; 
+        }
+    done
+    
+done <<< "$script_paths"

@@ -351,3 +351,35 @@ msgstr "Sulkee pois kaikki käyttäjät, joilla ei ole ilmoittautumisia"
 
 msgid "Delete users who have been marked as ARCHIVED?"
 msgstr "Poista käyttäjät, jotka on merkitty ARKISTOITUiksi?"
+
+
+msgid "Start exporting data from the API"
+msgstr "Aloita tietojen vienti API:sta"
+
+
+msgid "SS12000 Export Users Tool"
+msgstr "SS12000 Käyttäjien vientityökalu"
+
+
+msgid "This tool will export users data using SS12000 format"
+msgstr "Tämä työkalu vie käyttäjien tiedot SS12000-muodossa"
+
+
+msgid "The process will run in the background and may take several minutes to complete"
+msgstr "Prosessi suoritetaan taustalla ja sen suorittaminen voi kestää useita minuutteja"
+
+
+msgid "Start Export"
+msgstr "Aloita vienti"
+
+
+msgid "Force Unlock Process"
+msgstr "Pakota lukituksen avausprosessi"
+
+
+msgid "Are you sure you want to force unlock the process? Only do this if the process is stuck"
+msgstr "Oletko varma, että haluat avata prosessin lukituksen väkisin? Tee tämä vain, jos prosessi on jumissa"
+
+
+msgid "Set API scanner from the first page"
+msgstr "Aseta API-skanneri ensimmäiseltä sivulta"

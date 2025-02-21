@@ -48,6 +48,10 @@ use POSIX qw(strftime); # To format date/time
 use Encode;
 use URI::Escape qw(uri_escape);
 
+use File::Basename;
+
+use Fcntl qw(:flock SEEK_END);
+use Time::Piece;
 
 our $config_table     = 'imcode_config';
 our $logs_table       = 'imcode_logs';
@@ -62,13 +66,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.62";
+our $VERSION = "1.7"; 
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2025-02-10',
+    date_updated    => '2025-02-21',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -108,7 +112,6 @@ sub new {
 
     return $self;
 }
-
 
 sub get_log_file {
     my $log_config_dir = C4::Context->config("logdir"); 
@@ -162,6 +165,44 @@ sub log_message {
             return;
         }
     }
+}
+
+sub check_session {
+    my ($self, $is_cron) = @_;
+    
+    return 1 if $is_cron; # Skipping the check for cron jobs
+    
+    my $cgi = $self->{'cgi'};
+    my $session_id = $cgi->cookie('CGISESSID');
+    
+    unless ($session_id) {
+        log_message("Yes", "Session ID not found");
+        return;
+    }
+    
+    # Getting a Koha session
+    my $session = C4::Auth::get_session($session_id);
+    unless ($session) {
+        log_message("Yes", "Invalid session");
+        return;
+    }
+    
+    # Checking if the user is logged in
+    my $userid = $session->param('id');
+    unless ($userid) {
+        log_message("Yes", "User not logged in");
+        return;
+    }
+    
+    # Generate a CSRF token
+    my $tokenizer = Koha::Token->new;
+    my $csrf_token = $tokenizer->generate_csrf({ session_id => $session_id });
+    
+    return {
+        session_id => $session_id,
+        csrf_token => $csrf_token,
+        userid     => $userid
+    };
 }
 
 sub install {
@@ -574,14 +615,19 @@ sub insertConfigValue {
     }
 }
 
-
 sub configure {
     my ($self, $args) = @_;
-
-    my $dbh = C4::Context->dbh;
-
     my $cgi = $self->{'cgi'};
 
+    # Checking the session
+    my $session_data = $self->check_session(0); # 0 = not cron
+    unless ($session_data) {
+        # Redirect to the login page
+        print $cgi->redirect("/cgi-bin/koha/mainpage.pl");
+        return;
+    }
+
+    my $dbh = C4::Context->dbh;
     my $op = $cgi->param('op') || '';
 
     # update for version 1.32 
@@ -775,9 +821,8 @@ sub configure {
                 my $sth_update = $dbh->prepare($update_query);
                 eval {
                     if ($sth_update->execute()) {
-                        # warn "Updated records in $logs_table for current date. Configuration change \n";
-                        log_message("Yes", "Updated records in $logs_table for current date. Configuration change");
-                        sleep(1); # sleep for 1 second 
+                        # warn "Updated records in $logs_table for current date. \n";
+                        log_message("Yes", "Updated records in $logs_table for current date.");                        
                     } else {
                         log_message("Yes", "Error updating data in $logs_table: " . $dbh->errstr);
                         die "Error updating data in $logs_table: " . $dbh->errstr . "\n";
@@ -856,10 +901,7 @@ sub configure {
         }
     }
     elsif ($op eq 'cud-clearlog-config') {
-         # my $clean_query = qq{
-         #     TRUNCATE TABLE imcode_logs
-         # };
-            my $clean_query = qq{
+        my $clean_query = qq{
                 UPDATE imcode_logs 
                 SET is_processed = 0, updated_count = 0, added_count = 0, 
                     page_token_next = NULL
@@ -871,6 +913,11 @@ sub configure {
             log_message("Yes", "Error while run clean_query: $@");
             warn "Error while run clean_query: $@";
         }
+        log_message("Yes", "Updated records in $logs_table for current date. Configuration change");
+        $template->param(log_count => 0);
+
+        my $status_file = get_status_file();
+        unlink $status_file if -e $status_file;        
     }
 
     # update for version 1.31
@@ -935,15 +982,6 @@ sub configure {
         warn "Error fetching configuration: $@";
     }
 
-    my $session_id = $cgi->cookie('CGISESSID');
-    unless ($session_id) {
-        log_message("Yes", "Session ID not found");
-        warn "Session ID not found";
-        return;
-    }
-    my $tokenizer = Koha::Token->new;
-    my $csrf_token = $tokenizer->generate_csrf({ session_id => $session_id });
-
     $template->param(
         client_id     => $config_data->{ist_client_id} || '',
         client_secret => xor_encrypt($config_data->{ist_client_secret}, $skey) || '',
@@ -967,7 +1005,7 @@ sub configure {
         verify_config       => verify_categorycode_and_branchcode(),
         excluding_enrolments_empty => $config_data->{excluding_enrolments_empty} || 'No',
         excluding_dutyRole_empty => $config_data->{excluding_dutyRole_empty} || 'No',
-        csrf_token => $csrf_token
+        csrf_token => $session_data->{csrf_token},
         );
 
     print $cgi->header(-type => 'text/html', -charset => 'utf-8');
@@ -986,24 +1024,20 @@ sub xor_encrypt {
     return $encrypted;
 }
 
-
 sub tool {
     my ( $self, $args ) = @_;
-    
-    my $dbh = C4::Context->dbh;
-
     my $cgi      = $self->{'cgi'};
-    my $template = $self->get_template( { file => 'tool.tt' } );
-
-    my $session_id = $cgi->cookie('CGISESSID');
-    unless ($session_id) {
-        log_message("Yes", "Session ID not found");
-        warn "Session ID not found";
+    
+    # Checking the session
+    my $session_data = $self->check_session(0); # 0 = not cron
+    unless ($session_data) {
+        # Redirect to the login page
+        print $cgi->redirect("/cgi-bin/koha/mainpage.pl");
         return;
     }
-    my $tokenizer = Koha::Token->new;
-    my $csrf_token = $tokenizer->generate_csrf({ session_id => $session_id });
 
+    my $dbh = C4::Context->dbh;
+    my $template = $self->get_template( { file => 'tool.tt' } );
     my $op          = $cgi->param('op') || q{};
 
     # For pagination 
@@ -1029,6 +1063,157 @@ sub tool {
     }
 
     my $debug_mode = $config_values{'debug_mode'} || '';
+
+    if ($op eq 'cud-clearlog') {
+        my $clean_query = qq{
+                UPDATE imcode_logs 
+                SET is_processed = 0, updated_count = 0, added_count = 0, 
+                    page_token_next = NULL
+                WHERE DATE(created_at) = CURDATE()
+            };
+        eval { $dbh->do($clean_query) };
+
+        my $status_file = get_status_file();
+        unlink $status_file if -e $status_file;
+
+        if ($@) {
+            log_message("Yes", "Error while run clean_query: $@");
+            warn "Error while run clean_query: $@";
+        }
+        log_message("Yes", "Updated records in $logs_table for current date. Configuration change");
+        $template->param(log_count => 0);
+    }    
+
+    if ($op eq 'cud-get-status') {
+        print $cgi->header('application/json');
+        my $status = $self->read_status();
+        
+        # Add some additional useful information
+        if ($status->{pid}) {
+            # Check if process is actually running
+            unless (kill(0, $status->{pid})) {
+                $status->{status} = 'error';
+                $status->{locked} = 0;
+                $status->{messages} = [
+                    {
+                        time => time(),
+                        text => "Process died unexpectedly",
+                        error => 1
+                    }
+                ];
+                $self->save_status($status);
+            }
+        }
+        
+        # Clean old status file if process completed/errored and it's older than 1 day
+        if ($status->{status} ne 'running' && 
+            $status->{last_update} && 
+            time() - $status->{last_update} > 86400) {
+            
+            $status = {
+                locked => 0,
+                pid => undef,
+                started_at => undef,
+                status => 'idle',
+                last_update => time(),
+                messages => []
+            };
+            $self->save_status($status);
+        }
+        
+        print JSON::encode_json($status);
+        exit;
+    }
+    
+    elsif ($op eq 'cud-force-unlock') {
+        print $cgi->header('application/json');
+        
+        # Check if user has the necessary permissions
+        my $session_data = $self->check_session(0);
+        unless ($session_data && $session_data->{permissions}->{plugins}) {
+            print JSON::encode_json({
+                status => 'error',
+                message => 'Permission denied'
+            });
+            exit;
+        }
+        
+        my $status = $self->read_status();
+        
+        # Don't allow unlock if process is young (running less than 5 minutes)
+        if ($status->{started_at} && time() - $status->{started_at} < 300) {
+            print JSON::encode_json({
+                status => 'error',
+                message => 'Process is still young, wait at least 5 minutes before forcing unlock'
+            });
+            exit;
+        }
+        
+        # If process is running, try to terminate it gracefully
+        if ($status->{pid} && kill(0, $status->{pid})) {
+            kill 'TERM', $status->{pid};
+            sleep 2; # Give process time to cleanup
+            
+            # If still running, force kill
+            if (kill(0, $status->{pid})) {
+                kill 'KILL', $status->{pid};
+            }
+        }
+        
+        # Reset status
+        $status = {
+            locked => 0,
+            pid => undef,
+            started_at => undef,
+            status => 'idle',
+            last_update => time(),
+            messages => [
+                {
+                    time => time(),
+                    text => "Process forcefully unlocked by user",
+                    error => 0
+                }
+            ]
+        };
+        
+        $self->save_status($status);
+        
+        # Log the forced unlock
+        log_message("Yes", "Export process forcefully unlocked by user");
+        
+        print JSON::encode_json({
+            status => 'success',
+            message => 'Process unlocked successfully'
+        });
+        exit;
+    }
+
+    if ($op eq 'cud-get-log') {
+        print $cgi->header('application/json');
+        print JSON::encode_json($self->get_log_contents());
+        exit;
+    }    
+
+    if ($op eq 'cud-run-export') {
+        if ($self->is_process_running()) {
+            $template->param(
+                process_started => {
+                    status => 'already_running',
+                    message => 'Export process is already running'
+                }
+            );
+        }
+        elsif ($cgi->param('start_export')) {
+            my $result = $self->start_export_process();
+            $template->param(
+                process_started => $result
+            );
+        }
+        
+        $template->param(
+            run_export => 1,
+        );
+    }
 
     if ($op eq 'cud-show-updates') {
         my @updates;
@@ -1238,19 +1423,22 @@ sub tool {
         );
     }
 
+    my $count_log_query = "SELECT COUNT(*) FROM imcode_logs WHERE DATE(created_at) = CURDATE() AND is_processed = 1";
+    my ($log_count) = $dbh->selectrow_array($count_log_query);
+    $template->param(log_count => $log_count);
+
     $template->param(
             language => C4::Languages::getlanguage($cgi) || 'en',
             mbf_path => abs_path( $self->mbf_path('translations') ),
-            csrf_token => $csrf_token,
+            csrf_token => $session_data->{csrf_token},
     );
 
     print $cgi->header( -type => 'text/html', -charset => 'utf-8' );
     print $template->output();
 }
 
-
 sub cronjob {
-    my ($self, $data_endpoint) = @_;
+    my ($self, $data_endpoint, $is_web) = @_;
     
     my $dbh = C4::Context->dbh;
 
@@ -1287,6 +1475,7 @@ sub cronjob {
     # If number of completed organizations equals total organizations, exit
     if (scalar(@$completed_orgs) >= $total_orgs) {
         log_message("Yes", "Full processing cycle already completed today for all organizations");
+        return "EndLastPageFromAPI" if $is_web; # Skipping the check for cron jobs
         print "EndLastPageFromAPI\n";
         return 0;
     }
@@ -1534,7 +1723,6 @@ sub cronjob {
     
     return 1;
 }
-
 
 # Helper function to get configuration data
 sub get_config_data {
@@ -1896,6 +2084,7 @@ sub fetchDataFromAPI {
                 );
 
                 die "EndLastPageFromAPI";
+                # print "EndLastPageFromAPI\n";
             }
 
             # Update the current record with counts
@@ -2905,8 +3094,197 @@ sub addOrUpdateBorrower {
             }
         }
     }
+}
 
-    # return $borrowernumber;
+
+sub get_log_contents {
+    my ($self) = @_;
+    my $log_file = get_log_file();
+    my @log_lines;
+
+    if (-f $log_file) {
+        open my $fh, '<', $log_file or return [];
+        my @lines = <$fh>;
+        close $fh;
+
+        # Get last 100 lines
+        @lines = @lines[-100..-1] if @lines > 100;
+
+        foreach my $line (@lines) {
+            if ($line =~ /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(.+)$/) {
+                push @log_lines, {
+                    timestamp => $1,
+                    message => $2
+                };
+            }
+        }
+    }
+
+    return \@log_lines;
+}
+
+# Simplified status management - combines lock and progress tracking
+sub get_status_file {
+    my $log_config_dir = C4::Context->config("logdir"); 
+    return File::Spec->catfile($log_config_dir, 'imcode-export-users-status.json');
+}
+
+sub read_status {
+    my ($self) = @_;
+    my $file = get_status_file();
+    if (-f $file) {
+        open my $fh, '<', $file or return {};
+        local $/;
+        my $json = <$fh>;
+        close $fh;
+        return JSON::decode_json($json);
+    }
+    return {
+        locked => 0,
+        pid => undef,
+        started_at => undef,
+        status => 'idle',
+        last_update => undef,
+        messages => []
+    };
+}
+
+sub save_status {
+    my ($self, $status) = @_;
+    my $file = get_status_file();
+    
+    eval {
+        open(my $fh, '>', $file) or die "Cannot open status file: $!";
+        flock($fh, LOCK_EX) or die "Cannot lock file: $!";
+        print $fh JSON::encode_json($status);
+        close($fh) or die "Cannot close file: $!";
+    };
+    if ($@) {
+        warn "Error saving status: $@";
+        return 0;
+    }
+    return 1;
+}
+
+sub is_process_running {
+    my ($self) = @_;
+    my $status = $self->read_status();
+    
+    if ($status->{locked} && $status->{pid}) {
+        # Check if process is still running
+        if (kill(0, $status->{pid})) {
+            return 1;
+        }
+        # Process not running, clear status
+        $status->{locked} = 0;
+        $status->{pid} = undef;
+        $status->{status} = 'idle';
+        $self->save_status($status);
+    }
+    return 0;
+}
+
+sub start_export_process {
+    my ($self) = @_;
+    
+    if ($self->is_process_running()) {
+        return { 
+            status => 'error',
+            message => 'Export process is already running'
+        };
+    }
+    
+    my $status = $self->read_status();
+    $status->{locked} = 1;
+    $status->{pid} = $$;
+    $status->{started_at} = time();
+    $status->{status} = 'running';
+    $status->{last_update} = time();
+    
+    unless ($self->save_status($status)) {
+        return {
+            status => 'error',
+            message => 'Failed to create process lock'
+        };
+    }
+    
+    # Run the process in the background
+    if (my $pid = fork()) {
+        return {
+            status => 'started',
+            pid => $pid
+        };
+    } elsif (defined $pid) {
+        $self->run_web_export();
+        exit;
+    }
+}
+
+sub run_web_export {
+    my $self = shift;
+    
+    eval {
+        my $status = $self->read_status();
+        $status->{messages} = [];
+        $self->save_status($status);
+
+        # Run export process
+        my $result = $self->cronjob("persons",1);
+
+        # Update final status
+        $status = $self->read_status();
+        $status->{status} = 'completed';
+        $status->{locked} = 0;
+        $status->{pid} = undef;
+        
+        # Check if the result contains "EndLastPageFromAPI" and add a message
+        if ($result =~ /EndLastPageFromAPI/) {
+            push @{$status->{messages}}, {
+                time => time(),
+                text => "Export completed with 'EndLastPageFromAPI' message",
+                error => 0
+            };
+        }
+
+        $self->save_status($status);
+        return 1;
+    } or do {
+        my $error = $@ || 'Unknown error';
+        my $status = $self->read_status();
+        $status->{status} = 'error';
+        $status->{locked} = 0;
+        $status->{pid} = undef;
+        push @{$status->{messages}}, {
+            time => time(),
+            text => "Error during export: $error",
+            error => 1
+        };
+        $self->save_status($status);
+        return 0;
+    };
+}
+
+# New method to force unlock process
+sub force_unlock {
+    my ($self) = @_;
+    my $status = $self->read_status();
+    
+    if ($status->{pid} && kill(0, $status->{pid})) {
+        return {
+            status => 'error',
+            message => 'Process is still running'
+        };
+    }
+    
+    $status->{locked} = 0;
+    $status->{pid} = undef;
+    $status->{status} = 'idle';
+    $self->save_status($status);
+    
+    return {
+        status => 'success',
+        message => 'Process unlocked successfully'
+    };
 }
 
 

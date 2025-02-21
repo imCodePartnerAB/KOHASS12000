@@ -355,3 +355,36 @@ msgstr ""
 
 msgid "Delete users who have been marked as ARCHIVED?"
 msgstr ""
+
+
+msgid "Start exporting data from the API"
+msgstr ""
+
+
+msgid "SS12000 Export Users Tool"
+msgstr ""
+
+
+msgid "This tool will export users data using SS12000 format"
+msgstr ""
+
+
+msgid "The process will run in the background and may take several minutes to complete"
+msgstr ""
+
+
+msgid "Start Export"
+msgstr ""
+
+
+msgid "Force Unlock Process"
+msgstr ""
+
+
+msgid "Are you sure you want to force unlock the process? Only do this if the process is stuck"
+msgstr ""
+
+
+msgid "Set API scanner from the first page"
+msgstr ""
+

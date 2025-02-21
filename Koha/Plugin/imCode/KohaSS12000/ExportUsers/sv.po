@@ -351,3 +351,35 @@ msgstr "Exkluderar alla användare som inte har registreringar"
 
 msgid "Delete users who have been marked as ARCHIVED?"
 msgstr "Ta bort användare som har markerats som ARKIVERADE?"
+
+
+msgid "Start exporting data from the API"
+msgstr "Börja exportera data från API:et"
+
+
+msgid "SS12000 Export Users Tool"
+msgstr "SS12000 Export Användarverktyg"
+
+
+msgid "This tool will export users data using SS12000 format"
+msgstr "Detta verktyg kommer att exportera användardata med SS12000-format"
+
+
+msgid "The process will run in the background and may take several minutes to complete"
+msgstr "Processen körs i bakgrunden och kan ta flera minuter att slutföra"
+
+
+msgid "Start Export"
+msgstr "Starta export"
+
+
+msgid "Force Unlock Process"
+msgstr "Force upplåsningsprocess"
+
+
+msgid "Are you sure you want to force unlock the process? Only do this if the process is stuck"
+msgstr "Är du säker på att du vill tvinga fram en upplåsning av processen? Gör detta endast om processen har fastnat"
+
+
+msgid "Set API scanner from the first page"
+msgstr "Ställ in API-scanner från första sidan"

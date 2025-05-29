@@ -66,13 +66,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.7"; 
+our $VERSION = "1.71"; 
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2025-02-21',
+    date_updated    => '2025-05-26',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -1805,6 +1805,28 @@ sub get_api_token {
     return;
 }
 
+sub get_current_enrolment {
+    my ($enrolments) = @_;
+    return undef unless defined $enrolments && ref $enrolments eq 'ARRAY';
+    
+    use DateTime;
+    my $dt = DateTime->now;
+    my $today = $dt->ymd;
+
+    foreach my $enrolment (@$enrolments) {
+        # Skip cancelled enrolments
+        next if defined $enrolment->{cancelled} && $enrolment->{cancelled};
+
+        my $start = $enrolment->{startDate};
+        my $end   = $enrolment->{endDate};
+
+        # Check if this enrolment is currently valid
+        if (defined $start && defined $end && $start le $today && $today le $end) {
+            return $enrolment; # Found current valid enrolment
+        }
+    }
+    return undef; # No valid enrolment found
+}
 
 sub fetchDataFromAPI {
     my ($self, $data_endpoint, $filter_params, $current_org_code) = @_;
@@ -2327,13 +2349,17 @@ sub fetchBorrowers {
 
                     log_message($debug_mode, '::organisationCode BEGIN');
 
-                    if (defined $enrolments && ref $enrolments eq 'ARRAY') {
-                        foreach my $enrolment (@$enrolments) {
-                            my $enroledAt = $enrolment->{enroledAt}; 
-                            if (defined $enroledAt && ref $enroledAt eq 'HASH') {
-                                $enroledAtId = $enroledAt->{id}; 
-                            }
+                    # NEW: Get only the current valid enrolment
+                    my $current_enrolment = get_current_enrolment($enrolments);
+
+                    if (defined $current_enrolment) {
+                        my $enroledAt = $current_enrolment->{enroledAt}; 
+                        if (defined $enroledAt && ref $enroledAt eq 'HASH') {
+                            $enroledAtId = $enroledAt->{id};
+                            log_message($debug_mode, 'Using current enrolment - startDate: '.$current_enrolment->{startDate}.', endDate: '.$current_enrolment->{endDate});
                         }
+                    } else {
+                        log_message($debug_mode, 'No current valid enrolment found for student');
                     }
 
                     if ($enroledAtId) {

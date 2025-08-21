@@ -66,13 +66,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.71"; 
+our $VERSION = "1.72"; 
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2025-05-26',
+    date_updated    => '2025-08-21',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -1805,7 +1805,7 @@ sub get_api_token {
     return;
 }
 
-sub get_current_enrolment {
+sub get_current_enrolment_old {
     my ($enrolments) = @_;
     return undef unless defined $enrolments && ref $enrolments eq 'ARRAY';
     
@@ -1827,6 +1827,37 @@ sub get_current_enrolment {
     }
     return undef; # No valid enrolment found
 }
+
+sub get_current_enrolment {
+    my ($enrolments) = @_;
+    return undef unless defined $enrolments && ref $enrolments eq 'ARRAY';
+
+    use DateTime;
+    my $dt = DateTime->now;
+    my $today = $dt->ymd; # Current date in YYYY-MM-DD format
+
+    # Filter valid enrolments and sort by startDate (newest first)
+    my @sorted_enrolments = sort {
+        $b->{startDate} cmp $a->{startDate}
+    } grep {
+        !$_->{cancelled} &&
+        defined $_->{startDate} && defined $_->{endDate} &&
+        $_->{startDate} le $today &&
+        $today le $_->{endDate}
+    } @$enrolments;
+
+    # If there is at least one enrolment, log it and return
+    if (@sorted_enrolments) {
+        my $enrolment = $sorted_enrolments[0];
+        log_message('Yes', "Selected enrolment start: " . $enrolment->{startDate} . ", end: " . $enrolment->{endDate} . ", enroledAtId: " . ($enrolment->{enroledAt}->{id} // 'undefined'));
+        return $enrolment;
+    }
+
+    # If no enrolments found, log it
+    log_message('Yes', "No valid enrolment found for user");
+    return undef; # No valid enrolment found
+}
+
 
 sub fetchDataFromAPI {
     my ($self, $data_endpoint, $filter_params, $current_org_code) = @_;

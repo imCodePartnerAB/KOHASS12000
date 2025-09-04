@@ -66,13 +66,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.72"; 
+our $VERSION = "1.73"; 
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2025-08-21',
+    date_updated    => '2025-09-04',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -2310,19 +2310,34 @@ sub fetchBorrowers {
 
                     my $klass_displayName;
                     log_message($debug_mode, '::groupMembership (trying to get Klass) BEGIN');
-                    foreach my $groupMembership (@{$response_data_groupMemberships ->{_embedded}->{groupMemberships}}) {
-                        my $group = $groupMembership->{group};
-                        log_message($debug_mode, 'groupMembership->{group}: '.Dumper($group));
-                        # "groupType" & "endDate" 
-                        # 2024-05-24 added "startDate" for case like - to_date: 2025-06-30 from_date: 2024-07-01
-                        if ($group->{groupType} eq "Klass" && $group->{endDate} gt $today && $group->{startDate} lt $today) {
-                            $klass_displayName = $group->{displayName};
-                            log_message($debug_mode, 'klass_displayName: '.$klass_displayName);
-                            log_message($debug_mode, 'group->{endDate}: '.$group->{endDate});
-                            log_message($debug_mode, 'group->{startDate}: '.$group->{startDate});
-                            last; 
+
+                    # Collect all valid klasses
+                    my @valid_klasses = grep {
+                        $_->{group}->{groupType} eq "Klass" &&
+                        $_->{group}->{endDate} gt $today &&
+                        $_->{group}->{startDate} lt $today
+                    } @{$response_data_groupMemberships->{_embedded}->{groupMemberships}};
+
+                    # Sort by startDate descending (newest first)
+                    @valid_klasses = sort {
+                        $b->{group}->{startDate} cmp $a->{group}->{startDate}
+                    } @valid_klasses;
+
+                    # Pick the newest one
+                    if (@valid_klasses) {
+                        $klass_displayName = $valid_klasses[0]->{group}->{displayName};
+                        log_message($debug_mode, 'Selected newest klass_displayName: ' . $klass_displayName);
+                        log_message($debug_mode, 'klass startDate: ' . $valid_klasses[0]->{group}->{startDate});
+                        log_message($debug_mode, 'klass endDate: ' . $valid_klasses[0]->{group}->{endDate});
+                        
+                        # Log if multiple valid klasses found (for debugging)
+                        if (@valid_klasses > 1) {
+                            log_message($debug_mode, 'Multiple valid klasses found (' . scalar(@valid_klasses) . '), picked the newest');
                         }
+                    } else {
+                        log_message($debug_mode, 'No valid Klass found');
                     }
+
                     log_message($debug_mode, '::groupMembership END');
                     # end search "groupType": "Klass"
 

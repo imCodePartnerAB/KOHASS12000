@@ -66,7 +66,7 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.73"; 
+our $VERSION = "1.74";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
@@ -1440,6 +1440,9 @@ sub tool {
 sub cronjob {
     my ($self, $data_endpoint, $is_web) = @_;
     
+    # Log plugin version at start
+    log_message("Yes", "Starting cronjob with plugin version: $VERSION ($version_info)");
+
     my $dbh = C4::Context->dbh;
 
     # First, check if full processing was already completed today
@@ -3082,10 +3085,16 @@ sub addOrUpdateBorrower {
         }
     }
 
+
     # Process class attribute if provided
     if ($borrowernumber && $klass_displayName) {
         my $code = 'CL';
-        my $attribute = $klass_displayName;
+        log_message('Yes', "Processing Klass attribute for civicNo $cardnumber, borrowernumber $borrowernumber, plugin version: $VERSION");
+
+        # Check ExtendedPatronAttributes preference
+        my $pref_query = qq{SELECT value FROM systempreferences WHERE variable = 'ExtendedPatronAttributes'};
+        my ($extended_attrs_enabled) = $dbh->selectrow_array($pref_query);
+        log_message('Yes', "ExtendedPatronAttributes preference: " . ($extended_attrs_enabled // 'Not set'));
 
         # Check if entry exists in borrower_attribute_types
         my $check_types_query = qq{
@@ -3099,18 +3108,18 @@ sub addOrUpdateBorrower {
         unless ($exists) {
             my $insert_types_query = qq{
                 INSERT INTO borrower_attribute_types (
-                    code, 
-                    description, 
-                    repeatable, 
-                    unique_id, 
-                    opac_display, 
-                    opac_editable, 
-                    staff_searchable, 
-                    authorised_value_category, 
-                    display_checkout, 
-                    category_code, 
-                    class, 
-                    keep_for_pseudonymization, 
+                    code,
+                    description,
+                    repeatable,
+                    unique_id,
+                    opac_display,
+                    opac_editable,
+                    staff_searchable,
+                    authorised_value_category,
+                    display_checkout,
+                    category_code,
+                    class,
+                    keep_for_pseudonymization,
                     mandatory
                 )
                 VALUES (
@@ -3120,9 +3129,11 @@ sub addOrUpdateBorrower {
             my $insert_types_sth = $dbh->prepare($insert_types_query);
             eval {
                 $insert_types_sth->execute();
+                log_message('Yes', "Created borrower_attribute_types for 'CL'");
+                $dbh->commit();
             };
             if ($@) {
-                log_message('Yes', "Error inserting into borrower_attribute_types: $@");
+                log_message('Yes', "Error creating borrower_attribute_types: $@");
             }
         }
 
@@ -3132,12 +3143,21 @@ sub addOrUpdateBorrower {
             WHERE borrowernumber = ? AND code = ?
         };
         my $check_sth = $dbh->prepare($check_query);
-        $check_sth->execute($borrowernumber, $code);
+        eval {
+            $check_sth->execute($borrowernumber, $code);
+            log_message('Yes', "Executed SELECT for Klass attribute, borrowernumber=$borrowernumber, code=$code");
+        };
+        if ($@) {
+            log_message('Yes', "Error executing SELECT for borrower_attributes: $@");
+        }
         my $existing_attribute = $check_sth->fetchrow_array();
+
+        # Log existing and new values
+        log_message('Yes', "Existing Klass in DB: " . ($existing_attribute // 'None') . ", New from API: $klass_displayName");
 
         if (defined $existing_attribute) {
             # Update existing attribute if value is different
-            if ($existing_attribute ne $attribute) {
+            if ($existing_attribute ne $klass_displayName) {
                 my $update_query = qq{
                     UPDATE borrower_attributes
                     SET attribute = ?
@@ -3145,11 +3165,15 @@ sub addOrUpdateBorrower {
                 };
                 my $update_sth = $dbh->prepare($update_query);
                 eval {
-                    $update_sth->execute($attribute, $borrowernumber, $code);
+                    $update_sth->execute($klass_displayName, $borrowernumber, $code);
+                    log_message('Yes', "Updated Klass attribute to $klass_displayName for borrowernumber $borrowernumber, civicNo $cardnumber");
+                    $dbh->commit();
                 };
                 if ($@) {
                     log_message('Yes', "Error updating borrower_attributes: $@");
                 }
+            } else {
+                log_message('Yes', "Klass attribute unchanged, no update needed");
             }
         } else {
             # Insert new attribute
@@ -3159,13 +3183,18 @@ sub addOrUpdateBorrower {
             };
             my $insert_sth = $dbh->prepare($insert_query);
             eval {
-                $insert_sth->execute($borrowernumber, $code, $attribute);
+                $insert_sth->execute($borrowernumber, $code, $klass_displayName);
+                log_message('Yes', "Inserted new Klass attribute $klass_displayName for borrowernumber $borrowernumber, civicNo $cardnumber");
+                $dbh->commit();
             };
             if ($@) {
                 log_message('Yes', "Error inserting into borrower_attributes: $@");
             }
         }
+    } else {
+        log_message('Yes', "Skipping Klass update: borrowernumber=" . ($borrowernumber // 'undef') . ", klass_displayName=" . ($klass_displayName // 'undef') . ", civicNo=$cardnumber");
     }
+
 }
 
 

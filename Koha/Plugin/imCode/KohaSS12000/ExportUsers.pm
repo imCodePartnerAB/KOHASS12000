@@ -1,4 +1,4 @@
-# Copyright (C) 2024 imCode, https://www.imcode.com, <info@imcode.com>
+# Copyright (C) 2024-2026 imCode, https://www.imcode.com, <info@imcode.com>
 #
 # This is a plugin for Koha
 # It exports user data from the API in SS12000 format to your Koha database
@@ -66,13 +66,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.75";
+our $VERSION = "1.76";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2025-09-04',
+    date_updated    => '2026-01-28',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -2400,6 +2400,7 @@ sub fetchBorrowers {
 
                     # NEW: Get only the current valid enrolment
                     my $current_enrolment = get_current_enrolment($enrolments);
+                    my $enrolment_end_date;  
 
                     if (defined $current_enrolment) {
                         my $enroledAt = $current_enrolment->{enroledAt}; 
@@ -2619,6 +2620,7 @@ sub fetchBorrowers {
                                 $cardnumberPlugin,
                                 $externalIdentifier,
                                 $klass_displayName,
+                                $enrolment_end_date, 
                             );
                     }
                     $j++;
@@ -2708,7 +2710,8 @@ sub has_changes {
         'country' => $new_values->{country},
         'B_email' => $new_values->{B_email},
         'userid' => $new_values->{newUserID},
-        'cardnumber' => $new_values->{newCardnumber}
+        'cardnumber' => $new_values->{newCardnumber},
+        'dateexpiry' => $new_values->{enrolment_end_date}
     );
     
     my @changed_fields;
@@ -2753,6 +2756,7 @@ sub addOrUpdateBorrower {
         $cardnumberPlugin,
         $externalIdentifier,
         $klass_displayName,
+        $enrolment_end_date, 
     ) = @_;
     
     my $dbh = C4::Context->dbh;
@@ -2924,7 +2928,8 @@ sub addOrUpdateBorrower {
             country => $country,
             B_email => $B_email,
             newUserID => $newUserID,
-            newCardnumber => $newCardnumber
+            newCardnumber => $newCardnumber,
+            enrolment_end_date => $enrolment_end_date
         });
         
         if (@changes) {
@@ -2956,6 +2961,7 @@ sub addOrUpdateBorrower {
                     B_email = ?,
                     userid = ?,
                     cardnumber = ?,
+                    dateexpiry = ?,
                     opacnote = CASE
                         WHEN opacnote IS NULL OR opacnote = ''
                             THEN CONCAT('Updated by SS12000: plugin ', '$version_info', ' at ', NOW(), ' Fields changed: ', ?)
@@ -3000,6 +3006,7 @@ sub addOrUpdateBorrower {
                     $B_email,
                     $newUserID,
                     $newCardnumber,
+                    $enrolment_end_date, 
                     join(', ', map { $_->{field} } @changes),
                     join(', ', map { $_->{field} } @changes),
                     join(', ', map { $_->{field} } @changes),
@@ -3046,7 +3053,7 @@ sub addOrUpdateBorrower {
             VALUES (
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
                 CURDATE(), 
-                DATE_ADD(CURDATE(), INTERVAL 1 YEAR), 
+                COALESCE(NULLIF(?, ''), DATE_ADD(CURDATE(), INTERVAL 1 YEAR)),
                 NOW(),
                 CONCAT('Added by SS12000: plugin ', '$version_info', ' at ', NOW())
             )
@@ -3069,7 +3076,8 @@ sub addOrUpdateBorrower {
                 $postalCode,
                 $country,
                 $B_email,
-                $newUserID
+                $newUserID,
+                $enrolment_end_date
             );
             $borrowernumber = $dbh->last_insert_id(undef, undef, $borrowers_table, undef);
             $added_count++;

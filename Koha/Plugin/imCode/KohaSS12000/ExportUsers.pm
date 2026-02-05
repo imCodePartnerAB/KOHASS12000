@@ -66,13 +66,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.76";
+our $VERSION = "1.77";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2026-01-28',
+    date_updated    => '2026-02-05',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -2407,6 +2407,7 @@ sub fetchBorrowers {
                         if (defined $enroledAt && ref $enroledAt eq 'HASH') {
                             $enroledAtId = $enroledAt->{id};
                             log_message($debug_mode, 'Using current enrolment - startDate: '.$current_enrolment->{startDate}.', endDate: '.$current_enrolment->{endDate});
+                            $enrolment_end_date = $current_enrolment->{endDate};
                         }
                     } else {
                         log_message($debug_mode, 'No current valid enrolment found for student');

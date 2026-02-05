@@ -66,7 +66,7 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.77";
+our $VERSION = "1.78";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
@@ -2962,7 +2962,7 @@ sub addOrUpdateBorrower {
                     B_email = ?,
                     userid = ?,
                     cardnumber = ?,
-                    dateexpiry = ?,
+                    dateexpiry = COALESCE(NULLIF(?, ''), dateexpiry, DATE_ADD(CURDATE(), INTERVAL 1 YEAR)),
                     opacnote = CASE
                         WHEN opacnote IS NULL OR opacnote = ''
                             THEN CONCAT('Updated by SS12000: plugin ', '$version_info', ' at ', NOW(), ' Fields changed: ', ?)

@@ -66,13 +66,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.78";
+our $VERSION = "1.781";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2026-02-05',
+    date_updated    => '2026-02-23',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -1760,6 +1760,9 @@ sub get_organisation_id {
     my $customerId = $config_data->{ist_customer_id} || '';
     my $org_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/organisations?organisationCode=$org_code";
     
+    log_message("Yes", "get_organisation_id URL: $org_url");
+    log_message("Yes", "get_organisation_id token present: " . (length($token) > 0 ? 'yes' : 'no'));
+
     # Make request to get organisation details
     my $request = HTTP::Request->new(
         'GET',
@@ -1771,6 +1774,9 @@ sub get_organisation_id {
     );
     
     my $response = $ua->request($request);
+    log_message("Yes", "get_organisation_id response code: " . $response->code);
+    log_message("Yes", "get_organisation_id response body: " . $response->content);
+        
     if ($response->is_success) {
         my $org_data = decode_json($response->content);
         if ($org_data && $org_data->{data} && @{$org_data->{data}}) {

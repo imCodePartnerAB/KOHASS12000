@@ -10,9 +10,9 @@ Plugin and cron jobs for importing SS12000 v 1.78
 
 [SS12000 Fields Specification](Doc/SS12000_Fields_Specification.md)
 
-2025-02-05, 22:30
+2025-02-23, 16:07
 
-[1.78 version of koha-plugin-export-users_ss12000](https://github.com/imCodePartnerAB/KOHASS12000/releases/tag/v1.78)
+[1.781 version of koha-plugin-export-users_ss12000](https://github.com/imCodePartnerAB/KOHASS12000/releases/tag/v1.781)
 
 
 

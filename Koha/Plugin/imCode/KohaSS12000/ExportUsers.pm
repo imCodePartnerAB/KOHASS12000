@@ -66,7 +66,7 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.79";
+our $VERSION = "1.8";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
@@ -2432,8 +2432,24 @@ sub fetchBorrowers {
                             log_message($debug_mode, 'response_data_person: '.Dumper($response_data_person));
                         };
 
-                        if (defined $response_data_person && ref($response_data_person) eq 'HASH' && defined $response_data_person->{organisationCode}) {
-                            $organisationCode = $response_data_person->{organisationCode};
+                        if (defined $response_data_person && ref($response_data_person) eq 'HASH') {
+                            if (defined $response_data_person->{organisationCode} && $response_data_person->{organisationCode} ne '') {
+                                $organisationCode = $response_data_person->{organisationCode};
+                            } elsif (defined $response_data_person->{parentOrganisation} &&
+                                    defined $response_data_person->{parentOrganisation}->{id}) {
+                                my $parent_id = $response_data_person->{parentOrganisation}->{id};
+                                log_message($debug_mode, 'No organisationCode on child org, looking up parent: '.$parent_id);
+                                eval {
+                                    my $parent_data = decode_json(getApiResponse($api_url_base.'organisations/'.$parent_id, $access_token));
+                                    if (defined $parent_data->{organisationCode} && $parent_data->{organisationCode} ne '') {
+                                        $organisationCode = $parent_data->{organisationCode};
+                                        log_message($debug_mode, 'Resolved organisationCode from parent: '.$organisationCode);
+                                    }
+                                };
+                                if ($@) {
+                                    log_message($debug_mode, 'Error looking up parent organisation: '.$@);
+                                }
+                            }
                         }
 
                         if ($organisationCode) {

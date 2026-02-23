@@ -66,7 +66,7 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.781";
+our $VERSION = "1.79";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
@@ -904,7 +904,7 @@ sub configure {
         my $clean_query = qq{
                 UPDATE imcode_logs 
                 SET is_processed = 0, updated_count = 0, added_count = 0, 
-                    page_token_next = NULL
+                    page_token_next = 'RESET'
                 WHERE DATE(created_at) = CURDATE()
             };
         eval { $dbh->do($clean_query) };
@@ -1068,7 +1068,7 @@ sub tool {
         my $clean_query = qq{
                 UPDATE imcode_logs 
                 SET is_processed = 0, updated_count = 0, added_count = 0, 
-                    page_token_next = NULL
+                    page_token_next = 'RESET'
                 WHERE DATE(created_at) = CURDATE()
             };
         eval { $dbh->do($clean_query) };
@@ -1961,6 +1961,7 @@ sub fetchDataFromAPI {
             AND organisation_code = ?
             AND DATE(created_at) = CURDATE()
             AND page_token_next IS NOT NULL
+            AND page_token_next != 'RESET'
             ORDER BY created_at DESC
             LIMIT 1
         };

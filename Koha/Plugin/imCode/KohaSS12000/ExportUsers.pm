@@ -66,13 +66,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.8";
+our $VERSION = "1.81";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2026-02-23',
+    date_updated    => '2026-02-25',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -2679,7 +2679,6 @@ sub fetchBorrowers {
                             $data_hash
                         );
                         
-                        # Логуємо завершення ітерації незалежно від debug_mode
                         my $message = "Iteration $iteration_number completed. Added: $added_count, Updated: $updated_count, Total processed: $processed_count";
                         log_message('Yes', $message);
                     };
@@ -2785,6 +2784,10 @@ sub addOrUpdateBorrower {
     
     my $dbh = C4::Context->dbh;
 
+    # FIX: capture $version_info at runtime as a local variable
+    # to ensure the current version is always used in SQL strings
+    my $current_version_info = $version_info;
+
     my $newUserID;
     my $newCardnumber;
 
@@ -2796,6 +2799,12 @@ sub addOrUpdateBorrower {
     # Determine the new cardnumber based on plugin settings
     if ($cardnumberPlugin eq "civicNo" || $cardnumberPlugin eq "externalIdentifier") {
         $newCardnumber = ($cardnumberPlugin eq "civicNo") ? $cardnumber : $externalIdentifier;
+    }
+
+    # FIX: validate enrolment_end_date - ensure it's a proper date string
+    my $validated_enrolment_end_date = undef;
+    if (defined $enrolment_end_date && $enrolment_end_date =~ /^\d{4}-\d{2}-\d{2}$/) {
+        $validated_enrolment_end_date = $enrolment_end_date;
     }
 
     # Find all duplicates with comprehensive information about their usage
@@ -2897,7 +2906,7 @@ sub addOrUpdateBorrower {
                 }
             }
             
-            # Delete the duplicate record only after successful data transfer
+            # FIX: removed inline SQL comment (# ...) which is invalid SQL syntax
             # Instead of deleting, mark the duplicate record as archived
             eval {
                 my $archive_query = qq{
@@ -2905,18 +2914,21 @@ sub addOrUpdateBorrower {
                     SET
                         userid = CONCAT('ARCHIVED_', userid, '_', borrowernumber),
                         cardnumber = CONCAT('ARCHIVED_', cardnumber, '_', borrowernumber),
-                        flags = -1,  # Special flag to mark as archived
-                        dateexpiry = NOW(),  # Expire the card
-                        gonenoaddress = 1,   # Mark as invalid address
-                        lost = 1,            # Mark as lost card
-                        debarredcomment = CONCAT('Updated by SS12000: plugin ', '$version_info', '. Merged with borrowernumber: ', ?, ' at ', NOW()),
-                        opacnote = CONCAT('Updated by SS12000: plugin ', '$version_info', '. Merged with borrowernumber: ', ?, ' at ', NOW())
+                        flags = -1,
+                        dateexpiry = NOW(),
+                        gonenoaddress = 1,
+                        lost = 1,
+                        debarredcomment = CONCAT('Updated by SS12000: plugin ', ?, '. Merged with borrowernumber: ', ?, ' at ', NOW()),
+                        opacnote = CONCAT('Updated by SS12000: plugin ', ?, '. Merged with borrowernumber: ', ?, ' at ', NOW())
                     WHERE borrowernumber = ?
                 };
                 my $archive_sth = $dbh->prepare($archive_query);
+                # FIX: pass $current_version_info as parameter instead of interpolating in SQL string
                 $archive_sth->execute(
-                    $main_record->{borrowernumber}, 
-                    $main_record->{borrowernumber}, 
+                    $current_version_info,
+                    $main_record->{borrowernumber},
+                    $current_version_info,
+                    $main_record->{borrowernumber},
                     $duplicate->{borrowernumber}
                 );
                 log_message('Yes', "Archived duplicate borrowernumber: " . $duplicate->{borrowernumber} . 
@@ -2953,7 +2965,7 @@ sub addOrUpdateBorrower {
             B_email => $B_email,
             newUserID => $newUserID,
             newCardnumber => $newCardnumber,
-            enrolment_end_date => $enrolment_end_date
+            enrolment_end_date => $validated_enrolment_end_date
         });
         
         if (@changes) {
@@ -2965,7 +2977,11 @@ sub addOrUpdateBorrower {
                     $change->{new_value}
                 ));
             }
+
+            my $changed_fields_str = join(', ', map { $_->{field} } @changes);
             
+            # FIX: pass $current_version_info and $validated_enrolment_end_date as parameters
+            # instead of interpolating version in SQL string
             my $update_query = qq{
                 UPDATE $borrowers_table
                 SET 
@@ -2988,11 +3004,11 @@ sub addOrUpdateBorrower {
                     dateexpiry = COALESCE(NULLIF(?, ''), dateexpiry, DATE_ADD(CURDATE(), INTERVAL 1 YEAR)),
                     opacnote = CASE
                         WHEN opacnote IS NULL OR opacnote = ''
-                            THEN CONCAT('Updated by SS12000: plugin ', '$version_info', ' at ', NOW(), ' Fields changed: ', ?)
+                            THEN CONCAT('Updated by SS12000: plugin ', ?, ' at ', NOW(), ' Fields changed: ', ?)
                         WHEN opacnote LIKE '%Updated by SS12000: plugin%'
                             THEN CONCAT(
                                 SUBSTRING_INDEX(opacnote, 'Updated by SS12000: plugin', 1),
-                                'Updated by SS12000: plugin ', '$version_info', ' at ', NOW(), ' Fields changed: ', ?
+                                'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' Fields changed: ', ?
                             )
                         WHEN opacnote LIKE '%Added by SS12000: plugin%'
                             THEN CONCAT(
@@ -3000,11 +3016,11 @@ sub addOrUpdateBorrower {
                                     SUBSTRING_INDEX(opacnote, 'Added by SS12000: plugin', 1),
                                     'Added by', 'Updated by'
                                 ),
-                                'Updated by SS12000: plugin ', '$version_info', ' at ', NOW(), ' Fields changed: ', ?
+                                'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' Fields changed: ', ?
                             )
                         ELSE CONCAT(
                             opacnote,
-                            '\nUpdated by SS12000: plugin ', '$version_info', ' at ', NOW(), ' Fields changed: ', ?
+                            '\nUpdated by SS12000: plugin ', ?, ' at ', NOW(), ' Fields changed: ', ?
                         )
                     END,
                     updated_on = NOW()
@@ -3014,15 +3030,15 @@ sub addOrUpdateBorrower {
             my $update_sth = $dbh->prepare($update_query);
             eval {
                 $update_sth->execute(
-                    $birthdate, 
-                    $email, 
-                    $sex, 
-                    $phone, 
-                    $mobile_phone, 
-                    $surname, 
-                    $firstname, 
-                    $categorycode, 
-                    $branchcode, 
+                    $birthdate,
+                    $email,
+                    $sex,
+                    $phone,
+                    $mobile_phone,
+                    $surname,
+                    $firstname,
+                    $categorycode,
+                    $branchcode,
                     $streetAddress,
                     $locality,
                     $postalCode,
@@ -3030,11 +3046,15 @@ sub addOrUpdateBorrower {
                     $B_email,
                     $newUserID,
                     $newCardnumber,
-                    $enrolment_end_date, 
-                    join(', ', map { $_->{field} } @changes),
-                    join(', ', map { $_->{field} } @changes),
-                    join(', ', map { $_->{field} } @changes),
-                    join(', ', map { $_->{field} } @changes),
+                    $validated_enrolment_end_date,  # FIX: use validated date value
+                    $current_version_info,          # FIX: version as parameter (WHEN opacnote IS NULL - version)
+                    $changed_fields_str,            # FIX: pre-built string (WHEN opacnote IS NULL - fields)
+                    $current_version_info,          # FIX: version as parameter (WHEN Updated by - version)
+                    $changed_fields_str,            # (WHEN Updated by - fields)
+                    $current_version_info,          # FIX: version as parameter (WHEN Added by - version)
+                    $changed_fields_str,            # (WHEN Added by - fields)
+                    $current_version_info,          # FIX: version as parameter (ELSE - version)
+                    $changed_fields_str,            # (ELSE - fields)
                     $existing_borrower->{'borrowernumber'}
                 );
             };
@@ -3050,7 +3070,7 @@ sub addOrUpdateBorrower {
             $borrowernumber = $existing_borrower->{'borrowernumber'};
         }
     } else {
-        # Insert a new borrower record if no existing record was found
+        # FIX: pass $current_version_info as parameter instead of interpolating in SQL string
         my $insert_query = qq{
             INSERT INTO $borrowers_table (
                 cardnumber,
@@ -3079,7 +3099,7 @@ sub addOrUpdateBorrower {
                 CURDATE(), 
                 COALESCE(NULLIF(?, ''), DATE_ADD(CURDATE(), INTERVAL 1 YEAR)),
                 NOW(),
-                CONCAT('Added by SS12000: plugin ', '$version_info', ' at ', NOW())
+                CONCAT('Added by SS12000: plugin ', ?, ' at ', NOW())
             )
         };
         my $insert_sth = $dbh->prepare($insert_query);
@@ -3101,11 +3121,11 @@ sub addOrUpdateBorrower {
                 $country,
                 $B_email,
                 $newUserID,
-                $enrolment_end_date
+                $validated_enrolment_end_date,  # FIX: use validated date value
+                $current_version_info           # FIX: version as parameter
             );
             $borrowernumber = $dbh->last_insert_id(undef, undef, $borrowers_table, undef);
             $added_count++;
-            # log_message('Yes', "Successfully inserted new borrower: borrowernumber=$borrowernumber, civicNo=$cardnumber");
             log_message('Yes', "Successfully inserted new borrower: borrowernumber=$borrowernumber");
         };
         if ($@) {
@@ -3117,13 +3137,7 @@ sub addOrUpdateBorrower {
     # Process class attribute if provided and borrowernumber is valid
     if ($borrowernumber && $klass_displayName) {
         my $code = 'CL';
-        # log_message('Yes', "Processing Klass attribute for civicNo $cardnumber, borrowernumber $borrowernumber, plugin version: $VERSION");
         log_message('Yes', "Processing Klass attribute for borrowernumber $borrowernumber, plugin version: $VERSION");
-
-        # Check ExtendedPatronAttributes preference
-        # my $pref_query = qq{SELECT value FROM systempreferences WHERE variable = 'ExtendedPatronAttributes'};
-        # my ($extended_attrs_enabled) = $dbh->selectrow_array($pref_query);
-        # log_message('Yes', "ExtendedPatronAttributes preference: " . ($extended_attrs_enabled // 'Not set'));
 
         # Check if entry exists in borrower_attribute_types
         my $check_types_query = qq{
@@ -3197,7 +3211,6 @@ sub addOrUpdateBorrower {
                 my $update_sth = $dbh->prepare($update_query);
                 eval {
                     $update_sth->execute($klass_displayName, $borrowernumber, $code);
-                    # log_message('Yes', "Updated Klass attribute to $klass_displayName for borrowernumber $borrowernumber, civicNo $cardnumber");
                     log_message('Yes', "Updated Klass attribute to $klass_displayName for borrowernumber $borrowernumber");
                     $dbh->commit();
                 };
@@ -3216,7 +3229,6 @@ sub addOrUpdateBorrower {
             my $insert_sth = $dbh->prepare($insert_query);
             eval {
                 $insert_sth->execute($borrowernumber, $code, $klass_displayName);
-                # log_message('Yes', "Inserted new Klass attribute $klass_displayName for borrowernumber $borrowernumber, civicNo $cardnumber");
                 log_message('Yes', "Inserted new Klass attribute $klass_displayName for borrowernumber $borrowernumber");
                 $dbh->commit();
             };
@@ -3225,7 +3237,6 @@ sub addOrUpdateBorrower {
             }
         }
     } else {
-        # log_message('Yes', "Skipping Klass update: borrowernumber=" . ($borrowernumber // 'undef') . ", klass_displayName=" . ($klass_displayName // 'undef') . ", civicNo=$cardnumber");
         log_message('Yes', "Skipping Klass update: borrowernumber=" . ($borrowernumber // 'undef') . ", klass_displayName=" . ($klass_displayName // 'undef'));
     }
 }

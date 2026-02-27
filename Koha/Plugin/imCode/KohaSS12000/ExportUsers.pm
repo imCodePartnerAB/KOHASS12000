@@ -2828,31 +2828,46 @@ sub addOrUpdateBorrower {
     my $dateexpiry_fallback = $config_data_local->{dateexpiry_fallback} || 'keep';
     my $dateexpiry_months   = int($config_data_local->{dateexpiry_months} || 12);
 
-    # FIX: validate enrolment_end_date and apply fallback setting when missing/invalid
-    my $validated_enrolment_end_date = undef;
-    if (defined $enrolment_end_date && $enrolment_end_date =~ /^\d{4}-\d{2}-\d{2}$/) {
-        # Valid date from API — always use it
-        $validated_enrolment_end_date = $enrolment_end_date;
-        log_message('Yes', "dateexpiry: using API value $validated_enrolment_end_date");
-    } else {
-        # No valid date from API — apply configured fallback
-        if ($dateexpiry_fallback eq 'none') {
-            # Leave empty — NULL will be passed, existing dateexpiry cleared
-            $validated_enrolment_end_date = undef;
-            log_message('Yes', "dateexpiry: fallback=none, leaving empty");
-        } elsif ($dateexpiry_fallback eq 'keep') {
-            # Pass undef so COALESCE in SQL keeps the existing DB value
-            $validated_enrolment_end_date = undef;
-            log_message('Yes', "dateexpiry: fallback=keep, preserving existing value");
-        } elsif ($dateexpiry_fallback eq 'months') {
-            # Calculate date N months from today
+    # Hash dispatcher for dateexpiry fallback strategies.
+    # Each strategy returns a hashref:
+    #   fragment        => SQL fragment for the SET clause
+    #   has_placeholder => 1 if fragment contains ?, 0 otherwise
+    #   value           => bind value to pass (undef if no placeholder)
+    my %dateexpiry_strategies = (
+        'none'  => sub { {
+            fragment        => 'dateexpiry = NULL',
+            has_placeholder => 0,
+            value           => undef,
+        } },
+        'keep'  => sub { {
+            fragment        => 'dateexpiry = dateexpiry',
+            has_placeholder => 0,
+            value           => undef,
+        } },
+        'months' => sub {
             my @t = localtime(time);
-            $t[4] += $dateexpiry_months;       # add months
-            $t[5] += int($t[4] / 12);          # carry over to years
-            $t[4]  = $t[4] % 12;               # normalize month
-            $validated_enrolment_end_date = POSIX::strftime("%Y-%m-%d", @t);
-            log_message('Yes', "dateexpiry: fallback=months ($dateexpiry_months), calculated $validated_enrolment_end_date");
-        }
+            $t[4] += $dateexpiry_months;     # add months
+            $t[5] += int($t[4] / 12);        # carry over to years
+            $t[4]  = $t[4] % 12;             # normalize month 0-11
+            my $calculated = POSIX::strftime("%Y-%m-%d", @t);
+            return {
+                fragment        => 'dateexpiry = ?',
+                has_placeholder => 1,
+                value           => $calculated,
+            };
+        },
+    );
+
+    # Determine final dateexpiry: valid API date always wins, otherwise use configured fallback
+    my $dateexpiry;
+    if (defined $enrolment_end_date && $enrolment_end_date =~ /^\d{4}-\d{2}-\d{2}$/) {
+        $dateexpiry = { fragment => 'dateexpiry = ?', has_placeholder => 1, value => $enrolment_end_date };
+        log_message('Yes', "dateexpiry: using API value $enrolment_end_date");
+    } else {
+        my $strategy = $dateexpiry_strategies{$dateexpiry_fallback}
+                    // $dateexpiry_strategies{'keep'}; # safe default for unknown values
+        $dateexpiry = $strategy->();
+        log_message('Yes', "dateexpiry: fallback=$dateexpiry_fallback => $dateexpiry->{fragment}");
     }
 
     # Find all duplicates with comprehensive information about their usage
@@ -3013,7 +3028,7 @@ sub addOrUpdateBorrower {
             B_email => $B_email,
             newUserID => $newUserID,
             newCardnumber => $newCardnumber,
-            enrolment_end_date => $validated_enrolment_end_date
+            enrolment_end_date => $dateexpiry->{value}
         });
         
         if (@changes) {
@@ -3028,8 +3043,7 @@ sub addOrUpdateBorrower {
 
             my $changed_fields_str = join(', ', map { $_->{field} } @changes);
             
-            # FIX: pass $current_version_info and $validated_enrolment_end_date as parameters
-            # instead of interpolating version in SQL string
+            # FIX: pass $current_version_info as parameter and use dynamic dateexpiry fragment
             my $update_query = qq{
                 UPDATE $borrowers_table
                 SET 
@@ -3049,7 +3063,7 @@ sub addOrUpdateBorrower {
                     B_email = ?,
                     userid = ?,
                     cardnumber = ?,
-                    dateexpiry = COALESCE(NULLIF(?, ''), dateexpiry),
+                    $dateexpiry->{fragment},
                     opacnote = CASE
                         WHEN opacnote IS NULL OR opacnote = ''
                             THEN CONCAT('Updated by SS12000: plugin ', ?, ' at ', NOW(), ' Fields changed: ', ?)
@@ -3076,36 +3090,37 @@ sub addOrUpdateBorrower {
             };
             
             my $update_sth = $dbh->prepare($update_query);
-            eval {
-                $update_sth->execute(
-                    $birthdate,
-                    $email,
-                    $sex,
-                    $phone,
-                    $mobile_phone,
-                    $surname,
-                    $firstname,
-                    $categorycode,
-                    $branchcode,
-                    $streetAddress,
-                    $locality,
-                    $postalCode,
-                    $country,
-                    $B_email,
-                    $newUserID,
-                    $newCardnumber,
-                    $validated_enrolment_end_date,  # FIX: use validated date value
-                    $current_version_info,          # FIX: version as parameter (WHEN opacnote IS NULL - version)
-                    $changed_fields_str,            # FIX: pre-built string (WHEN opacnote IS NULL - fields)
-                    $current_version_info,          # FIX: version as parameter (WHEN Updated by - version)
-                    $changed_fields_str,            # (WHEN Updated by - fields)
-                    $current_version_info,          # FIX: version as parameter (WHEN Added by - version)
-                    $changed_fields_str,            # (WHEN Added by - fields)
-                    $current_version_info,          # FIX: version as parameter (ELSE - version)
-                    $changed_fields_str,            # (ELSE - fields)
-                    $existing_borrower->{'borrowernumber'}
-                );
-            };
+
+            # Build bind values dynamically — dateexpiry placeholder is optional
+            my @bind_values = (
+                $birthdate,
+                $email,
+                $sex,
+                $phone,
+                $mobile_phone,
+                $surname,
+                $firstname,
+                $categorycode,
+                $branchcode,
+                $streetAddress,
+                $locality,
+                $postalCode,
+                $country,
+                $B_email,
+                $newUserID,
+                $newCardnumber,
+            );
+            # Only add dateexpiry bind value if the SQL fragment has a placeholder
+            push @bind_values, $dateexpiry->{value} if $dateexpiry->{has_placeholder};
+            push @bind_values, (
+                $current_version_info, $changed_fields_str,  # WHEN opacnote IS NULL
+                $current_version_info, $changed_fields_str,  # WHEN Updated by
+                $current_version_info, $changed_fields_str,  # WHEN Added by
+                $current_version_info, $changed_fields_str,  # ELSE
+                $existing_borrower->{'borrowernumber'}
+            );
+
+            eval { $update_sth->execute(@bind_values) };
             if ($@) {
                 log_message('Yes', "Error updating user: $@");
             } else {
@@ -3143,35 +3158,39 @@ sub addOrUpdateBorrower {
                 opacnote
             )
             VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
-                CURDATE(), 
-                COALESCE(NULLIF(?, ''), NULL),
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                CURDATE(),
+                ${\( $dateexpiry->{has_placeholder} ? '?' : $dateexpiry->{fragment} =~ s/dateexpiry = //r )},
                 NOW(),
                 CONCAT('Added by SS12000: plugin ', ?, ' at ', NOW())
             )
         };
         my $insert_sth = $dbh->prepare($insert_query);
+
+        my @insert_bind = (
+            $newCardnumber,
+            $surname,
+            $firstname,
+            $birthdate,
+            $email,
+            $sex,
+            $phone,
+            $mobile_phone,
+            $categorycode,
+            $branchcode,
+            $streetAddress,
+            $locality,
+            $postalCode,
+            $country,
+            $B_email,
+            $newUserID,
+        );
+        # Only add dateexpiry bind value if the SQL fragment has a placeholder
+        push @insert_bind, $dateexpiry->{value} if $dateexpiry->{has_placeholder};
+        push @insert_bind, $current_version_info;
+
         eval {
-            $insert_sth->execute(
-                $newCardnumber,
-                $surname,
-                $firstname,
-                $birthdate,
-                $email,
-                $sex,
-                $phone,
-                $mobile_phone,
-                $categorycode,
-                $branchcode,
-                $streetAddress,
-                $locality,
-                $postalCode,
-                $country,
-                $B_email,
-                $newUserID,
-                $validated_enrolment_end_date,  # FIX: use validated date value
-                $current_version_info           # FIX: version as parameter
-            );
+            $insert_sth->execute(@insert_bind);
             $borrowernumber = $dbh->last_insert_id(undef, undef, $borrowers_table, undef);
             $added_count++;
             log_message('Yes', "Successfully inserted new borrower: borrowernumber=$borrowernumber");

@@ -66,13 +66,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.81";
+our $VERSION = "1.82";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2026-02-25',
+    date_updated    => '2026-02-27',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -277,6 +277,8 @@ sub install {
     qq{INSERT INTO imcode_config (name,value) VALUES ('archived_limit','0');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('excluding_dutyRole_empty','No');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('excluding_enrolments_empty','No');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('dateexpiry_fallback','keep');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('dateexpiry_months','12');},
     qq{INSERT INTO imcode_categories_mapping (categorycode,dutyRole) VALUES ('SKOLA','Lärare');},
     qq{INSERT INTO imcode_categories_mapping (categorycode,dutyRole) VALUES ('PERSONAL','Kurator');},
     qq{INSERT INTO imcode_categories_mapping (categorycode,dutyRole) VALUES ('SKOLA','Rektor');},
@@ -634,6 +636,8 @@ sub configure {
     insertConfigValue($dbh, 'excluding_dutyRole_empty', 'No');
     insertConfigValue($dbh, 'excluding_enrolments_empty', 'No');
     insertConfigValue($dbh, 'archived_limit', '0');
+    insertConfigValue($dbh, 'dateexpiry_fallback', 'keep');
+    insertConfigValue($dbh, 'dateexpiry_months', '12');
 
     my $select_query = qq{SELECT name, value FROM $config_table};
     my $config_data  = {};
@@ -710,6 +714,8 @@ sub configure {
 
         my $excluding_dutyRole_empty = $cgi->param('excluding_dutyRole_empty');
         my $excluding_enrolments_empty = $cgi->param('excluding_enrolments_empty');
+        my $dateexpiry_fallback  = $cgi->param('dateexpiry_fallback') || 'keep';
+        my $dateexpiry_months    = int($cgi->param('dateexpiry_months') || 12);
 
         # update not_import
         my $update_category_query = qq{UPDATE $categories_mapping_table SET not_import = NULL};
@@ -852,6 +858,8 @@ sub configure {
                 WHEN name = 'archived_limit' THEN ?
                 WHEN name = 'excluding_dutyRole_empty' THEN ?
                 WHEN name = 'excluding_enrolments_empty' THEN ?
+                WHEN name = 'dateexpiry_fallback' THEN ?
+                WHEN name = 'dateexpiry_months' THEN ?
             END
             WHERE name IN (
                 'ist_client_id', 
@@ -868,7 +876,9 @@ sub configure {
                 'logs_limit',
                 'archived_limit',
                 'excluding_dutyRole_empty',
-                'excluding_enrolments_empty'
+                'excluding_enrolments_empty',
+                'dateexpiry_fallback',
+                'dateexpiry_months'
                 )
         };
 
@@ -890,7 +900,9 @@ sub configure {
                 $logs_limit,
                 $archived_limit,
                 $excluding_dutyRole_empty,
-                $excluding_enrolments_empty
+                $excluding_enrolments_empty,
+                $dateexpiry_fallback,
+                $dateexpiry_months
                 );
             $template->param(success => 'success');
         };
@@ -1005,6 +1017,8 @@ sub configure {
         verify_config       => verify_categorycode_and_branchcode(),
         excluding_enrolments_empty => $config_data->{excluding_enrolments_empty} || 'No',
         excluding_dutyRole_empty => $config_data->{excluding_dutyRole_empty} || 'No',
+        dateexpiry_fallback  => $config_data->{dateexpiry_fallback} || 'keep',
+        dateexpiry_months    => int($config_data->{dateexpiry_months} || 12),
         csrf_token => $session_data->{csrf_token},
         );
 
@@ -2801,10 +2815,44 @@ sub addOrUpdateBorrower {
         $newCardnumber = ($cardnumberPlugin eq "civicNo") ? $cardnumber : $externalIdentifier;
     }
 
-    # FIX: validate enrolment_end_date - ensure it's a proper date string
+    # Read dateexpiry fallback config
+    my $config_data_local = {};
+    eval {
+        my $dbh_cfg = C4::Context->dbh;
+        my $sth_cfg = $dbh_cfg->prepare(qq{SELECT name, value FROM $config_table WHERE name IN ('dateexpiry_fallback','dateexpiry_months')});
+        $sth_cfg->execute();
+        while (my ($n, $v) = $sth_cfg->fetchrow_array) {
+            $config_data_local->{$n} = $v;
+        }
+    };
+    my $dateexpiry_fallback = $config_data_local->{dateexpiry_fallback} || 'keep';
+    my $dateexpiry_months   = int($config_data_local->{dateexpiry_months} || 12);
+
+    # FIX: validate enrolment_end_date and apply fallback setting when missing/invalid
     my $validated_enrolment_end_date = undef;
     if (defined $enrolment_end_date && $enrolment_end_date =~ /^\d{4}-\d{2}-\d{2}$/) {
+        # Valid date from API — always use it
         $validated_enrolment_end_date = $enrolment_end_date;
+        log_message('Yes', "dateexpiry: using API value $validated_enrolment_end_date");
+    } else {
+        # No valid date from API — apply configured fallback
+        if ($dateexpiry_fallback eq 'none') {
+            # Leave empty — NULL will be passed, existing dateexpiry cleared
+            $validated_enrolment_end_date = undef;
+            log_message('Yes', "dateexpiry: fallback=none, leaving empty");
+        } elsif ($dateexpiry_fallback eq 'keep') {
+            # Pass undef so COALESCE in SQL keeps the existing DB value
+            $validated_enrolment_end_date = undef;
+            log_message('Yes', "dateexpiry: fallback=keep, preserving existing value");
+        } elsif ($dateexpiry_fallback eq 'months') {
+            # Calculate date N months from today
+            my @t = localtime(time);
+            $t[4] += $dateexpiry_months;       # add months
+            $t[5] += int($t[4] / 12);          # carry over to years
+            $t[4]  = $t[4] % 12;               # normalize month
+            $validated_enrolment_end_date = POSIX::strftime("%Y-%m-%d", @t);
+            log_message('Yes', "dateexpiry: fallback=months ($dateexpiry_months), calculated $validated_enrolment_end_date");
+        }
     }
 
     # Find all duplicates with comprehensive information about their usage
@@ -3001,7 +3049,7 @@ sub addOrUpdateBorrower {
                     B_email = ?,
                     userid = ?,
                     cardnumber = ?,
-                    dateexpiry = COALESCE(NULLIF(?, ''), dateexpiry, DATE_ADD(CURDATE(), INTERVAL 1 YEAR)),
+                    dateexpiry = COALESCE(NULLIF(?, ''), dateexpiry),
                     opacnote = CASE
                         WHEN opacnote IS NULL OR opacnote = ''
                             THEN CONCAT('Updated by SS12000: plugin ', ?, ' at ', NOW(), ' Fields changed: ', ?)
@@ -3097,7 +3145,7 @@ sub addOrUpdateBorrower {
             VALUES (
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
                 CURDATE(), 
-                COALESCE(NULLIF(?, ''), DATE_ADD(CURDATE(), INTERVAL 1 YEAR)),
+                COALESCE(NULLIF(?, ''), NULL),
                 NOW(),
                 CONCAT('Added by SS12000: plugin ', ?, ' at ', NOW())
             )

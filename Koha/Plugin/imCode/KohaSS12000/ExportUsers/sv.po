@@ -383,3 +383,27 @@ msgstr "Är du säker på att du vill tvinga fram en upplåsning av processen? G
 
 msgid "Set API scanner from the first page"
 msgstr "Ställ in API-scanner från första sidan"
+
+
+msgid "Action on no dateexpiry"
+msgstr "Åtgärd när utgångsdatum saknas"
+
+
+msgid "None (leave empty)"
+msgstr "Inget (lämna tomt)"
+
+
+msgid "Keep existing value"
+msgstr "Behåll befintligt värde"
+
+
+msgid "Set months from now"
+msgstr "Sätt antal månader från idag"
+
+
+msgid "Number of months from today"
+msgstr "Antal månader från dagens datum"
+
+
+msgid "What to set as expiry date when no valid enrolment end date is returned from the API"
+msgstr "Vad som ska sättas som utgångsdatum när API:et inte returnerar något giltigt inskrivningsslutdatum"

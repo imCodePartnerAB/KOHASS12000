@@ -1937,6 +1937,8 @@ sub fetchDataFromAPI {
     my $archived_limit      = int($config_data->{archived_limit}) || 0;
     my $excluding_enrolments_empty = $config_data->{excluding_enrolments_empty} || 'No';
     my $excluding_dutyRole_empty = $config_data->{excluding_dutyRole_empty} || 'No';
+    my $dateexpiry_fallback = $config_data->{dateexpiry_fallback} || 'keep';
+    my $dateexpiry_months   = int($config_data->{dateexpiry_months} || 12);
     
     if ($debug_mode eq "Yes") { 
         log_message($debug_mode, "Starting processing for endpoint: $data_endpoint, organisation: $current_org_code");
@@ -2113,7 +2115,9 @@ sub fetchDataFromAPI {
                 $excluding_enrolments_empty,
                 $excluding_dutyRole_empty,
                 \@categories_mapping,
-                \@branches_mapping
+                \@branches_mapping,
+                $dateexpiry_fallback,
+                $dateexpiry_months,
             );
 
             if (!defined $response_page_token || $response_page_token eq "") {
@@ -2282,9 +2286,11 @@ sub fetchBorrowers {
             $access_token,
             $api_url_base,
             $excluding_enrolments_empty,
-            $excluding_dutyRole_empty,            
+            $excluding_dutyRole_empty,
             $categories_mapping_ref,
-            $branches_mapping_ref
+            $branches_mapping_ref,
+            $dateexpiry_fallback,
+            $dateexpiry_months,
         ) = @_;
 
     my @categories_mapping = @$categories_mapping_ref;
@@ -2294,6 +2300,8 @@ sub fetchBorrowers {
     log_message($debug_mode, 'data from mysql, branches_mapping: '.Dumper(\@branches_mapping));
 
     my $dbh = C4::Context->dbh;
+
+    # dateexpiry_fallback and dateexpiry_months received as params (read once in fetchDataFromAPI)
 
     my $select_iteration = qq{
         SELECT COALESCE(MAX(iteration_number), 0) + 1 
@@ -2658,7 +2666,9 @@ sub fetchBorrowers {
                                 $cardnumberPlugin,
                                 $externalIdentifier,
                                 $klass_displayName,
-                                $enrolment_end_date, 
+                                $enrolment_end_date,
+                                $dateexpiry_fallback,
+                                $dateexpiry_months,
                             );
                     }
                     $j++;
@@ -2793,7 +2803,9 @@ sub addOrUpdateBorrower {
         $cardnumberPlugin,
         $externalIdentifier,
         $klass_displayName,
-        $enrolment_end_date, 
+        $enrolment_end_date,
+        $dateexpiry_fallback,
+        $dateexpiry_months,
     ) = @_;
     
     my $dbh = C4::Context->dbh;
@@ -2815,18 +2827,7 @@ sub addOrUpdateBorrower {
         $newCardnumber = ($cardnumberPlugin eq "civicNo") ? $cardnumber : $externalIdentifier;
     }
 
-    # Read dateexpiry fallback config
-    my $config_data_local = {};
-    eval {
-        my $dbh_cfg = C4::Context->dbh;
-        my $sth_cfg = $dbh_cfg->prepare(qq{SELECT name, value FROM $config_table WHERE name IN ('dateexpiry_fallback','dateexpiry_months')});
-        $sth_cfg->execute();
-        while (my ($n, $v) = $sth_cfg->fetchrow_array) {
-            $config_data_local->{$n} = $v;
-        }
-    };
-    my $dateexpiry_fallback = $config_data_local->{dateexpiry_fallback} || 'keep';
-    my $dateexpiry_months   = int($config_data_local->{dateexpiry_months} || 12);
+    # dateexpiry_fallback and dateexpiry_months are passed in from fetchBorrowers (read once per batch)
 
     # Hash dispatcher for dateexpiry fallback strategies.
     # Each strategy returns a hashref:

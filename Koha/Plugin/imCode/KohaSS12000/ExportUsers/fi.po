@@ -383,3 +383,27 @@ msgstr "Oletko varma, että haluat avata prosessin lukituksen väkisin? Tee täm
 
 msgid "Set API scanner from the first page"
 msgstr "Aseta API-skanneri ensimmäiseltä sivulta"
+
+
+msgid "Action on no dateexpiry"
+msgstr "Toiminto kun vanhentumispäivä puuttuu"
+
+
+msgid "None (leave empty)"
+msgstr "Ei mitään (jätä tyhjäksi)"
+
+
+msgid "Keep existing value"
+msgstr "Säilytä nykyinen arvo"
+
+
+msgid "Set months from now"
+msgstr "Aseta kuukausia tästä päivästä"
+
+
+msgid "Number of months from today"
+msgstr "Kuukausien määrä tästä päivästä"
+
+
+msgid "What to set as expiry date when no valid enrolment end date is returned from the API"
+msgstr "Mitä asetetaan vanhentumispäiväksi, kun API ei palauta kelvollista ilmoittautumisen päättymispäivää"

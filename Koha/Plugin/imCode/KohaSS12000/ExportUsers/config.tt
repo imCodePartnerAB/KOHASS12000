@@ -1,5 +1,5 @@
 [% USE gtx = Gettext('com.imcode.exportusers', language, mbf_path) %]
-[% INCLUDE 'doc-head-open.inc' %]    
+[% INCLUDE 'doc-head-open.inc' %]
     <title>[% 'Configuration imCode SS12000' | gettext %]</title>
 [% INCLUDE 'doc-head-close.inc' %]
 
@@ -10,8 +10,8 @@
 [% INCLUDE 'cat-search.inc' %]
 
 <div id="breadcrumbs">
-    <a href="/cgi-bin/koha/mainpage.pl">[% 'Home' | gettext %]</a> &rsaquo; 
-    <a href="/cgi-bin/koha/plugins/plugins-home.pl">[% 'Plugins' | gettext %]</a> &rsaquo;  
+    <a href="/cgi-bin/koha/mainpage.pl">[% 'Home' | gettext %]</a> &rsaquo;
+    <a href="/cgi-bin/koha/plugins/plugins-home.pl">[% 'Plugins' | gettext %]</a> &rsaquo;
     [% 'KohaSS12000 &rsaquo; Configuration' | gettext %]
 </div>
 
@@ -95,8 +95,7 @@
                     </select>
                     <p class="text-info">[% 'Excluding all users that does not have dutyRole' | gettext %]</p>
                 </div>
-            </div> 
-
+            </div>
 
             <div class="form-group row">
                 <label for="excluding_enrolments_empty" class="col-sm-2 col-form-label">[% 'Exclude empty users, enrolments' | gettext %]:</label>
@@ -108,10 +107,28 @@
                     </select>
                     <p class="text-info">[% 'Excluding all users that does not have enrolments' | gettext %]</p>
                 </div>
-            </div> 
+            </div>
 
+            <!-- dateexpiry fallback setting -->
+            <div class="form-group row">
+                <label for="dateexpiry_fallback" class="col-sm-2 col-form-label">[% 'Action on no dateexpiry' | gettext %]:</label>
+                <div class="col-sm-4">
+                    <select class="form-control" name="dateexpiry_fallback" id="dateexpiry_fallback">
+                        <option value="none" [% IF dateexpiry_fallback == 'none' %]selected="selected"[% END %]>[% 'None (leave empty)' | gettext %]</option>
+                        <option value="keep" [% IF !dateexpiry_fallback || dateexpiry_fallback == 'keep' %]selected="selected"[% END %]>[% 'Keep existing value' | gettext %]</option>
+                        <option value="months" [% IF dateexpiry_fallback == 'months' %]selected="selected"[% END %]>[% 'Set months from now' | gettext %]</option>
+                    </select>
+                    <div id="dateexpiry_months_div" style="display:none; margin-top:8px;">
+                        <input type="number" class="form-control" name="dateexpiry_months"
+                               id="dateexpiry_months" value="[% dateexpiry_months || 12 %]" min="1" max="120"/>
+                        <p class="text-info">[% 'Number of months from today' | gettext %]</p>
+                    </div>
+                    <p class="text-info">[% 'What to set as expiry date when no valid enrolment end date is returned from the API' | gettext %]</p>
+                </div>
+            </div>
+            <!-- /dateexpiry fallback setting -->
 
-            [% IF verify_config == "No" %] 
+            [% IF verify_config == "No" %]
             <div class="form-group row">
                 <div class="col-sm-6 alert alert-danger">
                 [% verify_config %]
@@ -130,13 +147,14 @@
                             </div>
                             <div class="col-sm-8 col-md-3">
                                 <strong>Duty Role:</strong> [% category_mapping.dutyRole %]
+
                             </div>
                             <div class="col-sm-2 col-md-2">
                                 <label for="category_del_[% category_mapping.id %]" class="form-check-label" title="[% 'Click to mark for deletion' | gettext %]">
                                     <input type="checkbox" name="category_mapping_del[]" value="[% category_mapping.id %]" title="[% 'Delete' | gettext %]" id="category_del_[% category_mapping.id %]">
                                     [% 'Delete' | gettext %]
                                 </label>
-                            </div>                            
+                            </div>
                             <div class="col-sm-4 col-md-3">
                                 <label for="category_not_import_[% category_mapping.id %]" class="form-check-label" title="[% 'Click to mark do not import' | gettext %]">
                                     <input type="checkbox" name="category_mapping_not_import[]" value="[% category_mapping.id %]" title="[% 'Do not import' | gettext %]" id="category_not_import_[% category_mapping.id %]" [% IF category_mapping.not_import %]checked="checked"[% END %]>
@@ -181,7 +199,7 @@
                                     <input type="checkbox" name="branch_mapping_del[]" value="[% branch_mapping.id %]" title="Delete" id="branch_del_[% branch_mapping.id %]">
                                     [% 'Delete' | gettext %]
                                 </label>
-                            </div>                            
+                            </div>
                             <hr>
                         </div>
                     [% END %]
@@ -198,7 +216,7 @@
                         [% FOREACH branch IN branches %]
                             <option value="[% branch %]">[% branch %]</option>
                         [% END %]
-                    </select>    
+                    </select>
                 </div>
             </div>
             </div>
@@ -214,7 +232,7 @@
                     <p class="text-info">[% 'If this option is enabled, then there will be more data in the Tool tab and the Response from the API will be put into the database in full' | gettext %].</p>
                     <p class="text-info">If Yes is set here, the received data from the api will be additionally recorded in the imcode-debug.log file</p>
                 </div>
-            </div>            
+            </div>
             <div class="form-group row">
                 <label for="api_limit" class="col-sm-2 col-form-label">[% 'SS12000 API limit per page' | gettext %]:</label>
                 <div class="col-sm-4">
@@ -237,7 +255,7 @@
                     </select>
                     <p class="text-info">[% 'CivicNo is used by default' | gettext %]</p>
                 </div>
-            </div>            
+            </div>
 
             <div class="form-group row">
                 <label for="useridPlugin" class="col-sm-2 col-form-label">[% 'UserID for Koha' | gettext %]:</label>
@@ -249,7 +267,7 @@
                     </select>
                     <p class="text-info">[% 'CivicNo is used by default' | gettext %]</p>
                 </div>
-            </div>  
+            </div>
 
             <div class="form-group row">
                 <label for="logs_limit" class="col-sm-2 col-form-label">[% 'How many days to keep plugin logs' | gettext %]:</label>
@@ -261,7 +279,7 @@
                     </select>
                     <p class="text-info">[% 'The default value is 3 days' | gettext %]</p>
                 </div>
-            </div> 
+            </div>
 
             <div class="form-group row">
                 <label for="archived_limit" class="col-sm-2 col-form-label">[% 'Delete users who have been marked as ARCHIVED?' | gettext %]:</label>
@@ -326,7 +344,7 @@
     function validateForm() {
         var categorycode = document.getElementById("koha_default_categorycode").value;
         var branchcode = document.getElementById("koha_default_branchcode").value;
-        
+
         if (categorycode === "" || branchcode === "") {
             alert("[% 'Please select values for both Koha Default Categorycode and Koha Default Branchcode' | gettext %].");
             return false;
@@ -340,14 +358,25 @@
     $(document).ready(function () {
         $('select[name="debug_mode"]').on('change', function () {
             if ($(this).val() === 'Yes') {
-                $(this).css('color', 'red'); 
+                $(this).css('color', 'red');
             } else {
-                $(this).css('color', ''); 
+                $(this).css('color', '');
             }
         });
         if ($('select[name="debug_mode"]').val() === 'Yes') {
             $('select[name="debug_mode"]').css('color', 'red');
         }
+
+        // Show/hide months input for dateexpiry_fallback
+        function toggleDateexpiryMonths() {
+            if ($('#dateexpiry_fallback').val() === 'months') {
+                $('#dateexpiry_months_div').show();
+            } else {
+                $('#dateexpiry_months_div').hide();
+            }
+        }
+        toggleDateexpiryMonths();
+        $('#dateexpiry_fallback').on('change', toggleDateexpiryMonths);
     });
 </script>
 <script>
@@ -359,4 +388,3 @@ document.querySelector('input[value="[% 'Set API scanner from the first page' | 
 </script>
 
 [% INCLUDE 'intranet-bottom.inc' %]
-

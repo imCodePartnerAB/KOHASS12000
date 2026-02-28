@@ -66,13 +66,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.82";
+our $VERSION = "1.83";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2026-02-27',
+    date_updated    => '2026-02-28',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -370,6 +370,10 @@ sub install {
             SET change_description = CONCAT(change_description, 'field email changed from "', OLD.email, '" to "', NEW.email, '"; ');
         END IF;
 
+        IF NEW.dateexpiry != OLD.dateexpiry THEN
+            SET change_description = CONCAT(change_description, 'field dateexpiry changed from "', OLD.dateexpiry, '" to "', NEW.dateexpiry, '"; ');
+        END IF;
+
         IF change_description != '' THEN
             INSERT INTO imcode_data_change_log (table_name, record_id, action, change_description)
             VALUES ('borrowers', NEW.borrowernumber, 'update', TRIM(TRAILING '; ' FROM change_description));
@@ -511,6 +515,10 @@ sub upgrade {
 
         IF NEW.email != OLD.email THEN
             SET change_description = CONCAT(change_description, 'field email changed from "', OLD.email, '" to "', NEW.email, '"; ');
+        END IF;
+
+        IF NEW.dateexpiry != OLD.dateexpiry THEN
+            SET change_description = CONCAT(change_description, 'field dateexpiry changed from "', OLD.dateexpiry, '" to "', NEW.dateexpiry, '"; ');
         END IF;
 
         IF change_description != '' THEN

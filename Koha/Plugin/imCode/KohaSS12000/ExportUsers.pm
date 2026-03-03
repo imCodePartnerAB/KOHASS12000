@@ -66,7 +66,7 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.84";
+our $VERSION = "1.85";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
@@ -745,8 +745,19 @@ sub configure {
     my $dbh = C4::Context->dbh;
     my $op = $cgi->param('op') || '';
 
-    # Recreate trigger on every configure page load to ensure it is always up to date
-    recreate_trigger($dbh);
+    # Recreate trigger only when plugin version changed
+    my ($trigger_version) = $dbh->selectrow_array(
+        "SELECT value FROM $config_table WHERE name = 'trigger_version'"
+    );
+    if (!$trigger_version || $trigger_version ne $VERSION) {
+        recreate_trigger($dbh);
+        $dbh->do(
+            "INSERT INTO $config_table (name, value) VALUES ('trigger_version', ?)
+             ON DUPLICATE KEY UPDATE value = ?",
+            undef, $VERSION, $VERSION
+        );
+        log_message("Yes", "Trigger recreated for plugin version $VERSION");
+    }
 
     # update for version 1.32 
     insertConfigValue($dbh, 'excluding_dutyRole_empty', 'No');

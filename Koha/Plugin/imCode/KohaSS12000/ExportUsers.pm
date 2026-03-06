@@ -50,7 +50,7 @@ use URI::Escape qw(uri_escape);
 
 use File::Basename;
 
-use Fcntl qw(:flock SEEK_END);
+use Fcntl qw(:flock SEEK_END O_WRONLY O_CREAT O_EXCL);
 use Time::Piece;
 
 our $config_table     = 'imcode_config';
@@ -66,21 +66,19 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.85";
+our $VERSION = "1.87";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2026-03-03',
+    date_updated    => '2026-03-05',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
     description     => getTranslation('This plugin implements export users from SS12000')
 };
 
-# our $update_date = $metadata->{date_updated};
-# $update_date =~ s/-//g;
 our $update_date = $metadata->{date_updated} =~ s/-//gr;
 
 our $version_info = "$update_date v$VERSION";
@@ -124,18 +122,16 @@ sub get_log_file {
 sub log_message {
     my ($debug_mode, $message) = @_;
 
-    # If debug mode is "Yes"
     if ($debug_mode eq 'Yes') {
         my $my_log_file = get_log_file();
 
-        # Check if the file exists, if not - create it
         unless (-e $my_log_file) {
             eval {
                 open my $fh, '>', $my_log_file 
                     or die "Cannot create $my_log_file: $!";
                 flock($fh, LOCK_EX) 
                     or die "Cannot lock $my_log_file: $!";
-                print $fh "";  # Create an empty file
+                print $fh "";
                 close $fh;
             };
             if ($@) {
@@ -144,20 +140,14 @@ sub log_message {
             }
         }
 
-        # Open the file for appending data
         eval {
             open my $fh, '>>', $my_log_file 
                 or die "Cannot open $my_log_file: $!";
             flock($fh, LOCK_EX) 
                 or die "Cannot lock $my_log_file: $!";
 
-            # Get the current date and time
             my $timestamp = strftime "%Y-%m-%d %H:%M:%S", localtime;
-
-            # Write the message to the log file with a timestamp
             print $fh "$timestamp - $message\n";
-
-            # Close the file
             close $fh;
         };
         if ($@) {
@@ -180,21 +170,18 @@ sub check_session {
         return;
     }
     
-    # Getting a Koha session
     my $session = C4::Auth::get_session($session_id);
     unless ($session) {
         log_message("Yes", "Invalid session");
         return;
     }
     
-    # Checking if the user is logged in
     my $userid = $session->param('id');
     unless ($userid) {
         log_message("Yes", "User not logged in");
         return;
     }
     
-    # Generate a CSRF token
     my $tokenizer = Koha::Token->new;
     my $csrf_token = $tokenizer->generate_csrf({ session_id => $session_id });
     
@@ -298,7 +285,6 @@ sub install {
         return 0;
     }
 
-    # LOG trigger in SQL
     my $trigger_sql = qq{
     CREATE TRIGGER log_user_changes
     AFTER UPDATE ON borrowers
@@ -401,18 +387,15 @@ sub upgrade {
     my $dbh = C4::Context->dbh;
     my $success = 1;
 
-    # Ensure $VERSION is defined
     our $VERSION = $VERSION || '1.0';
     log_message("Yes", "Starting upgrade process for plugin version $VERSION");
 
-    # Check if this is a new installation
     my $installed_version = $self->retrieve_data('installed_version') || '0';
     my $is_new_install = ($installed_version eq '0');
 
     log_message("Yes", "Is new install: " . ($is_new_install ? "Yes" : "No"));
     log_message("Yes", "Installed version: $installed_version");
 
-    # Add new columns to imcode_logs table
     my $alter_table_sql = q{
         ALTER TABLE imcode_logs
         ADD COLUMN IF NOT EXISTS added_count INT DEFAULT 0,
@@ -431,7 +414,6 @@ sub upgrade {
         $success = 0;
     }
 
-    # Always attempt to drop the trigger first
     my $drop_trigger_sql = q{
         DROP TRIGGER IF EXISTS log_user_changes
     };
@@ -445,7 +427,6 @@ sub upgrade {
         $success = 0;
     }
 
-    # Create the new trigger
     my $create_trigger_sql = q{
     CREATE TRIGGER log_user_changes
     AFTER UPDATE ON borrowers
@@ -537,7 +518,6 @@ sub upgrade {
         $success = 0;
     }
 
-    # Verify the trigger was created
     my $verify_trigger_sql = q{
         SELECT TRIGGER_NAME FROM information_schema.triggers 
         WHERE trigger_schema = DATABASE()
@@ -554,14 +534,12 @@ sub upgrade {
         $success = 0;
     }
 
-    # Log the upgrade or installation result
     if ($success) {
         if ($is_new_install) {
             log_message("Yes", "Plugin installed successfully (version $VERSION)");
         } else {
             log_message("Yes", "Plugin upgraded successfully to version $VERSION");
         }
-        # Store the new version
         $self->store_data({ installed_version => $VERSION });
         $self->store_data({ plugin_version => $VERSION });
     } else {
@@ -620,8 +598,6 @@ sub insertConfigValue {
             warn "Error while inserting config value: $@";
             log_message("Yes", "Error while inserting config value: $@");
         }
-    } else {
-        # warn "Config value with name '$name' already exists";
     }
 }
 
@@ -734,10 +710,8 @@ sub configure {
     my ($self, $args) = @_;
     my $cgi = $self->{'cgi'};
 
-    # Checking the session
-    my $session_data = $self->check_session(0); # 0 = not cron
+    my $session_data = $self->check_session(0);
     unless ($session_data) {
-        # Redirect to the login page
         print $cgi->redirect("/cgi-bin/koha/mainpage.pl");
         return;
     }
@@ -745,7 +719,6 @@ sub configure {
     my $dbh = C4::Context->dbh;
     my $op = $cgi->param('op') || '';
 
-    # Recreate trigger only when plugin version changed
     my ($trigger_version) = $dbh->selectrow_array(
         "SELECT value FROM $config_table WHERE name = 'trigger_version'"
     );
@@ -759,7 +732,6 @@ sub configure {
         log_message("Yes", "Trigger recreated for plugin version $VERSION");
     }
 
-    # update for version 1.32 
     insertConfigValue($dbh, 'excluding_dutyRole_empty', 'No');
     insertConfigValue($dbh, 'excluding_enrolments_empty', 'No');
     insertConfigValue($dbh, 'archived_limit', '0');
@@ -795,7 +767,6 @@ sub configure {
 
     my $template = $self->get_template({ file => 'config.tt' });
 
-    # Pass success or error message to the template
     $template->param(success => $self->{'success'}) if $self->{'success'};
     $template->param(error => $self->{'error'}) if $self->{'error'};
     my $count_log_query = "SELECT COUNT(*) FROM imcode_logs WHERE DATE(created_at) = CURDATE() AND is_processed = 1";
@@ -804,7 +775,6 @@ sub configure {
 
     if ($op eq 'cud-save-config') {
         my $client_id     = $cgi->param('client_id');
-        # client_secret
         my $client_secret = $cgi->param('client_secret');
         if (defined $client_secret && length($client_secret) > 0) {
             $client_secret = xor_encrypt($client_secret, $skey);
@@ -816,7 +786,6 @@ sub configure {
             }
             $client_secret = $config_data->{ist_client_secret};
         }
-        # /client_secret
         my $customerId    = $cgi->param('customerId');
         my $api_url       = $cgi->param('api_url');
         my $oauth_url     = $cgi->param('oauth_url');
@@ -844,7 +813,6 @@ sub configure {
         my $dateexpiry_fallback  = $cgi->param('dateexpiry_fallback') || 'keep';
         my $dateexpiry_months    = int($cgi->param('dateexpiry_months') || 12);
 
-        # update not_import
         my $update_category_query = qq{UPDATE $categories_mapping_table SET not_import = NULL};
         $dbh->do($update_category_query);
         if (@category_mapping_not_import) {
@@ -855,12 +823,11 @@ sub configure {
                 WHERE id = ?
             };
             foreach my $category_id (@category_mapping_not_import) {
-                next if $category_id == 0; # skip ID = 0
+                next if $category_id == 0;
                 $dbh->do($update_category_query, undef, $category_id);
             }
         }
 
-        # delete
         if (@category_mapping_del) {
             my $delete_category_query = qq{
                 DELETE 
@@ -869,7 +836,7 @@ sub configure {
             };
 
             foreach my $category_id (@category_mapping_del) {
-                next if $category_id == 0; # skip ID = 0
+                next if $category_id == 0;
                 $dbh->do($delete_category_query, undef, $category_id);
             }
         }
@@ -881,11 +848,10 @@ sub configure {
             };
 
             foreach my $branch_id (@branch_mapping_del) {
-                next if $branch_id == 0; # skip ID = 0
+                next if $branch_id == 0;
                 $dbh->do($delete_branch_query, undef, $branch_id);
             }
         }
-        # /delete
 
         if ($new_branch_mapping && $new_organisationCode_mapping) {
             my $check_mapping_query = qq{
@@ -954,7 +920,6 @@ sub configure {
                 my $sth_update = $dbh->prepare($update_query);
                 eval {
                     if ($sth_update->execute()) {
-                        # warn "Updated records in $logs_table for current date. \n";
                         log_message("Yes", "Updated records in $logs_table for current date.");                        
                     } else {
                         log_message("Yes", "Error updating data in $logs_table: " . $dbh->errstr);
@@ -1056,11 +1021,10 @@ sub configure {
         $template->param(log_count => 0);
 
         my $status_file = get_status_file();
-        unlink $status_file if -e $status_file;        
+        unlink $status_file if -e $status_file;
+        unlink get_lock_file() if -e get_lock_file();
     }
 
-    # update for version 1.31
-    # Check for 'not_import' field
     my $add_column_query = qq{
         ALTER TABLE $categories_mapping_table
         ADD COLUMN IF NOT EXISTS not_import TINYINT(1) DEFAULT NULL
@@ -1155,7 +1119,8 @@ sub configure {
 
 
 sub xor_encrypt {
-    # simple, but without additional libraries and will not be stored in the database in open form
+    # Simple symmetric XOR encryption — avoids external crypto dependencies
+    # and ensures the secret is never stored in plaintext in the database
     my ($string, $key) = @_;
     my $encrypted = '';
     for my $i (0 .. length($string) - 1) {
@@ -1169,10 +1134,8 @@ sub tool {
     my ( $self, $args ) = @_;
     my $cgi      = $self->{'cgi'};
     
-    # Checking the session
-    my $session_data = $self->check_session(0); # 0 = not cron
+    my $session_data = $self->check_session(0);
     unless ($session_data) {
-        # Redirect to the login page
         print $cgi->redirect("/cgi-bin/koha/mainpage.pl");
         return;
     }
@@ -1181,9 +1144,8 @@ sub tool {
     my $template = $self->get_template( { file => 'tool.tt' } );
     my $op          = $cgi->param('op') || q{};
 
-    # For pagination 
-    my $page      = $cgi->param('page') || 1; # Current page
-    my $per_page  = 20; # Number of entries per page
+    my $page      = $cgi->param('page') || 1;
+    my $per_page  = 20;
     my $start_row = ($page - 1) * $per_page;
     my $total_rows = 0;
 
@@ -1216,6 +1178,7 @@ sub tool {
 
         my $status_file = get_status_file();
         unlink $status_file if -e $status_file;
+        unlink get_lock_file() if -e get_lock_file();
 
         if ($@) {
             log_message("Yes", "Error while run clean_query: $@");
@@ -1229,35 +1192,53 @@ sub tool {
         print $cgi->header('application/json');
         my $status = $self->read_status();
         
-        # Add some additional useful information
         if ($status->{pid}) {
-            # Check if process is actually running
             unless (kill(0, $status->{pid})) {
-                $status->{status} = 'error';
-                $status->{locked} = 0;
-                $status->{messages} = [
-                    {
-                        time => time(),
-                        text => "Process died unexpectedly",
+                # PID is gone — check DB to distinguish normal completion from a crash.
+                # When the child process finishes all pages, it updates status to
+                # 'completed' before exit. If status is still 'running' here, the
+                # process died unexpectedly only if no completed records exist today.
+                my ($completed_today) = $dbh->selectrow_array(qq{
+                    SELECT COUNT(*)
+                    FROM $logs_table
+                    WHERE DATE(created_at) = CURDATE()
+                    AND data_endpoint = 'persons'
+                    AND page_token_next IS NULL
+                    AND is_processed = 1
+                });
+
+                if ($completed_today > 0 || $status->{status} eq 'completed' || $status->{status} eq 'page_completed') {
+                    # Process finished normally — status file just not yet cleaned up
+                    $status->{status} = 'completed' unless $status->{status} eq 'page_completed';
+                    $status->{locked} = 0;
+                    $status->{pid}    = undef;
+                } elsif ($status->{status} eq 'running') {
+                    # Genuinely crashed — no completed records and status still running
+                    $status->{status} = 'error';
+                    $status->{locked} = 0;
+                    $status->{pid}    = undef;
+                    push @{$status->{messages}}, {
+                        time  => time(),
+                        text  => "Process died unexpectedly",
                         error => 1
-                    }
-                ];
+                    };
+                }
                 $self->save_status($status);
             }
         }
         
-        # Clean old status file if process completed/errored and it's older than 1 day
+        # Clean up stale status files older than 1 day
         if ($status->{status} ne 'running' && 
             $status->{last_update} && 
             time() - $status->{last_update} > 86400) {
             
             $status = {
-                locked => 0,
-                pid => undef,
-                started_at => undef,
-                status => 'idle',
+                locked      => 0,
+                pid         => undef,
+                started_at  => undef,
+                status      => 'idle',
                 last_update => time(),
-                messages => []
+                messages    => []
             };
             $self->save_status($status);
         }
@@ -1269,11 +1250,10 @@ sub tool {
     elsif ($op eq 'cud-force-unlock') {
         print $cgi->header('application/json');
         
-        # Check if user has the necessary permissions
         my $session_data = $self->check_session(0);
         unless ($session_data && $session_data->{permissions}->{plugins}) {
             print JSON::encode_json({
-                status => 'error',
+                status  => 'error',
                 message => 'Permission denied'
             });
             exit;
@@ -1281,49 +1261,45 @@ sub tool {
         
         my $status = $self->read_status();
         
-        # Don't allow unlock if process is young (running less than 5 minutes)
         if ($status->{started_at} && time() - $status->{started_at} < 300) {
             print JSON::encode_json({
-                status => 'error',
+                status  => 'error',
                 message => 'Process is still young, wait at least 5 minutes before forcing unlock'
             });
             exit;
         }
         
-        # If process is running, try to terminate it gracefully
         if ($status->{pid} && kill(0, $status->{pid})) {
             kill 'TERM', $status->{pid};
-            sleep 2; # Give process time to cleanup
+            sleep 2;
             
-            # If still running, force kill
             if (kill(0, $status->{pid})) {
                 kill 'KILL', $status->{pid};
             }
         }
         
-        # Reset status
         $status = {
-            locked => 0,
-            pid => undef,
-            started_at => undef,
-            status => 'idle',
+            locked      => 0,
+            pid         => undef,
+            started_at  => undef,
+            status      => 'idle',
             last_update => time(),
-            messages => [
+            messages    => [
                 {
-                    time => time(),
-                    text => "Process forcefully unlocked by user",
+                    time  => time(),
+                    text  => "Process forcefully unlocked by user",
                     error => 0
                 }
             ]
         };
         
         $self->save_status($status);
+        $self->release_lock();
         
-        # Log the forced unlock
         log_message("Yes", "Export process forcefully unlocked by user");
         
         print JSON::encode_json({
-            status => 'success',
+            status  => 'success',
             message => 'Process unlocked successfully'
         });
         exit;
@@ -1339,7 +1315,7 @@ sub tool {
         if ($self->is_process_running()) {
             $template->param(
                 process_started => {
-                    status => 'already_running',
+                    status  => 'already_running',
                     message => 'Export process is already running'
                 }
             );
@@ -1360,7 +1336,7 @@ sub tool {
         my @updates;
 
         my $search = $cgi->param('search') || q{};
-        $search = substr($search, 0, 50); # Limit to 50 characters for searching
+        $search = substr($search, 0, 50);
         my @search_terms = split(/\s+/, $search);
 
         my $select_query = qq{
@@ -1379,7 +1355,6 @@ sub tool {
                 1=1
         };
 
-        # Add search terms for each word
         if ($search) {
             my @search_conditions;
             foreach my $term (@search_terms) {
@@ -1426,7 +1401,6 @@ sub tool {
                 1=1
         };
 
-        # Add search conditions for the number of records
         if ($search) {
             my @search_conditions;
             foreach my $term (@search_terms) {
@@ -1464,28 +1438,25 @@ sub tool {
         if ($page < $total_pages) {
             $next_page = $page + 1;
         }
-        # Pass the data to the template for display
         $template->param(
-            updates => \@updates,
-            prev_page => $prev_page,
-            next_page => $next_page,
+            updates     => \@updates,
+            prev_page   => $prev_page,
+            next_page   => $next_page,
             total_pages => $total_pages,
             current_page => $page,
-            search => $search,
+            search      => $search,
         );
     }
 
     if ($op eq 'cud-show-logs') {
         my @logs;
 
-        # Execute a query on the database, selecting data from the $logs_table
         my $query = "SELECT * FROM $logs_table ORDER BY created_at DESC LIMIT $per_page OFFSET $start_row";
         
         eval {
             my $sth = $dbh->prepare($query);
             $sth->execute();
 
-            # Fetch the data and insert it into the template
             while (my $row = $sth->fetchrow_hashref()) {
                 push @logs, $row;
             }
@@ -1514,12 +1485,11 @@ sub tool {
             $next_page = $page + 1;
         }
 
-        # Pass the data to the template for display
         $template->param(
-            logs => \@logs,
-            debug_mode => $debug_mode || '',
-            prev_page => $prev_page,
-            next_page => $next_page,
+            logs        => \@logs,
+            debug_mode  => $debug_mode || '',
+            prev_page   => $prev_page,
+            next_page   => $next_page,
             total_pages => $total_pages,
             current_page => $page,
         );
@@ -1558,7 +1528,6 @@ sub tool {
             warn "Error fetching Statistics: $@";
         }
 
-        # Pass the data to the template for display
         $template->param(
             stats => \@stats
         );
@@ -1569,8 +1538,8 @@ sub tool {
     $template->param(log_count => $log_count);
 
     $template->param(
-            language => C4::Languages::getlanguage($cgi) || 'en',
-            mbf_path => abs_path( $self->mbf_path('translations') ),
+            language   => C4::Languages::getlanguage($cgi) || 'en',
+            mbf_path   => abs_path( $self->mbf_path('translations') ),
             csrf_token => $session_data->{csrf_token},
     );
 
@@ -1581,12 +1550,47 @@ sub tool {
 sub cronjob {
     my ($self, $data_endpoint, $is_web) = @_;
     
-    # Log plugin version at start
     log_message("Yes", "Starting cronjob with plugin version: $VERSION ($version_info)");
+
+    # Acquire shared lock — prevents simultaneous cron + HTTP execution.
+    # Returns undef on success, or hashref describing the existing lock owner.
+    my $existing_lock = $self->acquire_lock('cron');
+    if ($existing_lock) {
+        my $msg = "Another process already running (source: $existing_lock->{source}, pid: $existing_lock->{pid}), skipping";
+        log_message("Yes", $msg);
+        if ($is_web) {
+            return "ProcessAlreadyRunning";
+        } else {
+            print "ProcessAlreadyRunning\n";
+            return 0;
+        }
+    }
+
+    my $result = eval {
+        $self->_cronjob_inner($data_endpoint, $is_web);
+    };
+    my $err = $@;
+
+    $self->release_lock();
+
+    if ($err) {
+        if ($err =~ /EndLastPageFromAPI/) {
+            return "EndLastPageFromAPI" if $is_web;
+            print "EndLastPageFromAPI\n";
+            return 0;
+        }
+        die $err;
+    }
+
+    return $result;
+}
+
+# Internal implementation — called only from cronjob() after lock is acquired
+sub _cronjob_inner {
+    my ($self, $data_endpoint, $is_web) = @_;
 
     my $dbh = C4::Context->dbh;
 
-    # First, check if full processing was already completed today
     my $check_completed_query = qq{
         SELECT COUNT(*) 
         FROM $logs_table 
@@ -1601,7 +1605,6 @@ sub cronjob {
     $sth_check->execute($data_endpoint);
     my $completed_orgs = $sth_check->fetchall_arrayref();
     
-    # Get total number of organizations that need processing
     my $total_orgs_query = qq{
         SELECT COUNT(DISTINCT organisationCode) 
         FROM $branches_mapping_table 
@@ -1611,30 +1614,25 @@ sub cronjob {
     
     my ($total_orgs) = $dbh->selectrow_array($total_orgs_query);
     
-    # If no organizations configured, treat as single process
     if ($total_orgs == 0) {
         $total_orgs = 1;
     }
     
-    # If number of completed organizations equals total organizations, exit
     if (scalar(@$completed_orgs) >= $total_orgs) {
         log_message("Yes", "Full processing cycle already completed today for all organizations");
-        return "EndLastPageFromAPI" if $is_web; # Skipping the check for cron jobs
+        return "EndLastPageFromAPI" if $is_web;
         print "EndLastPageFromAPI\n";
         return 0;
     }
 
-    # Check if mapping table has any records
     my $check_mapping_exists = qq{
         SELECT COUNT(*) FROM $branches_mapping_table
     };
     my ($mapping_exists) = $dbh->selectrow_array($check_mapping_exists);
     
-    # Get current date
     my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
     my $today = sprintf("%04d-%02d-%02d", $year + 1900, $mon + 1, $mday);
     
-    # Clean old logs
     my $config_data = $self->get_config_data();
     my $logs_limit = int($config_data->{logs_limit}) || 3;
     
@@ -1644,7 +1642,6 @@ sub cronjob {
     };
     $dbh->do($cleanup_query, undef, $logs_limit);
 
-    # Clean archived userid/cardnumber
     my $archived_limit = int($config_data->{archived_limit}) || 0;
 
     if ($archived_limit > 0) {
@@ -1661,7 +1658,6 @@ sub cronjob {
     }
     
     if ($mapping_exists > 0) {
-        # Process with organization filtering
         my $select_branches_query = qq{
             SELECT DISTINCT bm.organisationCode 
             FROM $branches_mapping_table bm
@@ -1689,7 +1685,6 @@ sub cronjob {
             log_message('Yes', 'Found ' . scalar(@organisation_codes) . ' unprocessed organisation codes');
             
             foreach my $org_code (@organisation_codes) {
-                # Check if this specific organisation is already completed
                 my $check_org_query = qq{
                     SELECT 1 FROM $logs_table 
                     WHERE DATE(created_at) = CURDATE()
@@ -1713,10 +1708,10 @@ sub cronjob {
                     log_message('Yes', "Got organisation ID: $org_id for code: $org_code");
                     
                     my $filter_params = {
-                        'relationship.organisation' => $org_id,
-                        'relationship.startDate.onOrBefore' => $today,
-                        'relationship.endDate.onOrAfter' => $today,
-                        'relationship.entity.type' => 'enrolment'
+                        'relationship.organisation'           => $org_id,
+                        'relationship.startDate.onOrBefore'  => $today,
+                        'relationship.endDate.onOrAfter'     => $today,
+                        'relationship.entity.type'           => 'enrolment'
                     };
                     
                     eval {
@@ -1742,7 +1737,6 @@ sub cronjob {
                 }
             }
             
-            # Check if all organisations are now processed
             my $check_all_completed = qq{
                 SELECT COUNT(*) FROM (
                     SELECT DISTINCT organisationCode 
@@ -1764,7 +1758,6 @@ sub cronjob {
             if ($remaining_count == 0) {
                 log_message('Yes', "All organisations processed successfully");
 
-                # Get and log final statistics
                 my $stats_query = qq{
                     SELECT 
                         COUNT(DISTINCT organisation_code) as orgs_processed,
@@ -1791,14 +1784,13 @@ sub cronjob {
                 }
 
                 print "EndLastPageFromAPI\n";
+                die "EndLastPageFromAPI";
             }
         } else {
             log_message('Yes', "No organizations left to process today");
             return 0;
         }
     } else {
-        # Process without organization filtering
-        # First check if already processed today
         my $check_processed = qq{
             SELECT COUNT(*) 
             FROM $logs_table 
@@ -1820,8 +1812,8 @@ sub cronjob {
         
         my $filter_params = {
             'relationship.startDate.onOrBefore' => $today,
-            'relationship.endDate.onOrAfter' => $today,
-            'relationship.entity.type' => 'enrolment'
+            'relationship.endDate.onOrAfter'    => $today,
+            'relationship.entity.type'          => 'enrolment'
         };
         
         my $config_data = $self->get_config_data();
@@ -1853,7 +1845,7 @@ sub cronjob {
             if ($@ =~ /EndLastPageFromAPI/) {
                 print "EndLastPageFromAPI\n";
                 log_message('Yes', "Processing completed without organisation filtering");
-                return 0;
+                die "EndLastPageFromAPI";
             } elsif ($@ =~ /ErrorVerifyCategorycodeBranchcode/) {
                 print "ErrorVerifyCategorycodeBranchcode\n";
                 log_message('Yes', "Configuration error detected");
@@ -1868,7 +1860,6 @@ sub cronjob {
     return 1;
 }
 
-# Helper function to get configuration data
 sub get_config_data {
     my ($self) = @_;
     my $dbh = C4::Context->dbh;
@@ -1887,29 +1878,25 @@ sub get_config_data {
     return $config_data;
 }
 
-# Helper function to get organisation ID by code
 sub get_organisation_id {
     my ($self, $org_code, $config_data) = @_;
     
-    # Get API access token first
     my $ua = LWP::UserAgent->new;
     my $token = $self->get_api_token($config_data, $ua);
     return unless $token;
     
-    # Build URL for organisations endpoint
-    my $ist_url = $config_data->{ist_api_url} || '';
+    my $ist_url    = $config_data->{ist_api_url} || '';
     my $customerId = $config_data->{ist_customer_id} || '';
-    my $org_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/organisations?organisationCode=$org_code";
+    my $org_url    = "$ist_url/ss12000v2-api/source/$customerId/v2.0/organisations?organisationCode=$org_code";
     
     log_message("Yes", "get_organisation_id URL: $org_url");
     log_message("Yes", "get_organisation_id token present: " . (length($token) > 0 ? 'yes' : 'no'));
 
-    # Make request to get organisation details
     my $request = HTTP::Request->new(
         'GET',
         $org_url,
         [
-            'Accept' => 'application/json',
+            'Accept'        => 'application/json',
             'Authorization' => "Bearer $token"
         ]
     );
@@ -1930,18 +1917,17 @@ sub get_organisation_id {
     return;
 }
 
-# Helper function to get API token
 sub get_api_token {
     my ($self, $config_data, $ua) = @_;
     
-    my $client_id = $config_data->{ist_client_id} || '';
+    my $client_id     = $config_data->{ist_client_id} || '';
     my $client_secret = xor_encrypt($config_data->{ist_client_secret}, $skey) || '';
-    my $oauth_url = $config_data->{ist_oauth_url} || '';
+    my $oauth_url     = $config_data->{ist_oauth_url} || '';
     
     my $token_request = POST $oauth_url, [
-        client_id => $client_id,
+        client_id     => $client_id,
         client_secret => $client_secret,
-        grant_type => 'client_credentials'
+        grant_type    => 'client_credentials'
     ];
     
     my $token_response = $ua->request($token_request);
@@ -1964,18 +1950,16 @@ sub get_current_enrolment_old {
     my $today = $dt->ymd;
 
     foreach my $enrolment (@$enrolments) {
-        # Skip cancelled enrolments
         next if defined $enrolment->{cancelled} && $enrolment->{cancelled};
 
         my $start = $enrolment->{startDate};
         my $end   = $enrolment->{endDate};
 
-        # Check if this enrolment is currently valid
         if (defined $start && defined $end && $start le $today && $today le $end) {
-            return $enrolment; # Found current valid enrolment
+            return $enrolment;
         }
     }
-    return undef; # No valid enrolment found
+    return undef;
 }
 
 sub get_current_enrolment {
@@ -1984,9 +1968,9 @@ sub get_current_enrolment {
 
     use DateTime;
     my $dt = DateTime->now;
-    my $today = $dt->ymd; # Current date in YYYY-MM-DD format
+    my $today = $dt->ymd;
 
-    # Filter valid enrolments and sort by startDate (newest first)
+    # Filter valid enrolments and sort by startDate descending (newest first)
     my @sorted_enrolments = sort {
         $b->{startDate} cmp $a->{startDate}
     } grep {
@@ -1996,16 +1980,14 @@ sub get_current_enrolment {
         $today le $_->{endDate}
     } @$enrolments;
 
-    # If there is at least one enrolment, log it and return
     if (@sorted_enrolments) {
         my $enrolment = $sorted_enrolments[0];
         log_message('Yes', "Selected enrolment start: " . $enrolment->{startDate} . ", end: " . $enrolment->{endDate} . ", enroledAtId: " . ($enrolment->{enroledAt}->{id} // 'undefined'));
         return $enrolment;
     }
 
-    # If no enrolments found, log it
     log_message('Yes', "No valid enrolment found for user");
-    return undef; # No valid enrolment found
+    return undef;
 }
 
 
@@ -2015,9 +1997,8 @@ sub fetchDataFromAPI {
     my $dbh = C4::Context->dbh;
     my $response_page_token;     
 
-    # Reset counters at start of processing
-    our $added_count = 0;
-    our $updated_count = 0;
+    our $added_count     = 0;
+    our $updated_count   = 0;
     our $processed_count = 0;
 
     if (verify_categorycode_and_branchcode() eq "No") {
@@ -2063,7 +2044,7 @@ sub fetchDataFromAPI {
     my $logs_limit          = int($config_data->{logs_limit}) || 3;
     my $archived_limit      = int($config_data->{archived_limit}) || 0;
     my $excluding_enrolments_empty = $config_data->{excluding_enrolments_empty} || 'No';
-    my $excluding_dutyRole_empty = $config_data->{excluding_dutyRole_empty} || 'No';
+    my $excluding_dutyRole_empty   = $config_data->{excluding_dutyRole_empty} || 'No';
     my $dateexpiry_fallback = $config_data->{dateexpiry_fallback} || 'keep';
     my $dateexpiry_months   = int($config_data->{dateexpiry_months} || 12);
     
@@ -2073,7 +2054,7 @@ sub fetchDataFromAPI {
     }
 
     my $ua = LWP::UserAgent->new;
-    my $api_url = "$ist_url/ss12000v2-api/source/$customerId/v2.0/$data_endpoint?limit=$api_limit";
+    my $api_url      = "$ist_url/ss12000v2-api/source/$customerId/v2.0/$data_endpoint?limit=$api_limit";
     my $api_url_base = "$ist_url/ss12000v2-api/source/$customerId/v2.0/";
 
     if ($filter_params && ref($filter_params) eq 'HASH') {
@@ -2093,9 +2074,8 @@ sub fetchDataFromAPI {
 
     if ($oauth_response->is_success) {
         my $oauth_content = decode_json($oauth_response->decoded_content);
-        my $access_token = $oauth_content->{access_token};
+        my $access_token  = $oauth_content->{access_token};
 
-        # Get the latest token for current organisation
         my $select_tokens_query = qq{
             SELECT id, page_token_next
             FROM $logs_table
@@ -2181,7 +2161,6 @@ sub fetchDataFromAPI {
                     $data_endpoint,
                     $current_org_code
                 )) {
-                    # warn "Data from API successfully inserted into $logs_table";
                     log_message($debug_mode, "Data from API successfully inserted into $logs_table ");
                 } else {
                     die "Error inserting data into $logs_table: " . $dbh->errstr;
@@ -2192,9 +2171,8 @@ sub fetchDataFromAPI {
             }
         }
 
-        # Get mappings
         my $select_categories_mapping_query = qq{SELECT id, categorycode, dutyRole, not_import FROM $categories_mapping_table};
-        my $select_branches_mapping_query = qq{SELECT id, branchcode, organisationCode FROM $branches_mapping_table};
+        my $select_branches_mapping_query   = qq{SELECT id, branchcode, organisationCode FROM $branches_mapping_table};
         my @categories_mapping;
         my @branches_mapping;
 
@@ -2216,7 +2194,6 @@ sub fetchDataFromAPI {
             warn "Error fetching mappings: $@";
         }
 
-        # Get current iteration number
         my $select_iteration = qq{
             SELECT COALESCE(MAX(iteration_number), 0) + 1 
             FROM $logs_table 
@@ -2260,7 +2237,6 @@ sub fetchDataFromAPI {
                     WHERE data_hash = ?
                 };
                 
-                # Get organization-specific totals
                 my $org_stats_query = qq{
                     SELECT
                         SUM(processed_count) as org_processed
@@ -2292,10 +2268,8 @@ sub fetchDataFromAPI {
                 );
 
                 die "EndLastPageFromAPI";
-                # print "EndLastPageFromAPI\n";
             }
 
-            # Update the current record with counts
             my $update_query = qq{
                 UPDATE $logs_table
                 SET is_processed = 1,
@@ -2337,12 +2311,10 @@ sub getApiResponse {
         $access_token
         ) = @_;
 
-    # Request to API IST
     my $ua = LWP::UserAgent->new;
 
-    # Setting headers with an access token to connect to the API
     my $api_request = HTTP::Request->new(GET => $api_url);
-    $api_request->header('Content-Type' => 'application/json');
+    $api_request->header('Content-Type'  => 'application/json');
     $api_request->header('Authorization' => "Bearer $access_token");
     my $api_response = $ua->request($api_request);
 
@@ -2350,7 +2322,7 @@ sub getApiResponse {
         my $api_content = $api_response->decoded_content;
         return $api_content;
     } else {
-        return undef;  # if error return undef
+        return undef;
     }
 
 }
@@ -2363,17 +2335,17 @@ sub verify_categorycode_and_branchcode {
     $dbh->do("SET CHARACTER SET utf8mb4");
 
     my $select_categories_mapping_query = qq{SELECT categorycode FROM $categories_mapping_table};
-    my $select_branches_mapping_query = qq{SELECT branchcode FROM $branches_mapping_table};
+    my $select_branches_mapping_query   = qq{SELECT branchcode FROM $branches_mapping_table};
 
     my $categories_mapping_exists = $dbh->selectall_arrayref($select_categories_mapping_query);
-    my $branches_mapping_exists = $dbh->selectall_arrayref($select_branches_mapping_query);
+    my $branches_mapping_exists   = $dbh->selectall_arrayref($select_branches_mapping_query);
 
     if (@$categories_mapping_exists && @$branches_mapping_exists) {
         my $select_categorycode_query = qq{SELECT categorycode FROM $categories_table};
-        my $select_branchcode_query = qq{SELECT branchcode FROM $branches_table};
+        my $select_branchcode_query   = qq{SELECT branchcode FROM $branches_table};
 
         my $categorycode_exists = $dbh->selectall_arrayref($select_categorycode_query);
-        my $branchcode_exists = $dbh->selectall_arrayref($select_branchcode_query);
+        my $branchcode_exists   = $dbh->selectall_arrayref($select_branchcode_query);
 
         my $categorycode_in_categories_table_query = qq{
             SELECT categorycode FROM $categories_table
@@ -2421,14 +2393,12 @@ sub fetchBorrowers {
         ) = @_;
 
     my @categories_mapping = @$categories_mapping_ref;
-    my @branches_mapping = @$branches_mapping_ref;
+    my @branches_mapping   = @$branches_mapping_ref;
 
     log_message($debug_mode, 'data from mysql, categories_mapping: '.Dumper(\@categories_mapping));
     log_message($debug_mode, 'data from mysql, branches_mapping: '.Dumper(\@branches_mapping));
 
     my $dbh = C4::Context->dbh;
-
-    # dateexpiry_fallback and dateexpiry_months received as params (read once in fetchDataFromAPI)
 
     my $select_iteration = qq{
         SELECT COALESCE(MAX(iteration_number), 0) + 1 
@@ -2441,8 +2411,8 @@ sub fetchBorrowers {
             for my $i (1..$api_limit) {
 
                 my $koha_categorycode = $koha_default_categorycode;
-                my $koha_branchcode = $koha_default_branchcode;
-                my $not_import = 0;
+                my $koha_branchcode   = $koha_default_branchcode;
+                my $not_import        = 0;
 
                 my $response_page_data = $response_data->{data}[$i-1];
                 if ($response_page_data) {
@@ -2454,7 +2424,7 @@ sub fetchBorrowers {
                     my $id = $response_page_data->{id};
                     log_message($debug_mode, 'api response_page_data->{id}: '.$id);
 
-                    # start search "groupType": "Klass"
+                    # Fetch group memberships to find the current "Klass" for the student
                     my $person_groupMemberships_api_url = $api_url_base."persons/".$id."?expand=groupMemberships";
                     log_message($debug_mode, 'person_groupMemberships_api_url: '.$person_groupMemberships_api_url);
                     my $response_data_groupMemberships;
@@ -2464,32 +2434,29 @@ sub fetchBorrowers {
                     };
 
                     use DateTime;
-                    my $dt = DateTime->now;
+                    my $dt    = DateTime->now;
                     my $today = $dt->ymd;
 
                     my $klass_displayName;
                     log_message($debug_mode, '::groupMembership (trying to get Klass) BEGIN');
 
-                    # Collect all valid klasses
+                    # Collect all valid klasses and pick the newest by startDate
                     my @valid_klasses = grep {
                         $_->{group}->{groupType} eq "Klass" &&
                         $_->{group}->{endDate} gt $today &&
                         $_->{group}->{startDate} lt $today
                     } @{$response_data_groupMemberships->{_embedded}->{groupMemberships}};
 
-                    # Sort by startDate descending (newest first)
                     @valid_klasses = sort {
                         $b->{group}->{startDate} cmp $a->{group}->{startDate}
                     } @valid_klasses;
 
-                    # Pick the newest one
                     if (@valid_klasses) {
                         $klass_displayName = $valid_klasses[0]->{group}->{displayName};
                         log_message($debug_mode, 'Selected newest klass_displayName: ' . $klass_displayName);
                         log_message($debug_mode, 'klass startDate: ' . $valid_klasses[0]->{group}->{startDate});
                         log_message($debug_mode, 'klass endDate: ' . $valid_klasses[0]->{group}->{endDate});
                         
-                        # Log if multiple valid klasses found (for debugging)
                         if (@valid_klasses > 1) {
                             log_message($debug_mode, 'Multiple valid klasses found (' . scalar(@valid_klasses) . '), picked the newest');
                         }
@@ -2498,11 +2465,8 @@ sub fetchBorrowers {
                     }
 
                     log_message($debug_mode, '::groupMembership END');
-                    # end search "groupType": "Klass"
 
-                    # my $api_url_base = "$ist_url/ss12000v2-api/source/$customerId/v2.0/";
-                    # dutyRole @categories_mapping
-                    my $person_api_url = $api_url_base."duties?person=".$id;
+                    my $person_api_url    = $api_url_base."duties?person=".$id;
                     log_message($debug_mode, 'person_api_url: '.$person_api_url);
                     my $response_data_person;
                     my $duty_role;
@@ -2531,7 +2495,7 @@ sub fetchBorrowers {
                         foreach my $category_mapping (@categories_mapping) {
                             if ($category_mapping->{dutyRole} && $category_mapping->{dutyRole} eq $duty_role) {
                                 $koha_categorycode = $category_mapping->{categorycode};
-                                $not_import = $category_mapping->{not_import} || 0;
+                                $not_import        = $category_mapping->{not_import} || 0;
                                 log_message($debug_mode, 'Geted not_import flag from mysql base, category_mapping import set to: '.($not_import ? 'no' : 'yes'));
                                 last; 
                             } 
@@ -2545,25 +2509,22 @@ sub fetchBorrowers {
                         }
                     }
                     log_message($debug_mode, '::duty_role END');
-                    # /dutyRole
 
-                    # organisationCode @branches_mapping
                     my $enrolments = $response_page_data->{enrolments}; 
                     log_message($debug_mode, 'enrolments: '.Dumper($enrolments));
                     my $enroledAtId = "";
 
                     log_message($debug_mode, '::organisationCode BEGIN');
 
-                    # NEW: Get only the current valid enrolment
                     my $current_enrolment = get_current_enrolment($enrolments);
                     my $enrolment_end_date;  
 
                     if (defined $current_enrolment) {
                         my $enroledAt = $current_enrolment->{enroledAt}; 
                         if (defined $enroledAt && ref $enroledAt eq 'HASH') {
-                            $enroledAtId = $enroledAt->{id};
-                            log_message($debug_mode, 'Using current enrolment - startDate: '.$current_enrolment->{startDate}.', endDate: '.$current_enrolment->{endDate});
+                            $enroledAtId       = $enroledAt->{id};
                             $enrolment_end_date = $current_enrolment->{endDate};
+                            log_message($debug_mode, 'Using current enrolment - startDate: '.$current_enrolment->{startDate}.', endDate: '.$current_enrolment->{endDate});
                         }
                     } else {
                         log_message($debug_mode, 'No current valid enrolment found for student');
@@ -2613,7 +2574,6 @@ sub fetchBorrowers {
                             }
                             log_message($debug_mode, 'koha_branchcode settled to: '.$koha_branchcode);
                         }
-                        # /organisationCode
                     } else {
 
                         if ($excluding_enrolments_empty eq "Yes") {
@@ -2624,10 +2584,10 @@ sub fetchBorrowers {
                     }
                     log_message($debug_mode, '::organisationCode END');
 
-                    my $givenName = $response_page_data->{givenName};
+                    my $givenName  = $response_page_data->{givenName};
                     my $familyName = $response_page_data->{familyName};
-                    my $birthDate = $response_page_data->{birthDate};
-                    my $sex = $response_page_data->{sex};
+                    my $birthDate  = $response_page_data->{birthDate};
+                    my $sex        = $response_page_data->{sex};
                     if (defined $sex) {
                         if ($sex eq "Man") {
                             $sex = "M";
@@ -2640,20 +2600,19 @@ sub fetchBorrowers {
                     log_message($debug_mode, 'birthDate: '.$birthDate);
                     log_message($debug_mode, 'sex: '.$sex);
 
-                    my $emails = $response_page_data->{emails}; # we get an array
-                    my $email = "";
-                    my $B_email = ""; # field B_email in DB
+                    my $emails  = $response_page_data->{emails};
+                    my $email   = "";
+                    my $B_email = "";
 
-                    # ver 1.521:
                     if (defined $emails && ref $emails eq 'ARRAY') {
-                        my $found_private = 0;
+                        my $found_private    = 0;
                         my $first_non_private;
   
                         foreach my $selectedEmail (@$emails) {
                             next unless defined $selectedEmail->{value};
                             
                             if ($selectedEmail->{type} eq "Privat") {
-                                $B_email = lc($selectedEmail->{value});
+                                $B_email       = lc($selectedEmail->{value});
                                 $found_private = 1;
                             } elsif (!defined $first_non_private) {
                                 $first_non_private = lc($selectedEmail->{value});
@@ -2669,31 +2628,31 @@ sub fetchBorrowers {
                     log_message($debug_mode, 'email: '.$email);
                     log_message($debug_mode, 'B_email: '.$B_email);
 
-                    my $addresses = $response_page_data->{addresses}; # we get an array
+                    my $addresses = $response_page_data->{addresses};
                     log_message($debug_mode, 'Geted addresses from api: '.Dumper($addresses));
-                    my $streetAddress = "";
-                    my $locality = "";
-                    my $postalCode = "";
-                    my $country = "";
-                    my $countyCode = "";
-                    my $municipalityCode = "";
-                    my $realEstateDesignation = "";
-                    my $type = "";
+                    my $streetAddress          = "";
+                    my $locality               = "";
+                    my $postalCode             = "";
+                    my $country                = "";
+                    my $countyCode             = "";
+                    my $municipalityCode       = "";
+                    my $realEstateDesignation  = "";
+                    my $type                   = "";
                     if (defined $addresses && ref $addresses eq 'ARRAY') {
                        foreach my $selectedAddresses (@$addresses) {
                             $type = $selectedAddresses->{type};
                             if (defined $type && length($type) > 1 && $type =~ /Folkbokf.?ring/) {
                                 if (defined $selectedAddresses->{streetAddress}) {               
-                                    $streetAddress = ucfirst(lc($selectedAddresses->{streetAddress})); # field 'addresses' in DB
+                                    $streetAddress = ucfirst(lc($selectedAddresses->{streetAddress}));
                                 }
                                 if (defined $selectedAddresses->{locality}) {
-                                    $locality = ucfirst(lc($selectedAddresses->{locality})); # field 'city' ?
+                                    $locality = ucfirst(lc($selectedAddresses->{locality}));
                                 }
-                                $postalCode = $selectedAddresses->{postalCode}; # field 'zipcode'
-                                $country = $selectedAddresses->{country}; # field 'country'
-                                $countyCode = $selectedAddresses->{countyCode}; # now not use
-                                $municipalityCode = $selectedAddresses->{municipalityCode}; # now not use
-                                $realEstateDesignation = $selectedAddresses->{realEstateDesignation}; # now not use
+                                $postalCode            = $selectedAddresses->{postalCode};
+                                $country               = $selectedAddresses->{country};
+                                $countyCode            = $selectedAddresses->{countyCode};
+                                $municipalityCode      = $selectedAddresses->{municipalityCode};
+                                $realEstateDesignation = $selectedAddresses->{realEstateDesignation};
                             }
                         }
                     }
@@ -2708,12 +2667,12 @@ sub fetchBorrowers {
 
                     my $phoneNumbers = $response_page_data->{phoneNumbers};
                     log_message($debug_mode, 'Geted phoneNumbers from api: '.Dumper($phoneNumbers));
-                    my $phone = "";
+                    my $phone        = "";
                     my $mobile_phone = "";
                     if (defined $phoneNumbers && ref $phoneNumbers eq 'ARRAY') {
                         foreach my $selectedPhone (@$phoneNumbers) {
                             my $phone_value = $selectedPhone->{value};
-                            my $is_mobile = $selectedPhone->{mobile};
+                            my $is_mobile   = $selectedPhone->{mobile};
                             if ($is_mobile) {
                                 $mobile_phone = $phone_value;
                             } else {
@@ -2727,7 +2686,6 @@ sub fetchBorrowers {
                     my $cardnumber;
                     my $civicNo = $response_page_data->{civicNo};
                     if (defined $civicNo && ref $civicNo eq 'HASH') {
-                            # $nationality = $civicNo->{nationality};
                             $cardnumber = $civicNo->{value}; 
                     }
                     log_message($debug_mode, 'cardnumber: '.$cardnumber);
@@ -2746,7 +2704,6 @@ sub fetchBorrowers {
                     log_message($debug_mode, 'userid: '.$userid);
 
                     if (!defined $email || $email eq "") { $email = undef; }
-                    # warn "not_import, must be !=1, now is: ".$not_import;
                     log_message($debug_mode, 'addOrUpdateBorrower data from api to our Koha: '.($not_import ? 'no' : 'yes'));
                     $processed_count++; 
 
@@ -2802,7 +2759,6 @@ sub fetchBorrowers {
                     log_message($debug_mode, 'ENDED DEBUGGING THE CURRENT USER');
                     log_message($debug_mode, ' ');
                 } 
-                # here
             }
 
             if ($j >0) {
@@ -2870,22 +2826,22 @@ sub has_changes {
     
     my %fields_to_compare = (
         'dateofbirth' => $new_values->{birthdate},
-        'email' => $new_values->{email},
-        'sex' => $new_values->{sex},
-        'phone' => $new_values->{phone},
-        'mobile' => $new_values->{mobile_phone},
-        'surname' => $new_values->{surname},
-        'firstname' => $new_values->{firstname},
+        'email'       => $new_values->{email},
+        'sex'         => $new_values->{sex},
+        'phone'       => $new_values->{phone},
+        'mobile'      => $new_values->{mobile_phone},
+        'surname'     => $new_values->{surname},
+        'firstname'   => $new_values->{firstname},
         'categorycode' => $new_values->{categorycode},
-        'branchcode' => $new_values->{branchcode},
-        'address' => $new_values->{streetAddress},
-        'city' => $new_values->{locality},
-        'zipcode' => $new_values->{postalCode},
-        'country' => $new_values->{country},
-        'B_email' => $new_values->{B_email},
-        'userid' => $new_values->{newUserID},
-        'cardnumber' => $new_values->{newCardnumber},
-        'dateexpiry' => $new_values->{enrolment_end_date}
+        'branchcode'  => $new_values->{branchcode},
+        'address'     => $new_values->{streetAddress},
+        'city'        => $new_values->{locality},
+        'zipcode'     => $new_values->{postalCode},
+        'country'     => $new_values->{country},
+        'B_email'     => $new_values->{B_email},
+        'userid'      => $new_values->{newUserID},
+        'cardnumber'  => $new_values->{newCardnumber},
+        'dateexpiry'  => $new_values->{enrolment_end_date}
     );
     
     my @changed_fields;
@@ -2897,7 +2853,7 @@ sub has_changes {
         
         if ($old_value ne $new_value) {
             push @changed_fields, {
-                field => $field,
+                field     => $field,
                 old_value => $old_value,
                 new_value => $new_value
             };
@@ -2907,7 +2863,6 @@ sub has_changes {
     return @changed_fields;
 }
 
-# Function to add or update user data in the borrowers table
 sub addOrUpdateBorrower {
     my (
         $cardnumber, 
@@ -2937,24 +2892,18 @@ sub addOrUpdateBorrower {
     
     my $dbh = C4::Context->dbh;
 
-    # FIX: capture $version_info at runtime as a local variable
-    # to ensure the current version is always used in SQL strings
     my $current_version_info = $version_info;
 
     my $newUserID;
     my $newCardnumber;
 
-    # Determine the new userid based on plugin settings
     if ($useridPlugin eq "civicNo" || $useridPlugin eq "externalIdentifier") {
         $newUserID = ($useridPlugin eq "civicNo") ? $userid : $externalIdentifier;
     }
 
-    # Determine the new cardnumber based on plugin settings
     if ($cardnumberPlugin eq "civicNo" || $cardnumberPlugin eq "externalIdentifier") {
         $newCardnumber = ($cardnumberPlugin eq "civicNo") ? $cardnumber : $externalIdentifier;
     }
-
-    # dateexpiry_fallback and dateexpiry_months are passed in from fetchBorrowers (read once per batch)
 
     # Hash dispatcher for dateexpiry fallback strategies.
     # Each strategy returns a hashref:
@@ -2974,9 +2923,9 @@ sub addOrUpdateBorrower {
         } },
         'months' => sub {
             my @t = localtime(time);
-            $t[4] += $dateexpiry_months;     # add months
-            $t[5] += int($t[4] / 12);        # carry over to years
-            $t[4]  = $t[4] % 12;             # normalize month 0-11
+            $t[4] += $dateexpiry_months;
+            $t[5] += int($t[4] / 12);
+            $t[4]  = $t[4] % 12;
             my $calculated = POSIX::strftime("%Y-%m-%d", @t);
             return {
                 fragment        => 'dateexpiry = ?',
@@ -2986,19 +2935,18 @@ sub addOrUpdateBorrower {
         },
     );
 
-    # Determine final dateexpiry: valid API date always wins, otherwise use configured fallback
+    # Valid API date always wins; otherwise use the configured fallback strategy
     my $dateexpiry;
     if (defined $enrolment_end_date && $enrolment_end_date =~ /^\d{4}-\d{2}-\d{2}$/) {
         $dateexpiry = { fragment => 'dateexpiry = ?', has_placeholder => 1, value => $enrolment_end_date };
         log_message('Yes', "dateexpiry: using API value $enrolment_end_date");
     } else {
         my $strategy = $dateexpiry_strategies{$dateexpiry_fallback}
-                    // $dateexpiry_strategies{'keep'}; # safe default for unknown values
+                    // $dateexpiry_strategies{'keep'};
         $dateexpiry = $strategy->();
         log_message('Yes', "dateexpiry: fallback=$dateexpiry_fallback => $dateexpiry->{fragment}");
     }
 
-    # Find all duplicates with comprehensive information about their usage
     my $find_duplicates_query = qq{
         SELECT b.*, 
             dateofbirth, email, sex, phone, mobile, 
@@ -3029,10 +2977,8 @@ sub addOrUpdateBorrower {
     my $existing_borrower;
     
     if (@duplicates > 1) {
-        # Select the record with the most activity as the main record
         my $main_record = shift @duplicates;
         
-        # Log detailed information about the main record
         log_message('Yes', sprintf(
             "Selected main record borrowernumber: %d (issues: %d, old_issues: %d, reserves: %d, attributes: %d, accountlines: %d, messages: %d)",
             $main_record->{borrowernumber},
@@ -3044,9 +2990,7 @@ sub addOrUpdateBorrower {
             $main_record->{messages_count}
         ));
         
-        # Process and merge each duplicate record
         for my $duplicate (@duplicates) {
-            # Log information about the duplicate being processed
             log_message('Yes', sprintf(
                 "Processing duplicate borrowernumber: %d (issues: %d, old_issues: %d, reserves: %d, attributes: %d, accountlines: %d, messages: %d)",
                 $duplicate->{borrowernumber},
@@ -3058,26 +3002,24 @@ sub addOrUpdateBorrower {
                 $duplicate->{messages_count}
             ));
             
-            # List of tables that need to be updated with the new borrowernumber
             my @tables_to_update = (
-                'issues',              # Current checkouts
-                'old_issues',          # Checkout history
-                'reserves',            # Current holds
-                'old_reserves',        # Hold history
-                'borrower_attributes', # Additional borrower information
-                'accountlines',        # Financial transactions
-                'message_queue',       # Messages
-                'statistics',          # Usage statistics (very big db table)
-                'borrower_files',      # Attached files
-                'borrower_debarments', # Borrower restrictions
-                'borrower_modifications', # Modification requests
-                'club_enrollments',     # Club memberships
-                'illrequests',          # Interlibrary loan requests
-                'tags_all',             # User tags
-                'reviews'               # User reviews
+                'issues',
+                'old_issues',
+                'old_reserves',
+                'reserves',
+                'borrower_attributes',
+                'accountlines',
+                'message_queue',
+                'statistics',
+                'borrower_files',
+                'borrower_debarments',
+                'borrower_modifications',
+                'club_enrollments',
+                'illrequests',
+                'tags_all',
+                'reviews'
             );
             
-            # Update each table to point to the main record
             foreach my $table (@tables_to_update) {
                 my $update_query = qq{
                     UPDATE $table 
@@ -3097,8 +3039,6 @@ sub addOrUpdateBorrower {
                 }
             }
             
-            # FIX: removed inline SQL comment (# ...) which is invalid SQL syntax
-            # Instead of deleting, mark the duplicate record as archived
             eval {
                 my $archive_query = qq{
                     UPDATE $borrowers_table 
@@ -3114,7 +3054,6 @@ sub addOrUpdateBorrower {
                     WHERE borrowernumber = ?
                 };
                 my $archive_sth = $dbh->prepare($archive_query);
-                # FIX: pass $current_version_info as parameter instead of interpolating in SQL string
                 $archive_sth->execute(
                     $current_version_info,
                     $main_record->{borrowernumber},
@@ -3130,32 +3069,30 @@ sub addOrUpdateBorrower {
             }
         }
         
-        # Use the main record for further updates
         $existing_borrower = $main_record;
         
     } elsif (@duplicates == 1) {
-        # If only one record exists, use it
         $existing_borrower = $duplicates[0];
     }
 
     if ($existing_borrower) {
         my @changes = has_changes($existing_borrower, {
-            birthdate => $birthdate,
-            email => $email,
-            sex => $sex,
-            phone => $phone,
-            mobile_phone => $mobile_phone,
-            surname => $surname,
-            firstname => $firstname,
-            categorycode => $categorycode,
-            branchcode => $branchcode,
-            streetAddress => $streetAddress,
-            locality => $locality,
-            postalCode => $postalCode,
-            country => $country,
-            B_email => $B_email,
-            newUserID => $newUserID,
-            newCardnumber => $newCardnumber,
+            birthdate          => $birthdate,
+            email              => $email,
+            sex                => $sex,
+            phone              => $phone,
+            mobile_phone       => $mobile_phone,
+            surname            => $surname,
+            firstname          => $firstname,
+            categorycode       => $categorycode,
+            branchcode         => $branchcode,
+            streetAddress      => $streetAddress,
+            locality           => $locality,
+            postalCode         => $postalCode,
+            country            => $country,
+            B_email            => $B_email,
+            newUserID          => $newUserID,
+            newCardnumber      => $newCardnumber,
             enrolment_end_date => $dateexpiry->{value}
         });
         
@@ -3171,7 +3108,6 @@ sub addOrUpdateBorrower {
 
             my $changed_fields_str = join(', ', map { $_->{field} } @changes);
             
-            # FIX: pass $current_version_info as parameter and use dynamic dateexpiry fragment
             my $update_query = qq{
                 UPDATE $borrowers_table
                 SET 
@@ -3219,7 +3155,6 @@ sub addOrUpdateBorrower {
             
             my $update_sth = $dbh->prepare($update_query);
 
-            # Build bind values dynamically — dateexpiry placeholder is optional
             my @bind_values = (
                 $birthdate,
                 $email,
@@ -3238,13 +3173,12 @@ sub addOrUpdateBorrower {
                 $newUserID,
                 $newCardnumber,
             );
-            # Only add dateexpiry bind value if the SQL fragment has a placeholder
             push @bind_values, $dateexpiry->{value} if $dateexpiry->{has_placeholder};
             push @bind_values, (
-                $current_version_info, $changed_fields_str,  # WHEN opacnote IS NULL
-                $current_version_info, $changed_fields_str,  # WHEN Updated by
-                $current_version_info, $changed_fields_str,  # WHEN Added by
-                $current_version_info, $changed_fields_str,  # ELSE
+                $current_version_info, $changed_fields_str,
+                $current_version_info, $changed_fields_str,
+                $current_version_info, $changed_fields_str,
+                $current_version_info, $changed_fields_str,
                 $existing_borrower->{'borrowernumber'}
             );
 
@@ -3261,7 +3195,6 @@ sub addOrUpdateBorrower {
             $borrowernumber = $existing_borrower->{'borrowernumber'};
         }
     } else {
-        # FIX: pass $current_version_info as parameter instead of interpolating in SQL string
         my $insert_query = qq{
             INSERT INTO $borrowers_table (
                 cardnumber,
@@ -3313,7 +3246,6 @@ sub addOrUpdateBorrower {
             $B_email,
             $newUserID,
         );
-        # Only add dateexpiry bind value if the SQL fragment has a placeholder
         push @insert_bind, $dateexpiry->{value} if $dateexpiry->{has_placeholder};
         push @insert_bind, $current_version_info;
 
@@ -3325,16 +3257,14 @@ sub addOrUpdateBorrower {
         };
         if ($@) {
             log_message('Yes', "Error inserting user: $@");
-            return; # Exit early if insertion fails
+            return;
         }
     }
 
-    # Process class attribute if provided and borrowernumber is valid
     if ($borrowernumber && $klass_displayName) {
         my $code = 'CL';
         log_message('Yes', "Processing Klass attribute for borrowernumber $borrowernumber, plugin version: $VERSION");
 
-        # Check if entry exists in borrower_attribute_types
         my $check_types_query = qq{
             SELECT 1 FROM borrower_attribute_types WHERE code = ?
         };
@@ -3342,7 +3272,6 @@ sub addOrUpdateBorrower {
         $check_types_sth->execute($code);
         my ($exists) = $check_types_sth->fetchrow_array();
 
-        # Create attribute type if it doesn't exist
         unless ($exists) {
             my $insert_types_query = qq{
                 INSERT INTO borrower_attribute_types (
@@ -3372,11 +3301,10 @@ sub addOrUpdateBorrower {
             };
             if ($@) {
                 log_message('Yes', "Error creating borrower_attribute_types: $@");
-                return; # Exit early if attribute type creation fails
+                return;
             }
         }
 
-        # Check if attribute record exists
         my $check_query = qq{
             SELECT attribute FROM borrower_attributes 
             WHERE borrowernumber = ? AND code = ?
@@ -3388,15 +3316,13 @@ sub addOrUpdateBorrower {
         };
         if ($@) {
             log_message('Yes', "Error executing SELECT for borrower_attributes: $@");
-            return; # Exit early if query fails
+            return;
         }
         my $existing_attribute = $check_sth->fetchrow_array();
 
-        # Log existing and new values
         log_message('Yes', "Existing Klass in DB: " . ($existing_attribute // 'None') . ", New from API: $klass_displayName");
 
         if (defined $existing_attribute) {
-            # Update existing attribute if value is different
             if ($existing_attribute ne $klass_displayName) {
                 my $update_query = qq{
                     UPDATE borrower_attributes
@@ -3416,7 +3342,6 @@ sub addOrUpdateBorrower {
                 log_message('Yes', "Klass attribute unchanged, no update needed");
             }
         } else {
-            # Insert new attribute
             my $insert_query = qq{
                 INSERT INTO borrower_attributes (borrowernumber, code, attribute)
                 VALUES (?, ?, ?)
@@ -3448,14 +3373,13 @@ sub get_log_contents {
         my @lines = <$fh>;
         close $fh;
 
-        # Get last 100 lines
         @lines = @lines[-100..-1] if @lines > 100;
 
         foreach my $line (@lines) {
             if ($line =~ /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(.+)$/) {
                 push @log_lines, {
                     timestamp => $1,
-                    message => $2
+                    message   => $2
                 };
             }
         }
@@ -3464,10 +3388,74 @@ sub get_log_contents {
     return \@log_lines;
 }
 
-# Simplified status management - combines lock and progress tracking
 sub get_status_file {
     my $log_config_dir = C4::Context->config("logdir"); 
     return File::Spec->catfile($log_config_dir, 'imcode-export-users-status.json');
+}
+
+# Returns the path to the shared process lock file.
+# Both HTTP (web UI) and cron use this same file to prevent concurrent runs.
+sub get_lock_file {
+    my $log_config_dir = C4::Context->config("logdir");
+    return File::Spec->catfile($log_config_dir, 'imcode-export-users.lock');
+}
+
+# Attempts to acquire the process lock atomically using O_EXCL.
+# $source: 'http' or 'cron' — identifies who is acquiring the lock.
+# Returns undef on success (lock acquired).
+# Returns a hashref with {pid, source, started_at} if lock already held by a live process.
+sub acquire_lock {
+    my ($self, $source) = @_;
+    my $lock_file = get_lock_file();
+
+    my $fh;
+    unless (sysopen($fh, $lock_file, O_WRONLY|O_CREAT|O_EXCL, 0644)) {
+        # Lock file exists — check if the owning process is still alive
+        if (open my $rfh, '<', $lock_file) {
+            local $/;
+            my $raw  = <$rfh>;
+            close $rfh;
+            my $data = eval { decode_json($raw) };
+            if ($data && $data->{pid} && kill(0, $data->{pid})) {
+                return $data; # Live process holds the lock
+            }
+        }
+        # Stale lock (process gone) — remove and retry once
+        unlink $lock_file;
+        unless (sysopen($fh, $lock_file, O_WRONLY|O_CREAT|O_EXCL, 0644)) {
+            log_message("Yes", "acquire_lock: could not create lock file after removing stale lock");
+            return { pid => 0, source => 'unknown', started_at => 0 };
+        }
+    }
+
+    my $lock_data = {
+        pid        => $$,
+        source     => $source,
+        started_at => time()
+    };
+    print $fh encode_json($lock_data);
+    close $fh;
+    return undef; # Lock acquired successfully
+}
+
+# Releases the process lock by removing the lock file.
+sub release_lock {
+    my ($self) = @_;
+    my $lock_file = get_lock_file();
+    unlink $lock_file if -e $lock_file;
+}
+
+# Returns the lock file contents as a hashref, or undef if no lock file exists.
+sub get_lock_info {
+    my ($self) = @_;
+    my $lock_file = get_lock_file();
+    return undef unless -f $lock_file;
+
+    open my $fh, '<', $lock_file or return undef;
+    local $/;
+    my $data = eval { decode_json(<$fh>) };
+    close $fh;
+    return $data;
 }
 
 sub read_status {
@@ -3481,12 +3469,12 @@ sub read_status {
         return JSON::decode_json($json);
     }
     return {
-        locked => 0,
-        pid => undef,
-        started_at => undef,
-        status => 'idle',
+        locked      => 0,
+        pid         => undef,
+        started_at  => undef,
+        status      => 'idle',
         last_update => undef,
-        messages => []
+        messages    => []
     };
 }
 
@@ -3509,18 +3497,15 @@ sub save_status {
 
 sub is_process_running {
     my ($self) = @_;
-    my $status = $self->read_status();
-    
-    if ($status->{locked} && $status->{pid}) {
-        # Check if process is still running
-        if (kill(0, $status->{pid})) {
-            return 1;
+
+    # Check the shared lock file — authoritative source for running state
+    my $lock_info = $self->get_lock_info();
+    if ($lock_info && $lock_info->{pid}) {
+        if (kill(0, $lock_info->{pid})) {
+            return 1; # Process is alive
         }
-        # Process not running, clear status
-        $status->{locked} = 0;
-        $status->{pid} = undef;
-        $status->{status} = 'idle';
-        $self->save_status($status);
+        # Stale lock — clean up
+        $self->release_lock();
     }
     return 0;
 }
@@ -3530,100 +3515,171 @@ sub start_export_process {
     
     if ($self->is_process_running()) {
         return { 
-            status => 'error',
+            status  => 'error',
             message => 'Export process is already running'
         };
     }
-    
-    my $status = $self->read_status();
-    $status->{locked} = 1;
-    $status->{pid} = $$;
-    $status->{started_at} = time();
-    $status->{status} = 'running';
-    $status->{last_update} = time();
-    
-    unless ($self->save_status($status)) {
+
+    # Acquire lock before forking so the child PID can be recorded atomically.
+    # The lock is acquired here in the parent; the child updates it with its own PID.
+    my $existing = $self->acquire_lock('http');
+    if ($existing) {
         return {
-            status => 'error',
-            message => 'Failed to create process lock'
+            status  => 'error',
+            message => 'Could not acquire process lock — another process is running'
         };
     }
-    
-    # Run the process in the background
-    if (my $pid = fork()) {
-        return {
-            status => 'started',
-            pid => $pid
+
+    my $started_at = time();
+
+    if (my $child_pid = fork()) {
+        # Parent: record the child PID in both the lock file and status file,
+        # then return immediately so the HTTP response is not blocked.
+        my $lock_file = get_lock_file();
+        if (open my $fh, '>', $lock_file) {
+            print $fh encode_json({ pid => $child_pid, source => 'http', started_at => $started_at });
+            close $fh;
+        }
+
+        my $status = {
+            locked      => 1,
+            pid         => $child_pid,   # child PID — not the CGI parent's PID
+            started_at  => $started_at,
+            status      => 'running',
+            last_update => time(),
+            messages    => []
         };
-    } elsif (defined $pid) {
+        $self->save_status($status);
+
+        return {
+            status     => 'started',
+            pid        => $child_pid,
+            started_at => $started_at
+        };
+    } elsif (defined $child_pid) {
+        # Child: update lock file with own PID, then run export
+        my $lock_file = get_lock_file();
+        if (open my $fh, '>', $lock_file) {
+            print $fh encode_json({ pid => $$, source => 'http', started_at => $started_at });
+            close $fh;
+        }
         $self->run_web_export();
-        exit;
+        exit 0;
+    } else {
+        $self->release_lock();
+        return {
+            status  => 'error',
+            message => 'Failed to fork export process'
+        };
     }
 }
 
 sub run_web_export {
     my $self = shift;
+    my $dbh  = C4::Context->dbh;
     
     eval {
         my $status = $self->read_status();
         $status->{messages} = [];
         $self->save_status($status);
 
-        # Run export process
-        my $result = $self->cronjob("persons",1);
+        # cronjob() manages its own lock internally; since we already hold
+        # the HTTP lock, pass is_web=1 to skip the duplicate lock attempt
+        # inside cronjob and get return values instead of print output.
+        my $result = $self->_cronjob_inner("persons", 1);
 
-        # Update final status
         $status = $self->read_status();
-        $status->{status} = 'completed';
-        $status->{locked} = 0;
-        $status->{pid} = undef;
-        
-        # Check if the result contains "EndLastPageFromAPI" and add a message
-        if ($result =~ /EndLastPageFromAPI/) {
+
+        if (defined $result && $result eq "EndLastPageFromAPI") {
+            # All pages processed — mark complete and clean up
+            $status->{status}  = 'completed';
+            $status->{locked}  = 0;
+            $status->{pid}     = undef;
             push @{$status->{messages}}, {
-                time => time(),
-                text => "Export completed with 'EndLastPageFromAPI' message",
+                time  => time(),
+                text  => "All pages processed successfully",
                 error => 0
             };
+            $self->save_status($status);
+            sleep 10; # Keep status file long enough for the UI to read final state
+            unlink get_status_file();
+        } else {
+            # One page done, more pages remain — UI will show "Scan next page" button
+            my ($pages_done) = $dbh->selectrow_array(qq{
+                SELECT COUNT(*) FROM $logs_table 
+                WHERE DATE(created_at) = CURDATE() 
+                AND is_processed = 1 
+                AND data_endpoint = 'persons'
+            });
+            $status->{status}          = 'page_completed';
+            $status->{locked}          = 0;
+            $status->{pid}             = undef;
+            $status->{pages_completed} = $pages_done;
+            push @{$status->{messages}}, {
+                time  => time(),
+                text  => "Page $pages_done processed. More pages available.",
+                error => 0
+            };
+            $self->save_status($status);
         }
-
-        $self->save_status($status);
-        return 1;
-    } or do {
-        my $error = $@ || 'Unknown error';
-        my $status = $self->read_status();
-        $status->{status} = 'error';
-        $status->{locked} = 0;
-        $status->{pid} = undef;
-        push @{$status->{messages}}, {
-            time => time(),
-            text => "Error during export: $error",
-            error => 1
-        };
-        $self->save_status($status);
-        return 0;
     };
+
+    if ($@) {
+        my $error = $@;
+
+        if ($error =~ /EndLastPageFromAPI/) {
+            # Cronjob signals completion via die — this is expected, not an error
+            my $status = $self->read_status();
+            $status->{status} = 'completed';
+            $status->{locked} = 0;
+            $status->{pid}    = undef;
+            push @{$status->{messages}}, {
+                time  => time(),
+                text  => "All pages processed successfully",
+                error => 0
+            };
+            $self->save_status($status);
+            sleep 10;
+            unlink get_status_file();
+        } else {
+            # Genuine error
+            my $status = $self->read_status();
+            $status->{status} = 'error';
+            $status->{locked} = 0;
+            $status->{pid}    = undef;
+            push @{$status->{messages}}, {
+                time  => time(),
+                text  => "Error during export: $error",
+                error => 1
+            };
+            $self->save_status($status);
+        }
+    }
+
+    $self->release_lock();
 }
 
-# New method to force unlock process
 sub force_unlock {
     my ($self) = @_;
-    my $status = $self->read_status();
+    my $lock_info = $self->get_lock_info();
     
-    if ($status->{pid} && kill(0, $status->{pid})) {
+    if ($lock_info && $lock_info->{pid} && kill(0, $lock_info->{pid})) {
         return {
-            status => 'error',
+            status  => 'error',
             message => 'Process is still running'
         };
     }
     
+    $self->release_lock();
+
+    my $status = $self->read_status();
     $status->{locked} = 0;
-    $status->{pid} = undef;
+    $status->{pid}    = undef;
     $status->{status} = 'idle';
     $self->save_status($status);
     
     return {
-        status => 'success',
+        status  => 'success',
         message => 'Process unlocked successfully'
     };
 }

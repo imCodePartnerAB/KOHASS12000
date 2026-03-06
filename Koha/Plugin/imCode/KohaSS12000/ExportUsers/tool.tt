@@ -10,8 +10,8 @@
 [% INCLUDE 'cat-search.inc' %]
 
 <div id="breadcrumbs">
-    <a href="/cgi-bin/koha/mainpage.pl">[% 'Home' | gettext %]</a> &rsaquo; 
-    <a href="/cgi-bin/koha/plugins/plugins-home.pl">[% 'Plugins' | gettext %]</a> &rsaquo;  
+    <a href="/cgi-bin/koha/mainpage.pl">[% 'Home' | gettext %]</a> &rsaquo;
+    <a href="/cgi-bin/koha/plugins/plugins-home.pl">[% 'Plugins' | gettext %]</a> &rsaquo;
     [% 'KohaSS12000 &rsaquo; Tool' | gettext %]
 </div>
 
@@ -26,7 +26,7 @@
             <table><tr>
             <td>
                 <select class="form-control" name="op">
-                    <option value="cud-run-export" [% IF run_export %]SELECTED[% END %]>[% 'Start exporting data from the API' | gettext %]</option> 
+                    <option value="cud-run-export" [% IF run_export %]SELECTED[% END %]>[% 'Start exporting data from the API' | gettext %]</option>
                     <option value="cud-show-logs" [% IF logs %]SELECTED[% END %]>[% 'Show user export log' | gettext %]</option>
                     <option value="cud-show-stat" [% IF stats %]SELECTED[% END %]>[% 'Show user export statistics' | gettext %]</option>
                     <option value="cud-show-updates" [% IF updates %]SELECTED[% END %]>[% 'Show users data update' | gettext %]</option>
@@ -46,7 +46,7 @@
                 <div class="col-sm-10 col-sm-push-1">
                     <main>
                         <h1>[% 'SS12000 Export Users Tool' | gettext %]</h1>
-                        
+
                         [% IF process_started %]
                             <div id="export-status">
                                 <h3>Export Status</h3>
@@ -58,70 +58,111 @@
                                         <strong>Process ID:</strong> <span id="process-pid"></span><br>
                                         <strong>Started:</strong> <span id="start-time"></span>
                                     </div>
+                                    <div id="pages-info" style="display: none; margin-top: 8px;">
+                                        <strong>Pages processed today:</strong> <span id="pages-count">0</span>
+                                    </div>
                                 </div>
-                                
-                                <button id="force-unlock" class="btn btn-primary" style="display: none;">
-                                    [% 'Force Unlock Process' | gettext %]
-                                </button>
+
+                                <div id="action-buttons" style="margin-top: 10px;">
+                                    <!-- Shown when a page finishes but more pages remain -->
+                                    <button id="next-page-btn" class="btn btn-success" style="display: none;">
+                                        [% 'Scan next page' | gettext %]
+                                    </button>
+
+                                    <!-- Shown when process appears stuck (no update for 5+ minutes) -->
+                                    <button id="force-unlock" class="btn btn-warning" style="display: none;">
+                                        [% 'Force Unlock Process' | gettext %]
+                                    </button>
+                                </div>
                             </div>
-                            
+
                             <div id="log-viewer" class="mt-4">
                                 <h3>Process Log</h3>
                                 <div class="well" style="max-height: 400px; overflow-y: auto;">
                                     <ul class="list-unstyled" id="log-contents"></ul>
                                 </div>
                             </div>
-                            
+
                             <script>
                                 $(document).ready(function() {
+                                    var processStartedAt = [% process_started.started_at || 'null' %];
+
+                                    // Statuses that require no further polling
+                                    var terminalStatuses = ['completed', 'error'];
+
+                                    // Statuses that require no further polling but show a "next page" button
+                                    var pageCompleted = 'page_completed';
+
                                     function updateStatus() {
                                         $.getJSON('/cgi-bin/koha/plugins/run.pl', {
-                                            class: '[% CLASS %]',
-                                            method: '[% METHOD %]',
+                                            class:      '[% CLASS %]',
+                                            method:     '[% METHOD %]',
                                             csrf_token: '[% csrf_token %]',
-                                            op: 'cud-get-status'
+                                            op:         'cud-get-status'
                                         })
                                         .done(function(status) {
-                                            let statusText = status.status;
+                                            // Ignore leftover status from a previous run
+                                            if (processStartedAt && status.started_at && status.started_at < processStartedAt) {
+                                                setTimeout(updateStatus, 3000);
+                                                return;
+                                            }
+
+                                            // Build status text from last message if available
+                                            var statusText = status.status;
                                             if (status.messages && status.messages.length > 0) {
-                                                const message = status.messages[0].text;
-                                                if (message && message.includes('EndLastPageFromAPI')) {
-                                                    statusText += ' - ' + message;
+                                                var lastMessage = status.messages[status.messages.length - 1];
+                                                if (lastMessage && lastMessage.text) {
+                                                    statusText += ' — ' + lastMessage.text;
                                                 }
-                                            }                                            
+                                            }
                                             $('#current-status').text(statusText);
-                                            //$('#current-status').text(status.status);
-                                            
-                                            if (status.pid) {
+
+                                            // Show process metadata
+                                            if (status.started_at) {
                                                 $('#process-info').show();
-                                                $('#process-pid').text(status.pid);
+                                                $('#process-pid').text(status.pid || '');
                                                 $('#start-time').text(new Date(status.started_at * 1000).toLocaleString());
                                             }
-                                            
-                                            // Show force unlock button if process seems stuck
-                                            if (status.status === 'running' && 
-                                                ((new Date().getTime() / 1000) - status.last_update) > 300) { // 5 minutes
-                                                $('#force-unlock').show();
+
+                                            // Show pages counter when available
+                                            if (status.pages_completed) {
+                                                $('#pages-info').show();
+                                                $('#pages-count').text(status.pages_completed);
                                             }
-                                            
+
                                             updateAlertClass(status.status);
-                                            
+                                            updateButtons(status);
+
+                                            // Continue polling only while process is actively running
                                             if (status.status === 'running') {
+                                                setTimeout(updateStatus, 3000);
+                                            } else if (terminalStatuses.indexOf(status.status) === -1 && status.status !== pageCompleted) {
+                                                // Unknown / transitional state — keep polling slowly
                                                 setTimeout(updateStatus, 5000);
                                             }
+                                            // For page_completed and terminal statuses: stop polling,
+                                            // user must click "Scan next page" or is done.
+                                        })
+                                        .fail(function() {
+                                            // Network error — retry after a longer delay
+                                            setTimeout(updateStatus, 5000);
                                         });
                                     }
-                                    
+
                                     function updateAlertClass(status) {
                                         var $alert = $('.alert');
                                         $alert.removeClass('alert-info alert-success alert-danger alert-warning');
-                                        
-                                        switch(status) {
+
+                                        switch (status) {
                                             case 'running':
                                                 $alert.addClass('alert-info');
                                                 break;
                                             case 'completed':
                                                 $alert.addClass('alert-success');
+                                                break;
+                                            case 'page_completed':
+                                                // Neutral warning colour — not an error, but not fully done either
+                                                $alert.addClass('alert-warning');
                                                 break;
                                             case 'error':
                                                 $alert.addClass('alert-danger');
@@ -130,18 +171,41 @@
                                                 $alert.addClass('alert-warning');
                                         }
                                     }
-                                    
+
+                                    function updateButtons(status) {
+                                        var now = Math.floor(new Date().getTime() / 1000);
+                                        var isStuck = (
+                                            status.status === 'running' &&
+                                            status.last_update &&
+                                            (now - status.last_update) > 300
+                                        );
+
+                                        // "Scan next page" — only when a page finished and more remain
+                                        if (status.status === pageCompleted) {
+                                            $('#next-page-btn').show();
+                                        } else {
+                                            $('#next-page-btn').hide();
+                                        }
+
+                                        // "Force unlock" — only when process appears stuck
+                                        if (isStuck) {
+                                            $('#force-unlock').show();
+                                        } else {
+                                            $('#force-unlock').hide();
+                                        }
+                                    }
+
                                     function updateLog() {
                                         $.getJSON('/cgi-bin/koha/plugins/run.pl', {
-                                            class: '[% CLASS %]',
-                                            method: '[% METHOD %]',
+                                            class:      '[% CLASS %]',
+                                            method:     '[% METHOD %]',
                                             csrf_token: '[% csrf_token %]',
-                                            op: 'cud-get-log'
+                                            op:         'cud-get-log'
                                         })
                                         .done(function(logLines) {
                                             var $logContents = $('#log-contents');
                                             $logContents.empty();
-                                            
+
                                             logLines.forEach(function(line) {
                                                 var $line = $('<li>');
                                                 if (line.error) {
@@ -150,22 +214,49 @@
                                                 $line.text(line.timestamp + ': ' + line.message);
                                                 $logContents.append($line);
                                             });
-                                            
-                                            // Auto-scroll to bottom
+
                                             var $well = $('.well');
                                             $well.scrollTop($well[0].scrollHeight);
 
                                             setTimeout(updateLog, 5000);
+                                        })
+                                        .fail(function() {
+                                            setTimeout(updateLog, 5000);
                                         });
                                     }
-                                    
+
+                                    // "Scan next page" button — triggers another single-page export run
+                                    $('#next-page-btn').click(function() {
+                                        $('#next-page-btn').hide();
+                                        $('#current-status').text('Starting next page...');
+                                        updateAlertClass('running');
+
+                                        $.post('/cgi-bin/koha/plugins/run.pl', {
+                                            class:        '[% CLASS %]',
+                                            method:       '[% METHOD %]',
+                                            csrf_token:   '[% csrf_token %]',
+                                            op:           'cud-run-export',
+                                            start_export: '1'
+                                        })
+                                        .done(function() {
+                                            // Update processStartedAt so stale-status guard works correctly
+                                            processStartedAt = Math.floor(new Date().getTime() / 1000);
+                                            setTimeout(updateStatus, 1000);
+                                        })
+                                        .fail(function() {
+                                            $('#current-status').text('Failed to start next page — please try again');
+                                            updateAlertClass('error');
+                                        });
+                                    });
+
+                                    // "Force unlock" button — terminates a stuck process
                                     $('#force-unlock').click(function() {
-                                        if (!confirm('[% 'Are you sure you want to force unlock the process? Only do this if the process is stuck' | gettext %]')) {
+                                        if (confirm('[% 'Are you sure you want to force unlock the process? Only do this if the process is stuck' | gettext %]')) {
                                             $.getJSON('/cgi-bin/koha/plugins/run.pl', {
-                                                class: '[% CLASS %]',
-                                                method: '[% METHOD %]',
+                                                class:      '[% CLASS %]',
+                                                method:     '[% METHOD %]',
                                                 csrf_token: '[% csrf_token %]',
-                                                op: 'cud-force-unlock'
+                                                op:         'cud-force-unlock'
                                             })
                                             .done(function(result) {
                                                 if (result.status === 'success') {
@@ -176,7 +267,7 @@
                                             });
                                         }
                                     });
-                                    
+
                                     updateStatus();
                                     updateLog();
                                 });
@@ -213,7 +304,7 @@
                                         e.preventDefault();
                                     }
                                 });
-                                </script>                                      
+                                </script>
                                 [% END %]
                             </div>
 
@@ -253,14 +344,14 @@
             </tbody>
         </table>
 
-            [% IF total_pages>0 %]
+            [% IF total_pages %]
             <nav aria-label="Page navigation">
                 <ul class="pagination">
-                    [% IF prev_page >0 %]
+                    [% IF prev_page %]
                         <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-logs&page=[% prev_page %]">[% 'Previous page' | gettext %]</a></li>
                     [% END %]
 
-                    [% SET max_pages = 10 %] 
+                    [% SET max_pages = 10 %]
 
                     [% SET start_page = current_page - 5 %]
                     [% SET end_page = current_page + 4 %]
@@ -273,10 +364,10 @@
                         [% SET start_page = total_pages - 9 %]
                     [% END %]
 
-                    [% SET page_number = start_page %] 
+                    [% SET page_number = start_page %]
 
                     [% WHILE page_number <= end_page %]
-                        [% IF page_number >= 1 && page_number <= total_pages %] 
+                        [% IF page_number >= 1 && page_number <= total_pages %]
                             [% SET is_current = (page_number == current_page) %]
                             <li class="page-item [% IF is_current %]active[% END %]">
                                 <a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-logs&page=[% page_number %]">
@@ -284,16 +375,16 @@
                                 </a>
                             </li>
                         [% END %]
-                        [% SET page_number = page_number + 1 %] 
-                    [% END %]                   
+                        [% SET page_number = page_number + 1 %]
+                    [% END %]
 
-                    [% IF next_page >0 %]
+                    [% IF next_page %]
                         <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-logs&page=[% next_page %]">[% 'Next page' | gettext %]</a></li>
                     [% END %]
 
-                    [% IF total_pages>10 && next_page < total_pages - 1 && page_number < total_pages %]
+                    [% IF total_pages && total_pages > 10 && next_page && next_page < total_pages - 1 && page_number < total_pages %]
                         <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-logs&page=[% total_pages %]">[% 'Last' | gettext %], [% total_pages %] [% 'page' | gettext %]</a></li>
-                    [% END %] 
+                    [% END %]
 
                 </ul>
             </nav>
@@ -337,7 +428,7 @@
                 <td><input type="submit" value="[% 'Search' | gettext %]" /></td>
                 </tr></table>
             <br/>
-        </form>            
+        </form>
         <div class="alert alert-warning" role="alert">
             [% 'Nothing was found for your request' | gettext %]
         </div>
@@ -371,8 +462,8 @@
                 [% FOREACH update IN updates %]
                     <tr>
                         <td>
-                            <span class="js-update" title="Add to search">[% update.firstname %]</span> 
-                            <span class="js-update" title="Add to search">[% update.surname %]</span> 
+                            <span class="js-update" title="Add to search">[% update.firstname %]</span>
+                            <span class="js-update" title="Add to search">[% update.surname %]</span>
                             (borrowernumber: <a target="_blank" href="/cgi-bin/koha/members/moremember.pl?borrowernumber=[% update.record_id %]">[% update.record_id %])</a>
                         </td>
                         <td class="update">[% update.change_description %]</td>
@@ -381,15 +472,15 @@
                 [% END %]
             </tbody>
         </table>
-        
-            [% IF total_pages>0 %]
+
+            [% IF total_pages %]
             <nav aria-label="Page navigation">
                 <ul class="pagination">
-                    [% IF prev_page >0 %]
+                    [% IF prev_page %]
                         <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-updates&page=[% prev_page %]&search=[% search %]">[% 'Previous page' | gettext %]</a></li>
                     [% END %]
 
-                    [% SET max_pages = 10 %] 
+                    [% SET max_pages = 10 %]
 
                     [% SET start_page = current_page - 5 %]
                     [% SET end_page = current_page + 4 %]
@@ -402,10 +493,10 @@
                         [% SET start_page = total_pages - 9 %]
                     [% END %]
 
-                    [% SET page_number = start_page %] 
+                    [% SET page_number = start_page %]
 
                     [% WHILE page_number <= end_page %]
-                        [% IF page_number >= 1 && page_number <= total_pages %] 
+                        [% IF page_number >= 1 && page_number <= total_pages %]
                             [% SET is_current = (page_number == current_page) %]
                             <li class="page-item [% IF is_current %]active[% END %]">
                                 <a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-updates&page=[% page_number %]&search=[% search %]">
@@ -413,17 +504,17 @@
                                 </a>
                             </li>
                         [% END %]
-                        [% SET page_number = page_number + 1 %] 
+                        [% SET page_number = page_number + 1 %]
                     [% END %]
 
-                    [% IF next_page >0 %]
+                    [% IF next_page %]
                         <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-updates&page=[% next_page %]&search=[% search %]">[% 'Next page' | gettext %]</a></li>
                     [% END %]
 
-                    [% IF total_pages>10 && next_page < total_pages - 1 && page_number < total_pages %]
+                    [% IF total_pages && total_pages > 10 && next_page && next_page < total_pages - 1 && page_number < total_pages %]
                         <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-updates&page=[% total_pages %]&search=[% search %]">[% 'Last' | gettext %], [% total_pages %] [% 'page' | gettext %]</a></li>
                     [% END %]
-                    
+
                 </ul>
             </nav>
             [% END %]
@@ -474,7 +565,6 @@ var updateElements = document.querySelectorAll('.js-update');
     updateElements.forEach(function(element) {
         element.addEventListener('click', function() {
             var clickedText = element.textContent.trim();
-            //var clickedText = element.textContent.trim().replace(/"/g, '');
             var searchInput = document.querySelector('input[name="search"]');
             searchInput.value = clickedText;
         });
@@ -484,15 +574,14 @@ var updateElements = document.querySelectorAll('.js-update');
 
 <style>
     .js-update {
-        cursor: pointer; 
-        text-decoration: underline; 
-        color: #004d99; 
+        cursor: pointer;
+        text-decoration: underline;
+        color: #004d99;
     }
     .js-update:hover {
-        text-decoration: none; 
+        text-decoration: none;
         color: #538200;
     }
 </style>
 
 [% INCLUDE 'intranet-bottom.inc' %]
-

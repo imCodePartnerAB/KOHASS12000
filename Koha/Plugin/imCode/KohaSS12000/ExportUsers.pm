@@ -66,7 +66,7 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.87";
+our $VERSION = "1.87-1";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
@@ -1986,7 +1986,23 @@ sub get_current_enrolment {
         return $enrolment;
     }
 
-    log_message('Yes', "No valid enrolment found for user");
+    # Provide detailed reason why no valid enrolment was found
+    my @cancelled = grep { $_->{cancelled} } @$enrolments;
+    my @outside_dates = grep { 
+        !$_->{cancelled} && 
+        defined $_->{startDate} && defined $_->{endDate} &&
+        !($_->{startDate} le $today && $today le $_->{endDate})
+    } @$enrolments;
+
+    if (@cancelled) {
+        log_message('Yes', "No valid enrolment found: " . scalar(@cancelled) . " enrolment(s) cancelled (endDate: " . ($cancelled[0]->{endDate} // 'undefined') . ")");
+    } elsif (@outside_dates) {
+        log_message('Yes', "No valid enrolment found: enrolment(s) outside current date range");
+    } elsif (!@$enrolments) {
+        log_message('Yes', "No valid enrolment found: no enrolments exist for user");
+    } else {
+        log_message('Yes', "No valid enrolment found for user");
+    }
     return undef;
 }
 
@@ -2413,6 +2429,7 @@ sub fetchBorrowers {
                 my $koha_categorycode = $koha_default_categorycode;
                 my $koha_branchcode   = $koha_default_branchcode;
                 my $not_import        = 0;
+                my $skip_reason       = '';
 
                 my $response_page_data = $response_data->{data}[$i-1];
                 if ($response_page_data) {
@@ -2505,6 +2522,7 @@ sub fetchBorrowers {
                     } else {
                         if ($excluding_dutyRole_empty eq "Yes") {
                                 $not_import = 1;
+                                $skip_reason = 'empty duty role';
                                 log_message($debug_mode, 'Duty_role is empty, not import data, excluding_dutyRole_empty in config settled to Yes');
                         }
                     }
@@ -2578,6 +2596,13 @@ sub fetchBorrowers {
 
                         if ($excluding_enrolments_empty eq "Yes") {
                                 $not_import = 1;
+                                # Check if enrolment exists but is cancelled
+                                my @cancelled = grep { $_->{cancelled} } @{$enrolments // []};
+                                if (@cancelled) {
+                                    $skip_reason = 'enrolment cancelled';
+                                } else {
+                                    $skip_reason = 'no valid enrolment';
+                                }
                                 log_message($debug_mode, 'Enrolments is empty, not import data, excluding_Enrolments_empty in config settled to Yes');
                         }
 
@@ -2754,6 +2779,47 @@ sub fetchBorrowers {
                                 $dateexpiry_fallback,
                                 $dateexpiry_months,
                             );
+                    } else {
+                        # User is skipped - update opacnote with reason if user exists
+                        my $current_version_info = $version_info;
+                        my $skip_note_query = qq{
+                            UPDATE $borrowers_table
+                            SET opacnote = CASE
+                                WHEN opacnote IS NULL OR opacnote = ''
+                                    THEN CONCAT('Updated by SS12000: plugin ', ?, ' at ', NOW(), ' No update: ', ?)
+                                WHEN opacnote LIKE '%Updated by SS12000: plugin%'
+                                    THEN CONCAT(
+                                        SUBSTRING_INDEX(opacnote, 'Updated by SS12000: plugin', 1),
+                                        'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' No update: ', ?
+                                    )
+                                WHEN opacnote LIKE '%Added by SS12000: plugin%'
+                                    THEN CONCAT(
+                                        SUBSTRING_INDEX(opacnote, 'Added by SS12000: plugin', 1),
+                                        'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' No update: ', ?
+                                    )
+                                ELSE CONCAT(
+                                    opacnote,
+                                    '\nUpdated by SS12000: plugin ', ?, ' at ', NOW(), ' No update: ', ?
+                                )
+                            END
+                            WHERE userid = ? OR cardnumber = ?
+                        };
+                        eval {
+                            my $skip_sth = $dbh->prepare($skip_note_query);
+                            $skip_sth->execute(
+                                $current_version_info, $skip_reason,
+                                $current_version_info, $skip_reason,
+                                $current_version_info, $skip_reason,
+                                $current_version_info, $skip_reason,
+                                $userid, $cardnumber
+                            );
+                            if ($skip_sth->rows > 0) {
+                                log_message($debug_mode, "Updated opacnote for skipped user (reason: $skip_reason)");
+                            }
+                        };
+                        if ($@) {
+                            log_message($debug_mode, "Error updating opacnote for skipped user: $@");
+                        }
                     }
                     $j++;
                     log_message($debug_mode, 'ENDED DEBUGGING THE CURRENT USER');

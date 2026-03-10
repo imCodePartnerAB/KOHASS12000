@@ -66,13 +66,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.87-15";
+our $VERSION = "1.88";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2026-03-05',
+    date_updated    => '2026-03-10',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,

@@ -66,7 +66,7 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.87-1";
+our $VERSION = "1.87-15";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
@@ -1783,6 +1783,9 @@ sub _cronjob_inner {
                     ));      
                 }
 
+                # Mark users that were not in API but have been processed before
+                $self->mark_missing_users_from_api($dbh);
+
                 print "EndLastPageFromAPI\n";
                 die "EndLastPageFromAPI";
             }
@@ -1843,6 +1846,8 @@ sub _cronjob_inner {
         if ($@) {
             log_message('Yes', "Caught error: $@");
             if ($@ =~ /EndLastPageFromAPI/) {
+                # Mark users that were not in API but have been processed before
+                $self->mark_missing_users_from_api($dbh);
                 print "EndLastPageFromAPI\n";
                 log_message('Yes', "Processing completed without organisation filtering");
                 die "EndLastPageFromAPI";
@@ -2006,6 +2011,238 @@ sub get_current_enrolment {
     return undef;
 }
 
+sub mark_missing_users_from_api {
+    my ($self, $dbh) = @_;
+    
+    my $current_version_info = $version_info;
+    
+    # Get API config and token for verification
+    my $config_data = $self->get_config_data();
+    my $ua = LWP::UserAgent->new;
+    my $access_token = $self->get_api_token($config_data, $ua);
+    
+    if (!$access_token) {
+        log_message('Yes', "ERROR: Cannot verify missing users - failed to get API token");
+        return;
+    }
+    
+    my $ist_url = $config_data->{ist_api_url} || '';
+    my $customerId = $config_data->{ist_customer_id} || '';
+    my $api_url_base = "$ist_url/ss12000v2-api/source/$customerId/v2.0/";
+    
+    log_message('Yes', "Starting mark_missing_users_from_api");
+    
+    # Find users previously processed by SS12000 who were NOT processed today
+    # We check if opacnote doesn't contain today's date (YYYY-MM-DD format)
+    my $today_date = strftime("%Y-%m-%d", localtime);
+    
+    my $select_potential_missing_query = qq{
+        SELECT borrowernumber, cardnumber, surname, firstname, opacnote
+        FROM $borrowers_table
+        WHERE opacnote LIKE '%by SS12000:%'
+        AND opacnote NOT LIKE '%No update: user no longer in API%'
+        AND opacnote NOT LIKE '%$today_date%'
+        AND cardnumber IS NOT NULL
+        AND cardnumber != ''
+    };
+    
+    eval {
+        my $sth = $dbh->prepare($select_potential_missing_query);
+        $sth->execute();
+        
+        my @confirmed_missing;
+        my $checked_count = 0;
+        my $skipped_count = 0;
+        my $found_updated_count = 0;
+        
+        while (my $row = $sth->fetchrow_hashref) {
+            my $cardnumber = $row->{cardnumber};
+            next unless $cardnumber;
+            
+            # Verify with API call: GET /persons?civicNo={cardnumber}&expand=enrolments
+            my $verify_url = $api_url_base . "persons?civicNo=" . $cardnumber . "&expand=enrolments";
+            
+            # Make API request with full response handling and retry logic
+            my $ua_check = LWP::UserAgent->new(timeout => 30);
+            my $http_response;
+            my $max_retries = 2;
+            
+            for my $attempt (1 .. $max_retries) {
+                my $api_request = HTTP::Request->new(GET => $verify_url);
+                $api_request->header('Content-Type'  => 'application/json');
+                $api_request->header('Authorization' => "Bearer $access_token");
+                $http_response = $ua_check->request($api_request);
+                
+                # If success or 404, no retry needed
+                last if $http_response->is_success || $http_response->code == 404;
+                
+                # For other errors, wait and retry
+                if ($attempt < $max_retries) {
+                    log_message('Yes', "  Retry $attempt for $cardnumber after HTTP " . $http_response->code);
+                    select(undef, undef, undef, 1);  # Wait 1 second before retry
+                }
+            }
+            $checked_count++;
+            
+            my $user_status = 'unknown';  # 'found', 'not_found', or 'error'
+            
+            my $skip_reason_from_api = '';
+            
+            if ($http_response->is_success) {
+                # HTTP 200 - check if data is empty and analyze enrolments
+                eval {
+                    my $response_data = decode_json($http_response->decoded_content);
+                    my $data = $response_data->{data} || [];
+                    
+                    if (scalar(@$data) > 0) {
+                        $user_status = 'found';
+                        
+                        # Check enrolments to determine skip reason
+                        my $person_data = $data->[0];
+                        my $enrolments = $person_data->{enrolments} || [];
+                        
+                        if (scalar(@$enrolments) == 0) {
+                            $skip_reason_from_api = 'no enrolments in API';
+                        } else {
+                            # Check if all enrolments are cancelled or expired
+                            my $today = strftime("%Y-%m-%d", localtime);
+                            my @cancelled = grep { $_->{cancelled} } @$enrolments;
+                            my @expired = grep { 
+                                !$_->{cancelled} && 
+                                defined $_->{endDate} && 
+                                $_->{endDate} lt $today 
+                            } @$enrolments;
+                            my @active = grep {
+                                !$_->{cancelled} &&
+                                (!defined $_->{endDate} || $_->{endDate} ge $today)
+                            } @$enrolments;
+                            
+                            if (scalar(@active) == 0) {
+                                if (scalar(@cancelled) > 0) {
+                                    $skip_reason_from_api = 'enrolment cancelled';
+                                } elsif (scalar(@expired) > 0) {
+                                    $skip_reason_from_api = 'dateexpiry exceeded';
+                                } else {
+                                    $skip_reason_from_api = 'no valid enrolment';
+                                }
+                            }
+                        }
+                    } else {
+                        $user_status = 'not_found';
+                    }
+                };
+                if ($@) {
+                    log_message('Yes', "  WARNING: Error parsing API response for $cardnumber: $@");
+                    $user_status = 'error';
+                }
+            } elsif ($http_response->code == 404) {
+                # HTTP 404 - user explicitly not found
+                eval {
+                    my $error_data = decode_json($http_response->decoded_content);
+                    if ($error_data->{code} && $error_data->{code} eq 'not_found') {
+                        $user_status = 'not_found';
+                    } else {
+                        $user_status = 'error';
+                    }
+                };
+                if ($@) {
+                    # 404 without JSON body - still treat as not_found
+                    $user_status = 'not_found';
+                }
+            } else {
+                # Other HTTP errors (timeout, 500, etc.) - skip this user
+                my $error_body = '';
+                eval { $error_body = substr($http_response->decoded_content, 0, 200); };
+                log_message('Yes', "  WARNING: API error for $cardnumber (HTTP " . $http_response->code . "): $error_body - skipping");
+                $user_status = 'error';
+            }
+            
+            # Handle based on status
+            if ($user_status eq 'not_found') {
+                push @confirmed_missing, $row;
+                log_message('Yes', "  CONFIRMED missing: cardnumber $cardnumber (not found in API)");
+            } elsif ($user_status eq 'found') {
+                # User exists in API - update opacnote to mark as "seen"
+                my $note_suffix = $skip_reason_from_api 
+                    ? "No update: $skip_reason_from_api"
+                    : "verified (active enrolment, not in sync)";
+                    
+                my $update_found_query = qq{
+                    UPDATE $borrowers_table 
+                    SET opacnote = CASE
+                        WHEN opacnote LIKE '%Updated by SS12000: plugin%'
+                            THEN CONCAT(
+                                SUBSTRING_INDEX(opacnote, 'Updated by SS12000: plugin', 1),
+                                'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' ', ?
+                            )
+                        WHEN opacnote LIKE '%Added by SS12000: plugin%'
+                            THEN CONCAT(
+                                SUBSTRING_INDEX(opacnote, 'Added by SS12000: plugin', 1),
+                                'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' ', ?
+                            )
+                        ELSE opacnote
+                    END
+                    WHERE borrowernumber = ?
+                };
+                eval {
+                    $dbh->do($update_found_query, undef, 
+                        $current_version_info, $note_suffix,
+                        $current_version_info, $note_suffix,
+                        $row->{borrowernumber}
+                    );
+                };
+                $found_updated_count++;
+                log_message('Yes', "  Found in API: cardnumber $cardnumber ($note_suffix)");
+            } elsif ($user_status eq 'error') {
+                $skipped_count++;
+            }
+            
+            # Add a small delay to avoid overwhelming the API
+            select(undef, undef, undef, 0.1) if $checked_count % 10 == 0;
+        }
+        
+        log_message('Yes', "Checked $checked_count users: " . scalar(@confirmed_missing) . " missing, $found_updated_count found+updated, $skipped_count errors");
+        
+        if (@confirmed_missing) {
+            foreach my $user (@confirmed_missing) {
+                # Add to data change log
+                my $insert_log_query = qq{
+                    INSERT INTO $data_change_log_table (table_name, record_id, action, change_description)
+                    VALUES ('borrowers', ?, 'no_longer_in_api', ?)
+                };
+                $dbh->do($insert_log_query, undef, 
+                    $user->{borrowernumber}, 
+                    "User no longer in API (verified) - cardnumber: $user->{cardnumber}"
+                );
+                
+                # Update opacnote for this user
+                my $update_query = qq{
+                    UPDATE $borrowers_table 
+                    SET opacnote = CASE
+                        WHEN opacnote LIKE '%Updated by SS12000: plugin%'
+                            THEN CONCAT(
+                                SUBSTRING_INDEX(opacnote, 'Updated by SS12000: plugin', 1),
+                                'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' No update: user no longer in API'
+                            )
+                        WHEN opacnote LIKE '%Added by SS12000: plugin%'
+                            THEN CONCAT(
+                                SUBSTRING_INDEX(opacnote, 'Added by SS12000: plugin', 1),
+                                'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' No update: user no longer in API'
+                            )
+                        ELSE opacnote
+                    END
+                    WHERE borrowernumber = ?
+                };
+                $dbh->do($update_query, undef, $current_version_info, $current_version_info, $user->{borrowernumber});
+            }
+            
+            log_message('Yes', "Marked " . scalar(@confirmed_missing) . " user(s) as no longer in API (verified via API)");
+        }
+    };
+    if ($@) {
+        log_message('Yes', "Error marking missing users: $@");
+    }
+}
 
 sub fetchDataFromAPI {
     my ($self, $data_endpoint, $filter_params, $current_org_code) = @_;
@@ -2596,10 +2833,18 @@ sub fetchBorrowers {
 
                         if ($excluding_enrolments_empty eq "Yes") {
                                 $not_import = 1;
-                                # Check if enrolment exists but is cancelled
+                                # Check why no valid enrolment was found
                                 my @cancelled = grep { $_->{cancelled} } @{$enrolments // []};
+                                my @expired = grep { 
+                                    !$_->{cancelled} && 
+                                    defined $_->{endDate} && 
+                                    $_->{endDate} lt $today 
+                                } @{$enrolments // []};
+                                
                                 if (@cancelled) {
                                     $skip_reason = 'enrolment cancelled';
+                                } elsif (@expired) {
+                                    $skip_reason = 'dateexpiry exceeded';
                                 } else {
                                     $skip_reason = 'no valid enrolment';
                                 }
@@ -3259,6 +3504,29 @@ sub addOrUpdateBorrower {
         } else {
             log_message('Yes', "No changes detected for borrower: " . $existing_borrower->{'borrowernumber'});
             $borrowernumber = $existing_borrower->{'borrowernumber'};
+            
+            # Still update opacnote timestamp to mark user as "seen" today
+            my $touch_opacnote_query = qq{
+                UPDATE $borrowers_table
+                SET opacnote = CASE
+                    WHEN opacnote LIKE '%Updated by SS12000: plugin%'
+                        THEN CONCAT(
+                            SUBSTRING_INDEX(opacnote, 'Updated by SS12000: plugin', 1),
+                            'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' No changes'
+                        )
+                    WHEN opacnote LIKE '%Added by SS12000: plugin%'
+                        THEN CONCAT(
+                            SUBSTRING_INDEX(opacnote, 'Added by SS12000: plugin', 1),
+                            'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' No changes'
+                        )
+                    ELSE opacnote
+                END
+                WHERE borrowernumber = ?
+            };
+            eval {
+                my $touch_sth = $dbh->prepare($touch_opacnote_query);
+                $touch_sth->execute($current_version_info, $current_version_info, $borrowernumber);
+            };
         }
     } else {
         my $insert_query = qq{

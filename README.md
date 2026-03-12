@@ -16,6 +16,7 @@ Plugin and cron jobs for importing SS12000 v 1.89
 
 
 
+
 # KohaSS12000 › Installation and CRON
 
 1. Add the [latest version of the plugin](https://github.com/imCodePartnerAB/KOHASS12000/releases) to Koha

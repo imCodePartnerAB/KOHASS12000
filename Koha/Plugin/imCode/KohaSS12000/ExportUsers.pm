@@ -66,13 +66,13 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.88";
+our $VERSION = "1.89";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2026-03-10',
+    date_updated    => '2026-03-12',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -2350,7 +2350,23 @@ sub fetchDataFromAPI {
             $api_url = $api_url."&pageToken=$page_token_next";
         } 
 
-        my $response_data = getApiResponse($api_url, $access_token);
+        my ($response_data, $http_err_code) = getApiResponse($api_url, $access_token);
+
+        # 410 Gone — the pageToken cursor expired on the API side.
+        # This happens when a previous run completed this org but did not write
+        # page_token_next = NULL (e.g. process was interrupted after the last page
+        # was fetched but before the DB update). Treat as completed and move on.
+        if (!defined $response_data && ($http_err_code // 0) == 410) {
+            log_message('Yes', "pageToken expired (410 Gone) for org $current_org_code — marking as completed");
+            if (defined $data_id) {
+                $dbh->do(
+                    "UPDATE $logs_table SET page_token_next = NULL, is_processed = 1 WHERE id = ?",
+                    undef, $data_id
+                );
+            }
+            die "EndLastPageFromAPI";
+        }
+
         my $response = $debug_mode eq "Yes" ? $response_data : "Debug Mode OFF";
 
         eval {
@@ -2558,11 +2574,15 @@ sub getTranslation {
     return Encode::decode( 'UTF-8', gettext($string) );
 }
 
+# Fetch a URL with Bearer token auth.
+# Returns (body, undef) on HTTP 2xx, (undef, $http_code) on any error.
+# Always logs the HTTP status on failure so the caller gets a meaningful error
+# instead of a cryptic "malformed JSON" from decode_json(undef).
+# Callers that only need the body can still call in scalar context — they just
+# get undef on error, same as before. Callers that need the status code should
+# call in list context: my ($body, $err_code) = getApiResponse(...).
 sub getApiResponse {
-    my (
-        $api_url, 
-        $access_token
-        ) = @_;
+    my ($api_url, $access_token) = @_;
 
     my $ua = LWP::UserAgent->new;
 
@@ -2572,12 +2592,11 @@ sub getApiResponse {
     my $api_response = $ua->request($api_request);
 
     if ($api_response->is_success) {
-        my $api_content = $api_response->decoded_content;
-        return $api_content;
+        return wantarray ? ($api_response->decoded_content, undef) : $api_response->decoded_content;
     } else {
-        return undef;
+        log_message('Yes', "getApiResponse HTTP error: " . $api_response->status_line . " URL: $api_url");
+        return wantarray ? (undef, $api_response->code) : undef;
     }
-
 }
 
 
@@ -2683,8 +2702,13 @@ sub fetchBorrowers {
                     log_message($debug_mode, 'person_groupMemberships_api_url: '.$person_groupMemberships_api_url);
                     my $response_data_groupMemberships;
                     eval {
-                        $response_data_groupMemberships = decode_json(getApiResponse($person_groupMemberships_api_url, $access_token));
-                        log_message($debug_mode, 'response_data_groupMemberships: '.Dumper($response_data_groupMemberships));
+                        my $raw_groupMemberships = getApiResponse($person_groupMemberships_api_url, $access_token);
+                        if (defined $raw_groupMemberships && length($raw_groupMemberships) > 0) {
+                            $response_data_groupMemberships = decode_json($raw_groupMemberships);
+                            log_message($debug_mode, 'response_data_groupMemberships: '.Dumper($response_data_groupMemberships));
+                        } else {
+                            log_message($debug_mode, "Empty/undef response for groupMemberships, person id: $id");
+                        }
                     };
 
                     use DateTime;
@@ -2695,15 +2719,20 @@ sub fetchBorrowers {
                     log_message($debug_mode, '::groupMembership (trying to get Klass) BEGIN');
 
                     # Collect all valid klasses and pick the newest by startDate
-                    my @valid_klasses = grep {
-                        $_->{group}->{groupType} eq "Klass" &&
-                        $_->{group}->{endDate} gt $today &&
-                        $_->{group}->{startDate} lt $today
-                    } @{$response_data_groupMemberships->{_embedded}->{groupMemberships}};
+                    my @valid_klasses;
+                    if (defined $response_data_groupMemberships &&
+                        defined $response_data_groupMemberships->{_embedded} &&
+                        defined $response_data_groupMemberships->{_embedded}->{groupMemberships}) {
+                        @valid_klasses = grep {
+                            $_->{group}->{groupType} eq "Klass" &&
+                            $_->{group}->{endDate} gt $today &&
+                            $_->{group}->{startDate} lt $today
+                        } @{$response_data_groupMemberships->{_embedded}->{groupMemberships}};
 
-                    @valid_klasses = sort {
-                        $b->{group}->{startDate} cmp $a->{group}->{startDate}
-                    } @valid_klasses;
+                        @valid_klasses = sort {
+                            $b->{group}->{startDate} cmp $a->{group}->{startDate}
+                        } @valid_klasses;
+                    }
 
                     if (@valid_klasses) {
                         $klass_displayName = $valid_klasses[0]->{group}->{displayName};
@@ -2725,10 +2754,14 @@ sub fetchBorrowers {
                     my $response_data_person;
                     my $duty_role;
 
-
                     eval {
-                        $response_data_person = decode_json(getApiResponse($person_api_url, $access_token));
-                        log_message($debug_mode, 'response_data_person: '.Dumper($response_data_person));
+                        my $raw_duties = getApiResponse($person_api_url, $access_token);
+                        if (defined $raw_duties && length($raw_duties) > 0) {
+                            $response_data_person = decode_json($raw_duties);
+                            log_message($debug_mode, 'response_data_person: '.Dumper($response_data_person));
+                        } else {
+                            log_message($debug_mode, "Empty/undef response for duties, person id: $id");
+                        }
                     };
 
                     if (
@@ -2793,8 +2826,13 @@ sub fetchBorrowers {
                         my $organisationCode;
 
                         eval {
-                            $response_data_person = decode_json(getApiResponse($person_api_url, $access_token));
-                            log_message($debug_mode, 'response_data_person: '.Dumper($response_data_person));
+                            my $raw_org = getApiResponse($person_api_url, $access_token);
+                            if (defined $raw_org && length($raw_org) > 0) {
+                                $response_data_person = decode_json($raw_org);
+                                log_message($debug_mode, 'response_data_person: '.Dumper($response_data_person));
+                            } else {
+                                log_message($debug_mode, "Empty/undef response for organisation id: $enroledAtId");
+                            }
                         };
 
                         if (defined $response_data_person && ref($response_data_person) eq 'HASH') {
@@ -2805,10 +2843,15 @@ sub fetchBorrowers {
                                 my $parent_id = $response_data_person->{parentOrganisation}->{id};
                                 log_message($debug_mode, 'No organisationCode on child org, looking up parent: '.$parent_id);
                                 eval {
-                                    my $parent_data = decode_json(getApiResponse($api_url_base.'organisations/'.$parent_id, $access_token));
-                                    if (defined $parent_data->{organisationCode} && $parent_data->{organisationCode} ne '') {
-                                        $organisationCode = $parent_data->{organisationCode};
-                                        log_message($debug_mode, 'Resolved organisationCode from parent: '.$organisationCode);
+                                    my $raw_parent = getApiResponse($api_url_base.'organisations/'.$parent_id, $access_token);
+                                    if (defined $raw_parent && length($raw_parent) > 0) {
+                                        my $parent_data = decode_json($raw_parent);
+                                        if (defined $parent_data->{organisationCode} && $parent_data->{organisationCode} ne '') {
+                                            $organisationCode = $parent_data->{organisationCode};
+                                            log_message($debug_mode, 'Resolved organisationCode from parent: '.$organisationCode);
+                                        }
+                                    } else {
+                                        log_message($debug_mode, "Empty/undef response for parent organisation id: $parent_id");
                                     }
                                 };
                                 if ($@) {

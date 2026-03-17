@@ -66,7 +66,7 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.89";
+our $VERSION = "1.90";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
@@ -264,6 +264,7 @@ sub install {
     qq{INSERT INTO imcode_config (name,value) VALUES ('archived_limit','0');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('excluding_dutyRole_empty','No');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('excluding_enrolments_empty','No');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('use_default_for_unmapped','No');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('dateexpiry_fallback','keep');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('dateexpiry_months','12');},
     qq{INSERT INTO imcode_categories_mapping (categorycode,dutyRole) VALUES ('SKOLA','Lärare');},
@@ -734,6 +735,7 @@ sub configure {
 
     insertConfigValue($dbh, 'excluding_dutyRole_empty', 'No');
     insertConfigValue($dbh, 'excluding_enrolments_empty', 'No');
+    insertConfigValue($dbh, 'use_default_for_unmapped', 'No');
     insertConfigValue($dbh, 'archived_limit', '0');
     insertConfigValue($dbh, 'dateexpiry_fallback', 'keep');
     insertConfigValue($dbh, 'dateexpiry_months', '12');
@@ -810,6 +812,7 @@ sub configure {
 
         my $excluding_dutyRole_empty = $cgi->param('excluding_dutyRole_empty');
         my $excluding_enrolments_empty = $cgi->param('excluding_enrolments_empty');
+        my $use_default_for_unmapped = $cgi->param('use_default_for_unmapped');
         my $dateexpiry_fallback  = $cgi->param('dateexpiry_fallback') || 'keep';
         my $dateexpiry_months    = int($cgi->param('dateexpiry_months') || 12);
 
@@ -950,6 +953,7 @@ sub configure {
                 WHEN name = 'archived_limit' THEN ?
                 WHEN name = 'excluding_dutyRole_empty' THEN ?
                 WHEN name = 'excluding_enrolments_empty' THEN ?
+                WHEN name = 'use_default_for_unmapped' THEN ?
                 WHEN name = 'dateexpiry_fallback' THEN ?
                 WHEN name = 'dateexpiry_months' THEN ?
             END
@@ -969,6 +973,7 @@ sub configure {
                 'archived_limit',
                 'excluding_dutyRole_empty',
                 'excluding_enrolments_empty',
+                'use_default_for_unmapped',
                 'dateexpiry_fallback',
                 'dateexpiry_months'
                 )
@@ -993,6 +998,7 @@ sub configure {
                 $archived_limit,
                 $excluding_dutyRole_empty,
                 $excluding_enrolments_empty,
+                $use_default_for_unmapped,
                 $dateexpiry_fallback,
                 $dateexpiry_months
                 );
@@ -1108,6 +1114,7 @@ sub configure {
         verify_config       => verify_categorycode_and_branchcode(),
         excluding_enrolments_empty => $config_data->{excluding_enrolments_empty} || 'No',
         excluding_dutyRole_empty => $config_data->{excluding_dutyRole_empty} || 'No',
+        use_default_for_unmapped => $config_data->{use_default_for_unmapped} || 'No',
         dateexpiry_fallback  => $config_data->{dateexpiry_fallback} || 'keep',
         dateexpiry_months    => int($config_data->{dateexpiry_months} || 12),
         csrf_token => $session_data->{csrf_token},
@@ -1781,6 +1788,39 @@ sub _cronjob_inner {
                         $stats->{total_updated} || 0,
                         $stats->{total_processed} || 0
                     ));      
+                }
+
+                # Check if we should run additional pass for unmapped organizations
+                my $config_data = $self->get_config_data();
+                my $use_default_for_unmapped = $config_data->{use_default_for_unmapped} || 'No';
+                
+                if ($use_default_for_unmapped eq 'Yes') {
+                    # Run an additional pass WITHOUT organization filtering
+                    # to catch users from unmapped schools (they'll use default branchcode)
+                    log_message('Yes', "Running additional sync pass for unmapped organizations (default branchcode)");
+                    
+                    my $filter_params_all = {
+                        'relationship.startDate.onOrBefore' => $today,
+                        'relationship.endDate.onOrAfter'    => $today,
+                        'relationship.entity.type'          => 'enrolment'
+                    };
+                    
+                    eval {
+                        my $result = $self->fetchDataFromAPI($data_endpoint, $filter_params_all, 'DEFAULT_BRANCH');
+                        if (defined $result && $result == 0) {
+                            log_message('Yes', "Additional sync pass completed");
+                        }
+                    };
+                    
+                    if ($@) {
+                        if ($@ =~ /EndLastPageFromAPI/) {
+                            log_message('Yes', "Additional sync pass completed (reached last page)");
+                        } elsif ($@ !~ /ErrorVerifyCategorycodeBranchcode/) {
+                            log_message('Yes', "Error in additional sync pass: $@");
+                        }
+                    }
+                } else {
+                    log_message('Yes', "Skipping additional sync pass (use_default_for_unmapped is disabled)");
                 }
 
                 # Mark users that were not in API but have been processed before

@@ -109,6 +109,18 @@
                 </div>
             </div>
 
+            <div class="form-group row">
+                <label for="use_default_for_unmapped" class="col-sm-2 col-form-label">[% 'Use default for unmapped schools' | gettext %]:</label>
+                <div class="col-sm-4">
+                    <select class="form-control" name="use_default_for_unmapped" id="use_default_for_unmapped">
+                        [% FOREACH mode IN ["No", "Yes"] %]
+                            <option value="[% mode %]" [% IF use_default_for_unmapped == mode %]selected="selected"[% END %]>[% mode %]</option>
+                        [% END %]
+                    </select>
+                    <p class="text-info">[% 'Sync users from schools not in branch mapping using default branchcode' | gettext %]</p>
+                </div>
+            </div>
+
             <!-- dateexpiry fallback setting -->
             <div class="form-group row">
                 <label for="dateexpiry_fallback" class="col-sm-2 col-form-label">[% 'Action on no dateexpiry' | gettext %]:</label>

@@ -66,7 +66,7 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 
-our $VERSION = "1.90";
+our $VERSION = "1.91";
 
 our $metadata = {
     name            => getTranslation('Export Users from SS12000'),
@@ -264,6 +264,7 @@ sub install {
     qq{INSERT INTO imcode_config (name,value) VALUES ('archived_limit','0');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('excluding_dutyRole_empty','No');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('excluding_enrolments_empty','No');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('ignore_cancelled_flag','No');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('use_default_for_unmapped','No');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('dateexpiry_fallback','keep');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('dateexpiry_months','12');},
@@ -735,6 +736,7 @@ sub configure {
 
     insertConfigValue($dbh, 'excluding_dutyRole_empty', 'No');
     insertConfigValue($dbh, 'excluding_enrolments_empty', 'No');
+    insertConfigValue($dbh, 'ignore_cancelled_flag', 'No');
     insertConfigValue($dbh, 'use_default_for_unmapped', 'No');
     insertConfigValue($dbh, 'archived_limit', '0');
     insertConfigValue($dbh, 'dateexpiry_fallback', 'keep');
@@ -812,6 +814,7 @@ sub configure {
 
         my $excluding_dutyRole_empty = $cgi->param('excluding_dutyRole_empty');
         my $excluding_enrolments_empty = $cgi->param('excluding_enrolments_empty');
+        my $ignore_cancelled_flag = $cgi->param('ignore_cancelled_flag');
         my $use_default_for_unmapped = $cgi->param('use_default_for_unmapped');
         my $dateexpiry_fallback  = $cgi->param('dateexpiry_fallback') || 'keep';
         my $dateexpiry_months    = int($cgi->param('dateexpiry_months') || 12);
@@ -953,6 +956,7 @@ sub configure {
                 WHEN name = 'archived_limit' THEN ?
                 WHEN name = 'excluding_dutyRole_empty' THEN ?
                 WHEN name = 'excluding_enrolments_empty' THEN ?
+                WHEN name = 'ignore_cancelled_flag' THEN ?
                 WHEN name = 'use_default_for_unmapped' THEN ?
                 WHEN name = 'dateexpiry_fallback' THEN ?
                 WHEN name = 'dateexpiry_months' THEN ?
@@ -973,6 +977,7 @@ sub configure {
                 'archived_limit',
                 'excluding_dutyRole_empty',
                 'excluding_enrolments_empty',
+                'ignore_cancelled_flag',
                 'use_default_for_unmapped',
                 'dateexpiry_fallback',
                 'dateexpiry_months'
@@ -998,6 +1003,7 @@ sub configure {
                 $archived_limit,
                 $excluding_dutyRole_empty,
                 $excluding_enrolments_empty,
+                $ignore_cancelled_flag,
                 $use_default_for_unmapped,
                 $dateexpiry_fallback,
                 $dateexpiry_months
@@ -1114,6 +1120,7 @@ sub configure {
         verify_config       => verify_categorycode_and_branchcode(),
         excluding_enrolments_empty => $config_data->{excluding_enrolments_empty} || 'No',
         excluding_dutyRole_empty => $config_data->{excluding_dutyRole_empty} || 'No',
+        ignore_cancelled_flag => $config_data->{ignore_cancelled_flag} || 'No',
         use_default_for_unmapped => $config_data->{use_default_for_unmapped} || 'No',
         dateexpiry_fallback  => $config_data->{dateexpiry_fallback} || 'keep',
         dateexpiry_months    => int($config_data->{dateexpiry_months} || 12),
@@ -2008,7 +2015,7 @@ sub get_current_enrolment_old {
 }
 
 sub get_current_enrolment {
-    my ($enrolments) = @_;
+    my ($enrolments, $ignore_cancelled) = @_;
     return undef unless defined $enrolments && ref $enrolments eq 'ARRAY';
 
     use DateTime;
@@ -2019,7 +2026,7 @@ sub get_current_enrolment {
     my @sorted_enrolments = sort {
         $b->{startDate} cmp $a->{startDate}
     } grep {
-        !$_->{cancelled} &&
+        ($ignore_cancelled || !$_->{cancelled}) &&
         defined $_->{startDate} && defined $_->{endDate} &&
         $_->{startDate} le $today &&
         $today le $_->{endDate}
@@ -2034,12 +2041,12 @@ sub get_current_enrolment {
     # Provide detailed reason why no valid enrolment was found
     my @cancelled = grep { $_->{cancelled} } @$enrolments;
     my @outside_dates = grep { 
-        !$_->{cancelled} && 
+        ($ignore_cancelled || !$_->{cancelled}) && 
         defined $_->{startDate} && defined $_->{endDate} &&
         !($_->{startDate} le $today && $today le $_->{endDate})
     } @$enrolments;
 
-    if (@cancelled) {
+    if (@cancelled && !$ignore_cancelled) {
         log_message('Yes', "No valid enrolment found: " . scalar(@cancelled) . " enrolment(s) cancelled (endDate: " . ($cancelled[0]->{endDate} // 'undefined') . ")");
     } elsif (@outside_dates) {
         log_message('Yes', "No valid enrolment found: enrolment(s) outside current date range");
@@ -2338,6 +2345,7 @@ sub fetchDataFromAPI {
     my $archived_limit      = int($config_data->{archived_limit}) || 0;
     my $excluding_enrolments_empty = $config_data->{excluding_enrolments_empty} || 'No';
     my $excluding_dutyRole_empty   = $config_data->{excluding_dutyRole_empty} || 'No';
+    my $ignore_cancelled_flag      = $config_data->{ignore_cancelled_flag} || 'No';
     my $dateexpiry_fallback = $config_data->{dateexpiry_fallback} || 'keep';
     my $dateexpiry_months   = int($config_data->{dateexpiry_months} || 12);
     
@@ -2527,6 +2535,7 @@ sub fetchDataFromAPI {
                 $api_url_base,
                 $excluding_enrolments_empty,
                 $excluding_dutyRole_empty,
+                $ignore_cancelled_flag,
                 \@categories_mapping,
                 \@branches_mapping,
                 $dateexpiry_fallback,
@@ -2698,6 +2707,7 @@ sub fetchBorrowers {
             $api_url_base,
             $excluding_enrolments_empty,
             $excluding_dutyRole_empty,
+            $ignore_cancelled_flag,
             $categories_mapping_ref,
             $branches_mapping_ref,
             $dateexpiry_fallback,
@@ -2844,15 +2854,17 @@ sub fetchBorrowers {
 
                     log_message($debug_mode, '::organisationCode BEGIN');
 
-                    my $current_enrolment = get_current_enrolment($enrolments);
-                    my $enrolment_end_date;  
+                    my $current_enrolment = get_current_enrolment($enrolments, $ignore_cancelled_flag eq 'Yes');
+                    my $enrolment_end_date;
+                    my $enrolment_cancelled = 0;  
 
                     if (defined $current_enrolment) {
                         my $enroledAt = $current_enrolment->{enroledAt}; 
                         if (defined $enroledAt && ref $enroledAt eq 'HASH') {
                             $enroledAtId       = $enroledAt->{id};
                             $enrolment_end_date = $current_enrolment->{endDate};
-                            log_message($debug_mode, 'Using current enrolment - startDate: '.$current_enrolment->{startDate}.', endDate: '.$current_enrolment->{endDate});
+                            $enrolment_cancelled = $current_enrolment->{cancelled} ? 1 : 0;
+                            log_message($debug_mode, 'Using current enrolment - startDate: '.$current_enrolment->{startDate}.', endDate: '.$current_enrolment->{endDate}.', cancelled: '.($enrolment_cancelled ? 'yes' : 'no'));
                         }
                     } else {
                         log_message($debug_mode, 'No current valid enrolment found for student');
@@ -2917,14 +2929,15 @@ sub fetchBorrowers {
                         if ($excluding_enrolments_empty eq "Yes") {
                                 $not_import = 1;
                                 # Check why no valid enrolment was found
+                                my $ignore_cancelled = ($ignore_cancelled_flag eq 'Yes');
                                 my @cancelled = grep { $_->{cancelled} } @{$enrolments // []};
                                 my @expired = grep { 
-                                    !$_->{cancelled} && 
+                                    ($ignore_cancelled || !$_->{cancelled}) && 
                                     defined $_->{endDate} && 
                                     $_->{endDate} lt $today 
                                 } @{$enrolments // []};
                                 
-                                if (@cancelled) {
+                                if (@cancelled && !$ignore_cancelled) {
                                     $skip_reason = 'enrolment cancelled';
                                 } elsif (@expired) {
                                     $skip_reason = 'dateexpiry exceeded';
@@ -3106,6 +3119,7 @@ sub fetchBorrowers {
                                 $enrolment_end_date,
                                 $dateexpiry_fallback,
                                 $dateexpiry_months,
+                                $enrolment_cancelled,
                             );
                     } else {
                         # User is skipped - update opacnote with reason if user exists
@@ -3282,6 +3296,7 @@ sub addOrUpdateBorrower {
         $enrolment_end_date,
         $dateexpiry_fallback,
         $dateexpiry_months,
+        $enrolment_cancelled,
     ) = @_;
     
     my $dbh = C4::Context->dbh;
@@ -3524,11 +3539,11 @@ sub addOrUpdateBorrower {
                     $dateexpiry->{fragment},
                     opacnote = CASE
                         WHEN opacnote IS NULL OR opacnote = ''
-                            THEN CONCAT('Updated by SS12000: plugin ', ?, ' at ', NOW(), ' Fields changed: ', ?)
+                            THEN CONCAT('Updated by SS12000: plugin ', ?, ' at ', NOW(), ' Fields changed: ', ?, ?)
                         WHEN opacnote LIKE '%Updated by SS12000: plugin%'
                             THEN CONCAT(
                                 SUBSTRING_INDEX(opacnote, 'Updated by SS12000: plugin', 1),
-                                'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' Fields changed: ', ?
+                                'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' Fields changed: ', ?, ?
                             )
                         WHEN opacnote LIKE '%Added by SS12000: plugin%'
                             THEN CONCAT(
@@ -3536,11 +3551,11 @@ sub addOrUpdateBorrower {
                                     SUBSTRING_INDEX(opacnote, 'Added by SS12000: plugin', 1),
                                     'Added by', 'Updated by'
                                 ),
-                                'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' Fields changed: ', ?
+                                'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' Fields changed: ', ?, ?
                             )
                         ELSE CONCAT(
                             opacnote,
-                            '\nUpdated by SS12000: plugin ', ?, ' at ', NOW(), ' Fields changed: ', ?
+                            '\nUpdated by SS12000: plugin ', ?, ' at ', NOW(), ' Fields changed: ', ?, ?
                         )
                     END,
                     updated_on = NOW()
@@ -3568,11 +3583,12 @@ sub addOrUpdateBorrower {
                 $newCardnumber,
             );
             push @bind_values, $dateexpiry->{value} if $dateexpiry->{has_placeholder};
+            my $cancelled_suffix = $enrolment_cancelled ? ' (enrolment cancelled)' : '';
             push @bind_values, (
-                $current_version_info, $changed_fields_str,
-                $current_version_info, $changed_fields_str,
-                $current_version_info, $changed_fields_str,
-                $current_version_info, $changed_fields_str,
+                $current_version_info, $changed_fields_str, $cancelled_suffix,
+                $current_version_info, $changed_fields_str, $cancelled_suffix,
+                $current_version_info, $changed_fields_str, $cancelled_suffix,
+                $current_version_info, $changed_fields_str, $cancelled_suffix,
                 $existing_borrower->{'borrowernumber'}
             );
 
@@ -3589,18 +3605,19 @@ sub addOrUpdateBorrower {
             $borrowernumber = $existing_borrower->{'borrowernumber'};
             
             # Still update opacnote timestamp to mark user as "seen" today
+            my $cancelled_suffix = $enrolment_cancelled ? ' (enrolment cancelled)' : '';
             my $touch_opacnote_query = qq{
                 UPDATE $borrowers_table
                 SET opacnote = CASE
                     WHEN opacnote LIKE '%Updated by SS12000: plugin%'
                         THEN CONCAT(
                             SUBSTRING_INDEX(opacnote, 'Updated by SS12000: plugin', 1),
-                            'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' No changes'
+                            'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' No changes', ?
                         )
                     WHEN opacnote LIKE '%Added by SS12000: plugin%'
                         THEN CONCAT(
                             SUBSTRING_INDEX(opacnote, 'Added by SS12000: plugin', 1),
-                            'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' No changes'
+                            'Updated by SS12000: plugin ', ?, ' at ', NOW(), ' No changes', ?
                         )
                     ELSE opacnote
                 END
@@ -3608,7 +3625,7 @@ sub addOrUpdateBorrower {
             };
             eval {
                 my $touch_sth = $dbh->prepare($touch_opacnote_query);
-                $touch_sth->execute($current_version_info, $current_version_info, $borrowernumber);
+                $touch_sth->execute($current_version_info, $cancelled_suffix, $current_version_info, $cancelled_suffix, $borrowernumber);
             };
         }
     } else {
@@ -3640,7 +3657,7 @@ sub addOrUpdateBorrower {
                 CURDATE(),
                 ${\( $dateexpiry->{has_placeholder} ? '?' : $dateexpiry->{fragment} =~ s/dateexpiry = //r )},
                 NOW(),
-                CONCAT('Added by SS12000: plugin ', ?, ' at ', NOW())
+                CONCAT('Added by SS12000: plugin ', ?, ' at ', NOW(), ?)
             )
         };
         my $insert_sth = $dbh->prepare($insert_query);
@@ -3665,6 +3682,7 @@ sub addOrUpdateBorrower {
         );
         push @insert_bind, $dateexpiry->{value} if $dateexpiry->{has_placeholder};
         push @insert_bind, $current_version_info;
+        push @insert_bind, ($enrolment_cancelled ? ' (enrolment cancelled)' : '');
 
         eval {
             $insert_sth->execute(@insert_bind);

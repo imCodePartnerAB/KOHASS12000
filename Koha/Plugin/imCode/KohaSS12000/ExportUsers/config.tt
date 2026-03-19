@@ -110,6 +110,14 @@
             </div>
 
             <div class="form-group row">
+                <label for="ignore_cancelled_flag" class="col-sm-2 col-form-label">[% 'Ignore cancelled flag' | gettext %]:</label>
+                <div class="col-sm-4">
+                    <select class="form-control" name="ignore_cancelled_flag" id="ignore_cancelled_flag">
+                        [% FOREACH mode IN ["No", "Yes"] %]
+                            <option value="[% mode %]" [% IF ignore_cancelled_flag == mode %]selected="selected"[% END %]>[% mode %]</option>
+                        [% END %]
+                    </select>
+                    <p class="text-info">[% 'Ignore the cancelled flag on enrolments and only use start/end dates' | gettext %]</p>
                 <label for="use_default_for_unmapped" class="col-sm-2 col-form-label">[% 'Use default for unmapped schools' | gettext %]:</label>
                 <div class="col-sm-4">
                     <select class="form-control" name="use_default_for_unmapped" id="use_default_for_unmapped">

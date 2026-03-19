@@ -33,5 +33,9 @@ inc/
 /MANIFEST.bak
 /pm_to_blib
 /*.zip
-testing/*
+
+# Local testing scripts
+testing/
+
+# Plugin builds
 *.kpz

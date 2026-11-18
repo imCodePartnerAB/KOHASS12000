@@ -3901,6 +3901,41 @@ sub fetchBorrowers {
             }
 }
 
+# After records have been moved from a duplicate patron, remove attribute rows that are identical
+# (same type and value) to an older row of the same patron. Returns the number of rows removed.
+sub dedupe_borrower_attributes {
+    my ($dbh, $borrowernumber) = @_;
+    my $removed = eval {
+        $dbh->do(q{
+            DELETE a FROM borrower_attributes a
+            JOIN borrower_attributes b
+              ON a.borrowernumber = b.borrowernumber AND a.code = b.code AND a.attribute = b.attribute AND a.id > b.id
+            WHERE a.borrowernumber = ?
+        }, undef, $borrowernumber);
+    };
+    if ($@) {
+        log_message('Yes', "Error removing duplicate attributes for borrowernumber $borrowernumber: $@");
+        return 0;
+    }
+    $removed = ($removed // 0) + 0;
+    log_message('Yes', "Removed $removed identical attribute row(s) for borrowernumber $borrowernumber after merge") if $removed;
+    return $removed;
+}
+
+# Record a merge on the patron that was kept, so it shows in the change log (action "merge")
+sub record_merge_change {
+    my ($dbh, $main, $duplicate, $removed_attrs) = @_;
+    eval {
+        $dbh->do(
+            "INSERT INTO $data_change_log_table (table_name, record_id, action, change_description) VALUES ('borrowers', ?, 'merge', ?)",
+            undef, $main,
+            "merged with duplicate borrowernumber $duplicate: related records moved to this patron, "
+              . ($removed_attrs // 0) . " identical attribute row(s) removed, the duplicate was archived"
+        );
+    };
+    log_message('Yes', "Error recording merge in change log: $@") if $@;
+}
+
 # Keep only the candidate classes whose group belongs to organisation $org (order is kept)
 sub prefer_klass_in_org {
     my ($klasses, $org) = @_;
@@ -4178,6 +4213,8 @@ sub addOrUpdateBorrower {
                 }
             }
             
+            my $removed_attrs = dedupe_borrower_attributes($dbh, $main_record->{borrowernumber});
+
             eval {
                 my $archive_query = qq{
                     UPDATE $borrowers_table 
@@ -4202,6 +4239,7 @@ sub addOrUpdateBorrower {
                 );
                 log_message('Yes', "Archived duplicate borrowernumber: " . $duplicate->{borrowernumber} . 
                                 " (merged with: " . $main_record->{borrowernumber} . ")");
+                record_merge_change($dbh, $main_record->{borrowernumber}, $duplicate->{borrowernumber}, $removed_attrs);
             };
             if ($@) {
                 log_message('Yes', "Error archiving duplicate: $@");

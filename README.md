@@ -85,6 +85,7 @@ sudo /etc/init.d/cron restart
 - HTTP 410 (`NEW_DATA_RESTART_FROM_FIRST_PAGE`) from IST restarts the organisation from the first page (max 10 restarts per organisation and day, error code and response are logged).
 - Organisations that do not exist in IST no longer block the final steps of a run (and the cron wrapper no longer loops on them).
 - The class is chosen from classes where both the group and the student's own membership are valid today. If several remain, the class of the school where the student has the active enrolment wins, then the newest membership; the order is deterministic and all candidates are logged.
+- When two Koha patrons turn out to be the same person, the older one is archived and its related records are moved to the kept patron; identical patron attribute rows (same type and value) are then removed, and the merge is recorded in the change log with action `merge`.
 - The category (role) mapping is optional: a customer without staff roles needs only the branch mapping and a default category. A new installation no longer creates any example role mappings.
 - Matching on the civic number attribute compares digits only, so a stored `20120811-4011` matches `201208114011`.
 - A new patron never takes a user id or card number that already belongs to someone else: it falls back to the civic number (logged), instead of failing with a duplicate key error.

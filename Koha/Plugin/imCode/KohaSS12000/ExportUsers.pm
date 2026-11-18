@@ -39,14 +39,10 @@ use base qw(Koha::Plugins::Base);
 use Digest::MD5;
 
 use Cwd qw( abs_path cwd );
-use Locale::Messages;
-Locale::Messages->select_package('gettext_pp');
-
-use Locale::Messages qw(:locale_h :libintl_h);
-use POSIX qw(setlocale);
 use POSIX qw(strftime); # To format date/time
 use Encode;
 use URI::Escape qw(uri_escape);
+use Unicode::Normalize qw(NFD);
 
 use File::Basename;
 
@@ -65,43 +61,144 @@ our $branches_mapping_table   = 'imcode_branches_mapping';
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
+our $duties_forbidden = 0; # set when the duties endpoint answers 403
+our %org_code_cache;       # organisation id => organisationCode, valid for one run
 
-our $VERSION = "1.90";
+our $VERSION = "1.91";
 
 our $metadata = {
-    name            => getTranslation('Export Users from SS12000'),
+    name            => 'Export Users from SS12000',
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2026-03-19',
+    date_updated    => '2026-11-17',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
-    description     => getTranslation('This plugin implements export users from SS12000')
+    description     => 'This plugin implements export users from SS12000'
 };
 
 our $update_date = $metadata->{date_updated} =~ s/-//gr;
 
 our $version_info = "$update_date v$VERSION";
 
-# set locale settings for gettext
-my $self = new('Koha::Plugin::imCode::KohaSS12000::ExportUsers');
-my $cgi  = $self->{'cgi'};
+# ---------------------------------------------------------------------------
+# Translations: plain gettext .po files in ExportUsers/ (one file per language, e.g. sv.po,
+# fi.po, sv-SE.po). They are read directly, so no compiled .mo files and no system locale are
+# needed. To add a language, copy com.imcode.exportusers.pot to <code>.po and translate the
+# msgstr lines. A text without translation is shown in English.
+# ---------------------------------------------------------------------------
+our %i18n_cache;    # language code => { mtime => ..., data => { msgid => msgstr } }
 
-my $locale = C4::Languages::getlanguage($cgi);
-$locale = substr( $locale, 0, 2 );
-$ENV{'LANGUAGE'} = $locale;
-setlocale Locale::Messages::LC_ALL(), '';
-textdomain "com.imcode.exportusers";
+sub i18n_dir {
+    return File::Spec->catdir(dirname(abs_path(__FILE__)), 'ExportUsers');
+}
 
-my $locale_path = abs_path( $self->mbf_path('translations') );
-bindtextdomain "com.imcode.exportusers" => $locale_path;
+# 'sv-SE' => ('sv-SE', 'sv'); anything that is not a plain language code gives nothing
+sub i18n_candidates {
+    my ($lang) = @_;
+    return () unless defined $lang && $lang =~ /^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})*$/;
+    (my $l = $lang) =~ s/_/-/g;
+    my @codes = ($l);
+    push @codes, (split /-/, $l)[0] if $l =~ /-/;
+    return @codes;
+}
+
+sub i18n_unquote {
+    my ($s) = @_;
+    my %esc = ('"' => '"', '\\' => '\\', 'n' => "\n", 't' => "\t");
+    $s =~ s/\\(["\\nt])/$esc{$1}/g;
+    return $s;
+}
+
+# Read <code>.po into a hash; the file is read again when it changes on disk
+sub i18n_load {
+    my ($code) = @_;
+    my $file = File::Spec->catfile(i18n_dir(), "$code.po");
+    return unless -r $file;
+    my $mtime = (stat $file)[9];
+    my $cached = $i18n_cache{$code};
+    return $cached->{data} if $cached && $cached->{mtime} == $mtime;
+
+    my (%t, $id, $str, $cur);
+    my $flush = sub {
+        $t{$id} = $str if defined $id && $id ne '' && defined $str && $str ne '';
+        undef $id; undef $str; undef $cur;
+    };
+    open my $fh, '<:encoding(UTF-8)', $file or return;
+    while (my $line = <$fh>) {
+        chomp $line;
+        if    ($line =~ /^msgid\s+"(.*)"\s*$/)     { $flush->(); $id = i18n_unquote($1); $cur = 'id'; }
+        elsif ($line =~ /^msgstr\s+"(.*)"\s*$/)    { $str = i18n_unquote($1); $cur = 'str'; }
+        elsif ($line =~ /^"(.*)"\s*$/)             { if (($cur // '') eq 'id') { $id .= i18n_unquote($1) } elsif (($cur // '') eq 'str') { $str .= i18n_unquote($1) } }
+        elsif ($line =~ /^\s*(?:#.*)?$/)           { $flush->(); }
+    }
+    $flush->();
+    close $fh;
+
+    $i18n_cache{$code} = { mtime => $mtime, data => \%t };
+    return \%t;
+}
+
+# Language of the current request (Koha interface language, e.g. sv-SE)
+sub i18n_language {
+    my ($cgi) = @_;
+    $cgi ||= eval { require CGI; CGI->new('') };
+    my $lang = eval { C4::Languages::getlanguage($cgi) };
+    return $lang || 'en';
+}
+
+# Translate $msgid; extra arguments are filled into %s placeholders
+sub i18n_tr {
+    my ($lang, $msgid, @args) = @_;
+    my $text = $msgid;
+    foreach my $code (i18n_candidates($lang)) {
+        my $t = i18n_load($code) or next;
+        if (defined $t->{$msgid}) { $text = $t->{$msgid}; last; }
+    }
+    return @args ? sprintf($text, map { $_ // '' } @args) : $text;
+}
+
+# $self->t('text %s', $value): translated for the language of this request
+sub t {
+    my ($self, @args) = @_;
+    $self->{_i18n_lang} //= i18n_language($self->{cgi});
+    return i18n_tr($self->{_i18n_lang}, @args);
+}
+
+# The imCode logo is embedded in the page (many Koha installations do not serve static plugin files)
+our $logo_data_uri_cache;
+sub logo_data_uri {
+    return $logo_data_uri_cache if defined $logo_data_uri_cache;
+    my $file = File::Spec->catfile(i18n_dir(), 'images', 'logo_imcode_footer.png');
+    my $uri  = '';
+    if (-r $file && open my $fh, '<:raw', $file) {
+        local $/;
+        require MIME::Base64;
+        $uri = 'data:image/png;base64,' . MIME::Base64::encode_base64(<$fh>, '');
+        close $fh;
+    }
+    return $logo_data_uri_cache = $uri;
+}
+
+# Function given to the templates as ss('text'); used instead of the gettext filter
+sub ss_sub {
+    my ($self) = @_;
+    return sub { return $self->t(@_) };
+}
 
 sub new {
     my ( $class, $args ) = @_;
+    $args ||= {};
 
-    ## We need to add our metadata here so our base class can access it
-    $args->{'metadata'} = $metadata;
-    $args->{'metadata'}->{'class'} = $class;
+    ## We need to add our metadata here so our base class can access it.
+    ## Name and description are translated for the language of this request.
+    my $lang = i18n_language($args->{cgi});
+    $args->{'metadata'} = {
+        %$metadata,
+        class       => $class,
+        name        => i18n_tr($lang, $metadata->{name}),
+        description => i18n_tr($lang, $metadata->{description}),
+    };
 
     ## Here, we call the 'new' method for our base class
     ## This runs some additional magic and checking
@@ -141,7 +238,7 @@ sub log_message {
         }
 
         eval {
-            open my $fh, '>>', $my_log_file 
+            open my $fh, '>>:encoding(UTF-8)', $my_log_file 
                 or die "Cannot open $my_log_file: $!";
             flock($fh, LOCK_EX) 
                 or die "Cannot lock $my_log_file: $!";
@@ -268,10 +365,7 @@ sub install {
     qq{INSERT INTO imcode_config (name,value) VALUES ('use_default_for_unmapped','No');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('dateexpiry_fallback','keep');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('dateexpiry_months','12');},
-    qq{INSERT INTO imcode_categories_mapping (categorycode,dutyRole) VALUES ('SKOLA','Lärare');},
-    qq{INSERT INTO imcode_categories_mapping (categorycode,dutyRole) VALUES ('PERSONAL','Kurator');},
-    qq{INSERT INTO imcode_categories_mapping (categorycode,dutyRole) VALUES ('SKOLA','Rektor');},
-    qq{INSERT INTO imcode_categories_mapping (categorycode,dutyRole) VALUES ('PERSONAL','Lärarassistent');},
+
     );
 
     eval {
@@ -741,6 +835,20 @@ sub configure {
     insertConfigValue($dbh, 'archived_limit', '0');
     insertConfigValue($dbh, 'dateexpiry_fallback', 'keep');
     insertConfigValue($dbh, 'dateexpiry_months', '12');
+    insertConfigValue($dbh, 'match_methods', 'userid,cardnumber');
+    insertConfigValue($dbh, 'civic_attribute_code', '');
+    insertConfigValue($dbh, 'class_attribute_code', 'CL');
+    insertConfigValue($dbh, 'email_suffix', '.NOEMAIL');
+    insertConfigValue($dbh, 'email_suffix_enabled', 'No');
+    insertConfigValue($dbh, 'keep_existing_category', 'No');
+    insertConfigValue($dbh, 'keep_existing_contact', 'No');
+
+    return $self->log_page($session_data) if ($op // '') eq 'log';
+    return $self->log_ajax($op)           if ($op // '') =~ /^ajax-log-/;
+
+    if (($op // '') =~ /^ajax-/) {
+        return $self->configure_ajax($op, $cgi);
+    }
 
     my $select_query = qq{SELECT name, value FROM $config_table};
     my $config_data  = {};
@@ -758,10 +866,10 @@ sub configure {
 
     if ($missing_modules) {
         my $template = $self->get_template({ file => 'error.tt' });
+        $template->param(ss => $self->ss_sub);
         $template->param(
             error    => "missing_modules",
             language => C4::Languages::getlanguage($cgi) || 'en',
-            mbf_path => abs_path( $self->mbf_path('translations') )
         );
 
         print $cgi->header(-type => 'text/html', -charset => 'utf-8');
@@ -770,6 +878,7 @@ sub configure {
     }
 
     my $template = $self->get_template({ file => 'config.tt' });
+    $template->param(ss => $self->ss_sub);
 
     $template->param(success => $self->{'success'}) if $self->{'success'};
     $template->param(error => $self->{'error'}) if $self->{'error'};
@@ -778,6 +887,7 @@ sub configure {
     $template->param(log_count => $log_count);
 
     if ($op eq 'cud-save-config') {
+        my $trim_param = sub { my $v = $_[0] // ''; $v =~ s/^\s+|\s+$//g; $v };
         my $client_id     = $cgi->param('client_id');
         my $client_secret = $cgi->param('client_secret');
         if (defined $client_secret && length($client_secret) > 0) {
@@ -802,15 +912,18 @@ sub configure {
         my $logs_limit          = int($cgi->param('logs_limit'));
         my $archived_limit      = int($cgi->param('archived_limit'));
 
-        my $new_organisationCode_mapping = $cgi->param('new_organisationCode_mapping');
-        my $new_branch_mapping           = $cgi->param('new_branch_mapping');
+        my $branch_mappings_json   = $cgi->param('branch_mappings_json');
+        my $category_mappings_json = $cgi->param('category_mappings_json');
 
-        my $new_categories_mapping       = $cgi->param('new_categories_mapping');
-        my $new_dutyRole_mapping         = $cgi->param('new_dutyRole_mapping');
-
-        my @category_mapping_del = $cgi->multi_param('category_mapping_del[]');
-        my @branch_mapping_del   = $cgi->multi_param('branch_mapping_del[]');
-        my @category_mapping_not_import = $cgi->multi_param('category_mapping_not_import[]');
+        my @match_methods        = grep { /^(?:attribute|userid|cardnumber)$/ } $cgi->multi_param('match_methods');
+        my $civic_attribute_code = $cgi->param('civic_attribute_code') // '';
+        my $class_attribute_code = $cgi->param('class_attribute_code') || 'CL';
+        my $email_suffix         = $trim_param->($cgi->param('email_suffix'));
+        my $email_suffix_enabled = $cgi->param('email_suffix_enabled') ? 'Yes' : 'No';
+        my $keep_existing_category = $cgi->param('keep_existing_category') ? 'Yes' : 'No';
+        my $keep_existing_contact  = $cgi->param('keep_existing_contact')  ? 'Yes' : 'No';
+        $useridPlugin     = 'civicNo' unless defined $useridPlugin     && $useridPlugin     =~ /^(?:civicNo|externalIdentifier|email_local|email|keep)$/;
+        $cardnumberPlugin = 'civicNo' unless defined $cardnumberPlugin && $cardnumberPlugin =~ /^(?:civicNo|externalIdentifier|keep)$/;
 
         my $excluding_dutyRole_empty = $cgi->param('excluding_dutyRole_empty');
         my $excluding_enrolments_empty = $cgi->param('excluding_enrolments_empty');
@@ -819,83 +932,112 @@ sub configure {
         my $dateexpiry_fallback  = $cgi->param('dateexpiry_fallback') || 'keep';
         my $dateexpiry_months    = int($cgi->param('dateexpiry_months') || 12);
 
-        my $update_category_query = qq{UPDATE $categories_mapping_table SET not_import = NULL};
-        $dbh->do($update_category_query);
-        if (@category_mapping_not_import) {
-            my $update_category_query = qq{
-                UPDATE
-                $categories_mapping_table
-                SET not_import = 1
-                WHERE id = ?
-            };
-            foreach my $category_id (@category_mapping_not_import) {
-                next if $category_id == 0;
-                $dbh->do($update_category_query, undef, $category_id);
-            }
-        }
+        # Mappings are saved as complete lists, built as JSON by the configuration page.
+        my %valid_branch   = map { $_ => 1 } @{ $dbh->selectcol_arrayref("SELECT branchcode FROM $branches_table") || [] };
+        my %valid_category = map { $_ => 1 } @{ $dbh->selectcol_arrayref("SELECT categorycode FROM $categories_table") || [] };
+        my %valid_attr     = map { $_ => 1 } @{ $dbh->selectcol_arrayref("SELECT code FROM borrower_attribute_types") || [] };
+        my @save_errors;
+        my $trim = sub { my $v = $_[0] // ''; $v =~ s/^\s+|\s+$//g; $v };
 
-        if (@category_mapping_del) {
-            my $delete_category_query = qq{
-                DELETE 
-                FROM $categories_mapping_table 
-                WHERE id = ? 
-            };
-
-            foreach my $category_id (@category_mapping_del) {
-                next if $category_id == 0;
-                $dbh->do($delete_category_query, undef, $category_id);
-            }
-        }
-        if (@branch_mapping_del) {
-            my $delete_branch_query = qq{
-                DELETE 
-                FROM $branches_mapping_table 
-                WHERE id = ? 
-            };
-
-            foreach my $branch_id (@branch_mapping_del) {
-                next if $branch_id == 0;
-                $dbh->do($delete_branch_query, undef, $branch_id);
-            }
-        }
-
-        if ($new_branch_mapping && $new_organisationCode_mapping) {
-            my $check_mapping_query = qq{
-                SELECT organisationCode 
-                FROM $branches_mapping_table 
-                WHERE organisationCode = ? 
-            };
-            my $sth_check_mapping = $dbh->prepare($check_mapping_query);
-            $sth_check_mapping->execute($new_organisationCode_mapping);
-
-            if (!$sth_check_mapping->fetchrow_array()) {
-                my $insert_mapping_query = qq{
-                    INSERT INTO $branches_mapping_table (organisationCode, branchcode) VALUES (?, ?)
+        if (defined $branch_mappings_json && $branch_mappings_json ne '') {
+            my $rows = eval { decode_json_param($branch_mappings_json) };
+            if (ref $rows eq 'ARRAY') {
+                my (%seen, @clean);
+                foreach my $r (grep { ref $_ eq 'HASH' } @$rows) {
+                    my ($org, $branch) = ($trim->($r->{org}), $trim->($r->{branch}));
+                    next if $org eq '' || $branch eq '' || $seen{$org}++;
+                    unless ($valid_branch{$branch}) {
+                        log_message("Yes", "Branch mapping skipped, unknown Koha branch '$branch' for organisation '$org'");
+                        push @save_errors, $self->t("Unknown Koha branch '%s' (organisation %s) was not saved", $branch, $org);
+                        next;
+                    }
+                    push @clean, [$org, $branch];
+                }
+                eval {
+                    my $own_tx = $dbh->{AutoCommit} ? 1 : 0;
+                    $dbh->begin_work if $own_tx;
+                    $dbh->do("DELETE FROM $branches_mapping_table");
+                    $dbh->do("INSERT INTO $branches_mapping_table (organisationCode, branchcode) VALUES (?, ?)", undef, $_->[0], $_->[1]) for @clean;
+                    $dbh->commit if $own_tx;
+                    log_message("Yes", "Saved " . scalar(@clean) . " branch mappings");
                 };
-                my $sth_insert_mapping = $dbh->prepare($insert_mapping_query);
-                $sth_insert_mapping->execute($new_organisationCode_mapping, $new_branch_mapping);
+                if ($@) {
+                    my $err = $@;
+                    eval { $dbh->rollback };
+                    log_message("Yes", "Error saving branch mappings: $err");
+                    push @save_errors, $self->t('Branch mappings could not be saved: %s', $err);
+                }
+            } else {
+                push @save_errors, $self->t('Branch mappings had an invalid format and were not saved');
             }
-            $sth_check_mapping->finish();
         }
 
-        if ($new_categories_mapping && $new_dutyRole_mapping) {
-            my $check_mapping_query = qq{
-                SELECT categorycode 
-                FROM $categories_mapping_table 
-                WHERE categorycode = ? 
-            };
-            my $sth_check_mapping = $dbh->prepare($check_mapping_query);
-            $sth_check_mapping->execute($new_dutyRole_mapping);
-
-            if (!$sth_check_mapping->fetchrow_array()) {
-                my $insert_mapping_query = qq{
-                    INSERT INTO $categories_mapping_table (categorycode, dutyRole) VALUES (?, ?)
+        if (defined $category_mappings_json && $category_mappings_json ne '') {
+            my $rows = eval { decode_json_param($category_mappings_json) };
+            if (ref $rows eq 'ARRAY') {
+                my (%seen, @clean);
+                foreach my $r (grep { ref $_ eq 'HASH' } @$rows) {
+                    my ($role, $category) = ($trim->($r->{role}), $trim->($r->{category}));
+                    # A role that is not imported never uses its category, so such a row is kept as it is
+                    # even when the category is empty or no longer exists in Koha
+                    my $skip_import = $r->{not_import} ? 1 : 0;
+                    next if $role eq '' || ($category eq '' && !$skip_import) || $seen{"$category\t$role"}++;
+                    unless ($skip_import || $valid_category{$category}) {
+                        log_message("Yes", "Category mapping skipped, unknown Koha category '$category' for dutyRole '$role'");
+                        push @save_errors, $self->t("Unknown Koha category '%s' (dutyRole %s) was not saved", $category, $role);
+                        next;
+                    }
+                    push @clean, [$category, $role, ($skip_import ? 1 : undef)];
+                }
+                eval {
+                    my $own_tx = $dbh->{AutoCommit} ? 1 : 0;
+                    $dbh->begin_work if $own_tx;
+                    $dbh->do("DELETE FROM $categories_mapping_table");
+                    $dbh->do("INSERT INTO $categories_mapping_table (categorycode, dutyRole, not_import) VALUES (?, ?, ?)", undef, @$_) for @clean;
+                    $dbh->commit if $own_tx;
+                    log_message("Yes", "Saved " . scalar(@clean) . " category mappings");
                 };
-                my $sth_insert_mapping = $dbh->prepare($insert_mapping_query);
-                $sth_insert_mapping->execute($new_categories_mapping, $new_dutyRole_mapping);
+                if ($@) {
+                    my $err = $@;
+                    eval { $dbh->rollback };
+                    log_message("Yes", "Error saving category mappings: $err");
+                    push @save_errors, $self->t('Category mappings could not be saved: %s', $err);
+                }
+            } else {
+                push @save_errors, $self->t('Category mappings had an invalid format and were not saved');
             }
-            $sth_check_mapping->finish();
         }
+
+        # Patron matching and attribute settings (validated against Koha before saving)
+        my @new_key_errors;
+        push @new_key_errors, $self->t("Civic number attribute '%s' does not exist (Administration > Patron attribute types)", $civic_attribute_code)
+            if $civic_attribute_code ne '' && !$valid_attr{$civic_attribute_code};
+        push @new_key_errors, $self->t("Class attribute '%s' does not exist (Administration > Patron attribute types)", $class_attribute_code)
+            if $class_attribute_code ne 'CL' && !$valid_attr{$class_attribute_code};
+        push @new_key_errors, $self->t('Matching on a patron attribute needs a civic number attribute to be selected')
+            if (grep { $_ eq 'attribute' } @match_methods) && $civic_attribute_code eq '';
+        push @new_key_errors, $self->t('The e-mail suffix may only contain letters, digits and . _ - + @ (max 40 characters)')
+            if $email_suffix ne '' && $email_suffix !~ /^[A-Za-z0-9._\-+@]{1,40}$/;
+        push @new_key_errors, $self->t('Enter the text to append to e-mail addresses, or untick the box')
+            if $email_suffix_enabled eq 'Yes' && $email_suffix eq '';
+        push @new_key_errors, $self->t('Select at least one way to find existing patrons')
+            unless @match_methods;
+        if (@new_key_errors) {
+            push @save_errors, map { $self->t('%s - the patron identity settings (matching, attributes, e-mail text) were not saved', $_) } @new_key_errors;
+        } else {
+            my $upd = $dbh->prepare("UPDATE $config_table SET value = ? WHERE name = ?");
+            $upd->execute(join(',', @match_methods), 'match_methods');
+            $upd->execute($civic_attribute_code,    'civic_attribute_code');
+            $upd->execute($class_attribute_code,    'class_attribute_code');
+            $upd->execute($email_suffix,            'email_suffix');
+            $upd->execute($email_suffix_enabled,    'email_suffix_enabled');
+        }
+        {
+            my $upd2 = $dbh->prepare("UPDATE $config_table SET value = ? WHERE name = ?");
+            $upd2->execute($keep_existing_category, 'keep_existing_category');
+            $upd2->execute($keep_existing_contact,  'keep_existing_contact');
+        }
+        $template->param(error => join('; ', @save_errors)) if @save_errors;
 
         my $select_check_query = qq{
             SELECT name, value 
@@ -1059,8 +1201,16 @@ sub configure {
 
     my @categories_mapping;
     my @branches_mapping;
+    my (@branches_full, @categories_full, @attribute_types);
 
     eval {
+        @branches_full   = map { { code => $_->[0], name => $_->[1] // '' } }
+                           @{ $dbh->selectall_arrayref("SELECT branchcode, branchname FROM $branches_table ORDER BY branchname, branchcode") };
+        @categories_full = map { { code => $_->[0], name => $_->[1] // '' } }
+                           @{ $dbh->selectall_arrayref("SELECT categorycode, description FROM $categories_table ORDER BY categorycode") };
+        @attribute_types = map { { code => $_->[0], name => $_->[1] // '' } }
+                           @{ $dbh->selectall_arrayref("SELECT code, description FROM borrower_attribute_types ORDER BY code") };
+
         my $sth_categorycode = $dbh->prepare($select_categorycode_query);
         $sth_categorycode->execute();
         while (my ($category) = $sth_categorycode->fetchrow_array) {
@@ -1097,9 +1247,29 @@ sub configure {
         warn "Error fetching configuration: $@";
     }
 
+    my %match_set = map { $_ => 1 } split /\s*,\s*/, ($config_data->{match_methods} || 'userid,cardnumber');
+
     $template->param(
+        plugin_version      => $VERSION,
+        logo_data_uri       => logo_data_uri(),
+        client_secret_set   => (length($config_data->{ist_client_secret} // '') ? 1 : 0),
+        branches_full       => \@branches_full,
+        categories_full     => \@categories_full,
+        attribute_types     => \@attribute_types,
+        branches_json       => json_for_html(\@branches_full),
+        categories_json     => json_for_html(\@categories_full),
+        branches_mapping_json   => json_for_html([ map { { org => $_->{organisationCode}, branch => $_->{branchcode} } } @branches_mapping ]),
+        categories_mapping_json => json_for_html([ map { { role => $_->{dutyRole}, category => $_->{categorycode}, not_import => ($_->{not_import} ? 1 : 0) } } @categories_mapping ]),
+        match_attribute     => ($match_set{attribute}  ? 1 : 0),
+        match_userid        => ($match_set{userid}     ? 1 : 0),
+        match_cardnumber    => ($match_set{cardnumber} ? 1 : 0),
+        civic_attribute_code => $config_data->{civic_attribute_code} // '',
+        class_attribute_code => $config_data->{class_attribute_code} || 'CL',
+        email_suffix         => $config_data->{email_suffix} // '.NOEMAIL',
+        email_suffix_enabled => (($config_data->{email_suffix_enabled} // 'No') eq 'Yes' ? 1 : 0),
+        keep_existing_category => (($config_data->{keep_existing_category} // 'No') eq 'Yes' ? 1 : 0),
+        keep_existing_contact  => (($config_data->{keep_existing_contact}  // 'No') eq 'Yes' ? 1 : 0),
         client_id     => $config_data->{ist_client_id} || '',
-        client_secret => xor_encrypt($config_data->{ist_client_secret}, $skey) || '',
         customerId    => $config_data->{ist_customer_id} || '',
         api_url       => $config_data->{ist_api_url} || '',
         oauth_url     => $config_data->{ist_oauth_url} || '',
@@ -1116,7 +1286,6 @@ sub configure {
         logs_limit          => int($config_data->{logs_limit}) || 3,
         archived_limit      => int($config_data->{archived_limit}) || 0,
         language            => C4::Languages::getlanguage($cgi) || 'en',
-        mbf_path            => abs_path( $self->mbf_path('translations') ),
         verify_config       => verify_categorycode_and_branchcode(),
         excluding_enrolments_empty => $config_data->{excluding_enrolments_empty} || 'No',
         excluding_dutyRole_empty => $config_data->{excluding_dutyRole_empty} || 'No',
@@ -1131,6 +1300,357 @@ sub configure {
     print $template->output();
 }
 
+
+# Shown under Administration > Plugins: opens the same page as configure
+sub admin {
+    my ($self, $args) = @_;
+    return $self->configure($args);
+}
+
+# Decode JSON received in a form field. Koha normally hands over decoded characters
+# (CGI -utf8), but raw UTF-8 bytes are handled too.
+sub decode_json_param {
+    my ($text) = @_;
+    my $json = JSON->new;
+    return utf8::is_utf8($text) ? $json->decode($text) : $json->utf8->decode($text);
+}
+
+# ---------------------------------------------------------------------------
+# Log viewer (Administration > Plugins > Export Users from SS12000 > Log)
+# ---------------------------------------------------------------------------
+
+# State of an imcode_logs row as a SQL expression
+our $LOG_STATE_SQL = q{CASE
+        WHEN data_endpoint = 'restart_marker' THEN 'restart'
+        WHEN page_token_next IS NULL AND is_processed = 1 THEN 'done'
+        WHEN page_token_next = 'RESET' THEN 'reset'
+        WHEN is_processed = 1 THEN 'more pages'
+        ELSE 'pending'
+    END};
+
+sub log_tables {
+    return {
+        runs => {
+            table   => $logs_table,
+            pk      => 'id',
+            cols    => [ 'id', 'created_at', 'organisation_code', 'data_endpoint', 'iteration_number',
+                         'added_count', 'updated_count', 'processed_count', $LOG_STATE_SQL, 'LEFT(response, 160)' ],
+            search  => "CONCAT_WS(' ', id, created_at, organisation_code, data_endpoint, $LOG_STATE_SQL, LEFT(response, 500))",
+            time    => 'created_at',
+        },
+        changes => {
+            table   => $data_change_log_table,
+            pk      => 'log_id',
+            cols    => [ 'log_id', 'change_timestamp', 'record_id', 'action', 'change_description' ],
+            search  => "CONCAT_WS(' ', log_id, record_id, action, change_description, change_timestamp)",
+            time    => 'change_timestamp',
+        },
+    };
+}
+
+# Page with the two log tables (data is loaded by log_ajax)
+sub log_page {
+    my ($self, $session_data) = @_;
+    my $cgi = $self->{'cgi'};
+    my $dbh = C4::Context->dbh;
+
+    my $template = $self->get_template({ file => 'log.tt' });
+    $template->param(ss => $self->ss_sub);
+
+    my $orgs    = $dbh->selectcol_arrayref("SELECT DISTINCT organisation_code FROM $logs_table WHERE organisation_code IS NOT NULL AND organisation_code != '' ORDER BY organisation_code") || [];
+    my $actions = $dbh->selectcol_arrayref("SELECT DISTINCT action FROM $data_change_log_table WHERE action IS NOT NULL ORDER BY action") || [];
+    my ($runs_total)    = $dbh->selectrow_array("SELECT COUNT(*) FROM $logs_table");
+    my ($changes_total) = $dbh->selectrow_array("SELECT COUNT(*) FROM $data_change_log_table");
+    my $config_data     = $self->get_config_data();
+
+    $template->param(
+        plugin_version => $VERSION,
+        orgs           => $orgs,
+        actions        => $actions,
+        runs_total     => $runs_total    // 0,
+        changes_total  => $changes_total // 0,
+        logs_limit     => int($config_data->{logs_limit} || 3),
+        language       => C4::Languages::getlanguage($cgi) || 'en',
+    );
+
+    print $cgi->header(-type => 'text/html', -charset => 'utf-8');
+    print $template->output();
+    return;
+}
+
+# JSON for the log tables (DataTables server-side protocol) and for a single response
+sub log_ajax {
+    my ($self, $op) = @_;
+    my $cgi = $self->{'cgi'};
+
+    my $result = eval {
+        $op eq 'ajax-log-response' ? $self->log_response($cgi) : $self->log_table_data($cgi, $op eq 'ajax-log-changes' ? 'changes' : 'runs');
+    };
+    if ($@) {
+        log_message("Yes", "log_ajax $op failed: $@");
+        $result = { ok => JSON::false, message => $self->t('Unexpected error: %s', $@), draw => int($cgi->param('draw') // 0), data => [], recordsTotal => 0, recordsFiltered => 0, error => "$@" };
+    }
+
+    print_json($cgi, $result);
+    return;
+}
+
+sub log_response {
+    my ($self, $cgi) = @_;
+    my $id = int($cgi->param('id') // 0);
+    my $dbh = C4::Context->dbh;
+    my ($created, $org, $resp) = $dbh->selectrow_array(
+        "SELECT created_at, organisation_code, SUBSTRING(response, 1, 300000) FROM $logs_table WHERE id = ?", undef, $id
+    );
+    return { ok => JSON::false, message => $self->t('No such log row') } unless defined $created;
+    return { ok => JSON::true, id => $id, created_at => "$created", organisation => $org // '', response => $resp // '' };
+}
+
+sub log_table_data {
+    my ($self, $cgi, $kind) = @_;
+    my $dbh  = C4::Context->dbh;
+    my $spec = log_tables()->{$kind};
+
+    my $draw   = int($cgi->param('draw') // 0);
+    my $start  = int($cgi->param('start') // 0);  $start = 0 if $start < 0;
+    my $length = int($cgi->param('length') // 25);
+    $length = 25 if $length == 0;
+    $length = 500 if $length < 0 || $length > 500;
+
+    my $ncols = scalar @{ $spec->{cols} };
+    my $ocol  = int($cgi->param('order[0][column]') // 0);
+    $ocol = 0 if $ocol < 0 || $ocol >= $ncols;
+    my $odir  = lc($cgi->param('order[0][dir]') // 'desc') eq 'asc' ? 'ASC' : 'DESC';
+    my $order_sql = $spec->{cols}[$ocol] . " $odir, $spec->{pk} DESC";
+
+    my (@conds, @binds);
+
+    my $days = int($cgi->param('days') // 0);
+    if ($days > 0) {
+        push @conds, "$spec->{time} >= DATE_SUB(NOW(), INTERVAL ? DAY)";
+        push @binds, $days;
+    }
+
+    if ($kind eq 'runs') {
+        my $org = $cgi->param('org') // '';
+        if ($org ne '') { push @conds, 'organisation_code = ?'; push @binds, $org; }
+        my $state = $cgi->param('state') // '';
+        if ($state =~ /^(?:restart|done|reset|more pages|pending)$/) {
+            push @conds, "($LOG_STATE_SQL) = ?";
+            push @binds, $state;
+        }
+    } else {
+        my $action = $cgi->param('action') // '';
+        if ($action ne '') { push @conds, 'action = ?'; push @binds, $action; }
+    }
+
+    my $search = $cgi->param('search[value]') // '';
+    foreach my $word (grep { length } split /\s+/, $search) {
+        (my $like = $word) =~ s/([\\%_])/\\$1/g;
+        push @conds, "$spec->{search} LIKE ?";
+        push @binds, "%$like%";
+    }
+
+    my $where = @conds ? 'WHERE ' . join(' AND ', @conds) : '';
+    my ($total)    = $dbh->selectrow_array("SELECT COUNT(*) FROM $spec->{table}");
+    my ($filtered) = $dbh->selectrow_array("SELECT COUNT(*) FROM $spec->{table} $where", undef, @binds);
+
+    my $select = join(', ', @{ $spec->{cols} });
+    my $rows = $dbh->selectall_arrayref(
+        "SELECT $select FROM $spec->{table} $where ORDER BY $order_sql LIMIT $length OFFSET $start",
+        undef, @binds
+    );
+
+    return {
+        draw            => $draw,
+        recordsTotal    => int($total // 0),
+        recordsFiltered => int($filtered // 0),
+        data            => [ map { [ map { defined $_ ? "$_" : '' } @$_ ] } @$rows ],
+    };
+}
+
+# JSON that is safe to embed inside a <script> element
+sub json_for_html {
+    my ($data) = @_;
+    my $json = JSON->new->canonical->encode($data);
+    $json =~ s{</}{<\\/}g;
+    $json =~ s{<!--}{<\\!--}g;
+    return $json;
+}
+
+# Fetch every page of an IST endpoint. Returns (\@rows) or (undef, $http_code, $error_body).
+sub ist_fetch_all {
+    my ($api_base, $token, $endpoint, $params, $limit) = @_;
+    my (@all, $page_token);
+    my $pages = 0;
+    while (1) {
+        my $url = $api_base . $endpoint . '?limit=' . ($limit || 100);
+        $url .= '&' . uri_escape($_) . '=' . uri_escape($params->{$_}) for sort keys %{ $params || {} };
+        $url .= '&pageToken=' . uri_escape($page_token) if $page_token;
+        my ($body, $code, $err) = getApiResponse($url, $token);
+        return (undef, $code, $err) unless defined $body;
+        my $data = eval { decode_json($body) };
+        return (undef, 0, "Invalid JSON from $endpoint") unless ref $data eq 'HASH';
+        push @all, @{ $data->{data} || [] };
+        $page_token = $data->{pageToken};
+        last if !$page_token || ++$pages >= 200;
+    }
+    return (\@all);
+}
+
+# Lower-case words without accents, punctuation, digits and generic school words
+sub name_tokens {
+    my ($s) = @_;
+    $s = lc(NFD($s // ''));
+    $s =~ s/\p{M}//g;
+    $s =~ s/[^a-z0-9]+/ /g;
+    my %stop = map { $_ => 1 } qw(skola skolan skolor gymn gymnasium gymnasiet grundskola grundskolan anpassade anpassad st);
+    return grep { length($_) && $_ !~ /^\d+$/ && !$stop{$_} } split /\s+/, $s;
+}
+
+sub tokens_match {
+    my ($x, $y) = @_;
+    return 1 if $x eq $y;
+    my ($short, $long) = length($x) <= length($y) ? ($x, $y) : ($y, $x);
+    return length($short) >= 4 && index($long, $short) == 0;
+}
+
+# Score 0..1: share of the smaller word set that is found in the other one
+sub name_similarity {
+    my ($name_a, $name_b) = @_;
+    my @a = name_tokens($name_a);
+    my @b = name_tokens($name_b);
+    return 0 unless @a && @b;
+    my $hits = 0;
+    foreach my $x (@a) {
+        $hits++ if grep { tokens_match($x, $_) } @b;
+    }
+    my $min = @a < @b ? scalar(@a) : scalar(@b);
+    return $hits / $min;
+}
+
+sub configure_ajax {
+    my ($self, $op, $cgi) = @_;
+
+    my $result = eval { $self->ajax_dispatch($op, $cgi) };
+    if ($@) {
+        log_message("Yes", "configure_ajax $op failed: $@");
+        $result = { ok => JSON::false, message => $self->t('Unexpected error: %s', $@) };
+    }
+
+    print_json($cgi, $result);
+    return;
+}
+
+# Print a JSON response. The module sets a :utf8 layer on STDOUT, so the already
+# UTF-8 encoded body is printed through a raw handle to avoid double encoding.
+sub print_json {
+    my ($cgi, $data) = @_;
+    my $body = JSON->new->utf8->canonical->encode($data);
+    print $cgi->header(-type => 'application/json', -charset => 'utf-8', -cache_control => 'no-store');
+    binmode(STDOUT, ':raw');
+    print $body;
+    binmode(STDOUT, ':utf8');
+    return;
+}
+
+sub ajax_dispatch {
+    my ($self, $op, $cgi) = @_;
+
+    my $dbh    = C4::Context->dbh;
+    my $config = $self->get_config_data();
+
+    unless ($config->{ist_client_id} && length($config->{ist_client_secret} // '') && $config->{ist_customer_id}) {
+        return { ok => JSON::false, message => $self->t('Save Client ID, Client Secret and Customer ID first, then try again.') };
+    }
+
+    my $token = $self->get_api_token($config, LWP::UserAgent->new);
+    unless ($token) {
+        return { ok => JSON::false, message => $self->t('Could not get an access token. Check Client ID, Client Secret and OAUTH API URL.') };
+    }
+    my $api_base = ($config->{ist_api_url} || '') . '/ss12000v2-api/source/' . ($config->{ist_customer_id} || '') . '/v2.0/';
+
+    if ($op eq 'ajax-test-connection') {
+        my ($orgs, $code, $err) = ist_fetch_all($api_base, $token, 'organisations', {}, 100);
+        return { ok => JSON::false, message => $self->t('Token received, but organisations returned HTTP %s. Check API URL and Customer ID.', $code // '?') }
+            unless $orgs;
+        my ($duties, $dcode) = getApiResponse($api_base . 'duties?limit=1', $token);
+        my $duties_state = defined $duties ? 'available' : ((($dcode // 0) == 403) ? 'forbidden' : 'error');
+        return {
+            ok            => JSON::true,
+            organisations => scalar(@$orgs),
+            duties        => $duties_state,
+            message       => $self->t('Connected to IST. %s organisations found.', scalar(@$orgs))
+                           . ($duties_state eq 'forbidden' ? ' ' . $self->t("Duties (staff roles) are not included in this customer's subscription.") : ''),
+        };
+    }
+
+    if ($op eq 'ajax-ist-orgs') {
+        my ($orgs, $code) = ist_fetch_all($api_base, $token, 'organisations', {}, 100);
+        return { ok => JSON::false, message => $self->t('Could not read organisations (HTTP %s)', $code // '?') } unless $orgs;
+        my %by_id = map { $_->{id} => $_ } @$orgs;
+        my @list = map {
+            {
+                id     => $_->{id},
+                code   => $_->{organisationCode} // '',
+                name   => $_->{displayName} // '',
+                type   => $_->{organisationType} // '',
+                parent => (($by_id{ ($_->{parentOrganisation} || {})->{id} // '' } || {})->{displayName} // ''),
+            }
+        } @$orgs;
+        @list = sort { lc($a->{name}) cmp lc($b->{name}) } @list;
+        return { ok => JSON::true, organisations => \@list };
+    }
+
+    if ($op eq 'ajax-ist-roles') {
+        my ($duties, $code) = ist_fetch_all($api_base, $token, 'duties', {}, 100);
+        unless ($duties) {
+            return { ok => JSON::false, forbidden => (($code // 0) == 403 ? JSON::true : JSON::false),
+                     message => (($code // 0) == 403
+                        ? $self->t("The duties endpoint is not included in this customer's IST subscription (403). Staff roles cannot be read.")
+                        : $self->t('Could not read duties (HTTP %s)', $code // '?')) };
+        }
+        my %count;
+        $count{ $_->{dutyRole} }++ for grep { defined $_->{dutyRole} && $_->{dutyRole} ne '' } @$duties;
+        my @roles = map { { role => $_, count => $count{$_} } } sort { lc($a) cmp lc($b) } keys %count;
+        return { ok => JSON::true, roles => \@roles };
+    }
+
+    if ($op eq 'ajax-suggest-branches') {
+        my ($orgs, $code) = ist_fetch_all($api_base, $token, 'organisations', {}, 100);
+        return { ok => JSON::false, message => $self->t('Could not read organisations (HTTP %s)', $code // '?') } unless $orgs;
+
+        my %mapped = map { $_ => 1 } @{ $dbh->selectcol_arrayref("SELECT organisationCode FROM $branches_mapping_table") || [] };
+        my @branches = map { { code => $_->[0], name => $_->[1] // '' } }
+                       @{ $dbh->selectall_arrayref("SELECT branchcode, branchname FROM $branches_table") };
+
+        my @suggestions;
+        foreach my $org (@$orgs) {
+            my $org_code = $org->{organisationCode} // '';
+            next if $org_code eq '' || $mapped{$org_code};
+            my ($best, $best_score, $second) = (undef, 0, 0);
+            foreach my $b (@branches) {
+                my $score = name_similarity($org->{displayName}, $b->{name});
+                $score = 1 if lc($org_code) eq lc($b->{code});
+                if ($score > $best_score) { $second = $best_score; ($best, $best_score) = ($b, $score) }
+                elsif ($score > $second) { $second = $score }
+            }
+            next unless $best && $best_score >= 0.8;
+            push @suggestions, {
+                org      => $org_code,
+                org_name => $org->{displayName} // '',
+                branch   => $best->{code},
+                branch_name => $best->{name},
+                score    => sprintf('%.2f', $best_score),
+                ambiguous => ($second >= $best_score ? JSON::true : JSON::false),
+            };
+        }
+        @suggestions = sort { $a->{org_name} cmp $b->{org_name} } @suggestions;
+        return { ok => JSON::true, suggestions => \@suggestions };
+    }
+
+    return { ok => JSON::false, message => $self->t('Unknown operation %s', $op) };
+}
 
 sub xor_encrypt {
     # Simple symmetric XOR encryption — avoids external crypto dependencies
@@ -1156,6 +1676,7 @@ sub tool {
 
     my $dbh = C4::Context->dbh;
     my $template = $self->get_template( { file => 'tool.tt' } );
+    $template->param(ss => $self->ss_sub);
     my $op          = $cgi->param('op') || q{};
 
     my $page      = $cgi->param('page') || 1;
@@ -1233,7 +1754,7 @@ sub tool {
                     $status->{pid}    = undef;
                     push @{$status->{messages}}, {
                         time  => time(),
-                        text  => "Process died unexpectedly",
+                        text  => $self->t('Process died unexpectedly'),
                         error => 1
                     };
                 }
@@ -1268,7 +1789,7 @@ sub tool {
         unless ($session_data && $session_data->{permissions}->{plugins}) {
             print JSON::encode_json({
                 status  => 'error',
-                message => 'Permission denied'
+                message => $self->t('Permission denied')
             });
             exit;
         }
@@ -1278,7 +1799,7 @@ sub tool {
         if ($status->{started_at} && time() - $status->{started_at} < 300) {
             print JSON::encode_json({
                 status  => 'error',
-                message => 'Process is still young, wait at least 5 minutes before forcing unlock'
+                message => $self->t('Process is still young, wait at least 5 minutes before forcing unlock')
             });
             exit;
         }
@@ -1301,7 +1822,7 @@ sub tool {
             messages    => [
                 {
                     time  => time(),
-                    text  => "Process forcefully unlocked by user",
+                    text  => $self->t('Process forcefully unlocked by user'),
                     error => 0
                 }
             ]
@@ -1314,7 +1835,7 @@ sub tool {
         
         print JSON::encode_json({
             status  => 'success',
-            message => 'Process unlocked successfully'
+            message => $self->t('Process unlocked successfully')
         });
         exit;
     }
@@ -1330,7 +1851,7 @@ sub tool {
             $template->param(
                 process_started => {
                     status  => 'already_running',
-                    message => 'Export process is already running'
+                    message => $self->t('Export process is already running')
                 }
             );
         }
@@ -1553,7 +2074,6 @@ sub tool {
 
     $template->param(
             language   => C4::Languages::getlanguage($cgi) || 'en',
-            mbf_path   => abs_path( $self->mbf_path('translations') ),
             csrf_token => $session_data->{csrf_token},
     );
 
@@ -1746,6 +2266,15 @@ sub _cronjob_inner {
                             log_message('Yes', "Error processing organisation $org_code: $@");
                         }
                     }
+                } elsif (($self->{org_lookup_status} // '') eq 'not_found') {
+                    # The organisation does not exist in IST (renamed, removed or mistyped mapping).
+                    # Count it as done for today so it cannot block the final checks, and say so clearly.
+                    my $msg = "Organisation code $org_code does not exist in IST - skipped for today (check the branch mapping)";
+                    log_message('Yes', $msg);
+                    $dbh->do(
+                        "INSERT INTO $logs_table (page_token_next, response, data_endpoint, organisation_code, is_processed) VALUES (NULL, ?, ?, ?, 1)",
+                        undef, $msg, $data_endpoint, $org_code
+                    );
                 } else {
                     log_message('Yes', "Could not get ID for organisation code: $org_code");
                 }
@@ -1932,7 +2461,10 @@ sub get_config_data {
 
 sub get_organisation_id {
     my ($self, $org_code, $config_data) = @_;
-    
+
+    # $self->{org_lookup_status}: 'found' | 'not_found' (IST answered, no such organisation) | 'error' (could not ask)
+    $self->{org_lookup_status} = 'error';
+
     my $ua = LWP::UserAgent->new;
     my $token = $self->get_api_token($config_data, $ua);
     return unless $token;
@@ -1958,10 +2490,14 @@ sub get_organisation_id {
     log_message("Yes", "get_organisation_id response body: " . $response->content);
         
     if ($response->is_success) {
-        my $org_data = decode_json($response->content);
+        my $org_data = eval { decode_json($response->content) };
         if ($org_data && $org_data->{data} && @{$org_data->{data}}) {
+            $self->{org_lookup_status} = 'found';
             return $org_data->{data}[0]->{id};
         }
+        $self->{org_lookup_status} = 'not_found' if $org_data;
+    } elsif ($response->code == 404) {
+        $self->{org_lookup_status} = 'not_found';
     }
     
     log_message("Yes", "Failed to get organisation ID for code $org_code: " . $response->status_line);
@@ -2083,19 +2619,39 @@ sub mark_missing_users_from_api {
     # We check if opacnote doesn't contain today's date (YYYY-MM-DD format)
     my $today_date = strftime("%Y-%m-%d", localtime);
     
-    my $select_potential_missing_query = qq{
-        SELECT borrowernumber, cardnumber, surname, firstname, opacnote
-        FROM $borrowers_table
-        WHERE opacnote LIKE '%by SS12000:%'
-        AND opacnote NOT LIKE '%No update: user no longer in API%'
-        AND opacnote NOT LIKE '%$today_date%'
-        AND cardnumber IS NOT NULL
-        AND cardnumber != ''
-    };
+    # The civic number is looked up in IST. It normally equals cardnumber, but when the civic number
+    # is kept in a borrower attribute (civic_attribute_code) that attribute is used instead
+    # (the card number can then be a library card that IST knows nothing about).
+    my $civic_attr_code = $config_data->{civic_attribute_code} // '';
+    my @missing_binds;
+    my $select_potential_missing_query;
+    if ($civic_attr_code ne '') {
+        $select_potential_missing_query = qq{
+            SELECT b.borrowernumber, ba.attribute AS cardnumber, b.surname, b.firstname, b.opacnote
+            FROM $borrowers_table b
+            JOIN borrower_attributes ba ON ba.borrowernumber = b.borrowernumber AND ba.code = ?
+            WHERE b.opacnote LIKE '%by SS12000:%'
+            AND b.opacnote NOT LIKE '%No update: user no longer in API%'
+            AND b.opacnote NOT LIKE '%$today_date%'
+            AND ba.attribute IS NOT NULL
+            AND ba.attribute != ''
+        };
+        @missing_binds = ($civic_attr_code);
+    } else {
+        $select_potential_missing_query = qq{
+            SELECT borrowernumber, cardnumber, surname, firstname, opacnote
+            FROM $borrowers_table
+            WHERE opacnote LIKE '%by SS12000:%'
+            AND opacnote NOT LIKE '%No update: user no longer in API%'
+            AND opacnote NOT LIKE '%$today_date%'
+            AND cardnumber IS NOT NULL
+            AND cardnumber != ''
+        };
+    }
     
     eval {
         my $sth = $dbh->prepare($select_potential_missing_query);
-        $sth->execute();
+        $sth->execute(@missing_binds);
         
         my @confirmed_missing;
         my $checked_count = 0;
@@ -2348,6 +2904,14 @@ sub fetchDataFromAPI {
     my $ignore_cancelled_flag      = $config_data->{ignore_cancelled_flag} || 'No';
     my $dateexpiry_fallback = $config_data->{dateexpiry_fallback} || 'keep';
     my $dateexpiry_months   = int($config_data->{dateexpiry_months} || 12);
+    my $opts = {
+        match_methods        => $config_data->{match_methods} || 'userid,cardnumber',
+        civic_attribute_code => $config_data->{civic_attribute_code} // '',
+        class_attribute_code => $config_data->{class_attribute_code} || 'CL',
+        email_suffix         => (($config_data->{email_suffix_enabled} // 'No') eq 'Yes' ? ($config_data->{email_suffix} // '') : ''),
+        keep_existing_category => (($config_data->{keep_existing_category} // 'No') eq 'Yes' ? 1 : 0),
+        keep_existing_contact  => (($config_data->{keep_existing_contact}  // 'No') eq 'Yes' ? 1 : 0),
+    };
     
     if ($debug_mode eq "Yes") { 
         log_message($debug_mode, "Starting processing for endpoint: $data_endpoint, organisation: $current_org_code");
@@ -2398,21 +2962,52 @@ sub fetchDataFromAPI {
             $api_url = $api_url."&pageToken=$page_token_next";
         } 
 
-        my ($response_data, $http_err_code) = getApiResponse($api_url, $access_token);
+        my ($response_data, $http_err_code, $http_err_body) = getApiResponse($api_url, $access_token);
 
-        # 410 Gone — the pageToken cursor expired on the API side.
-        # This happens when a previous run completed this org but did not write
-        # page_token_next = NULL (e.g. process was interrupted after the last page
-        # was fetched but before the DB update). Treat as completed and move on.
+        # 410 Gone — the pageToken cursor is no longer valid on the API side.
+        # IST answers NEW_DATA_RESTART_FROM_FIRST_PAGE when data changed since the
+        # previous page was served. The organisation is NOT finished: restart it from
+        # the first page (already processed users are simply updated again).
+        # A cap per organisation and day prevents endless restart loops.
         if (!defined $response_data && ($http_err_code // 0) == 410) {
-            log_message('Yes', "pageToken expired (410 Gone) for org $current_org_code — marking as completed");
-            if (defined $data_id) {
+            my $max_restarts = 10;
+            my $restart_code = ($http_err_body // '') =~ /NEW_DATA_RESTART_FROM_FIRST_PAGE/
+                ? 'NEW_DATA_RESTART_FROM_FIRST_PAGE' : 'unknown';
+            log_message('Yes', "pageToken rejected by API (410 Gone, code: $restart_code) for org $current_org_code, response: " . ($http_err_body // ''));
+
+            my ($restarts) = $dbh->selectrow_array(
+                "SELECT COUNT(*) FROM $logs_table WHERE DATE(created_at) = CURDATE() AND organisation_code = ? AND data_endpoint = 'restart_marker'",
+                undef, $current_org_code
+            );
+
+            if (($restarts // 0) >= $max_restarts) {
+                my $msg = "Gave up on organisation $current_org_code after $max_restarts restarts from first page (API keeps returning 410). Will be retried on the next day";
+                log_message('Yes', $msg);
                 $dbh->do(
-                    "UPDATE $logs_table SET page_token_next = NULL, is_processed = 1 WHERE id = ?",
-                    undef, $data_id
+                    "INSERT INTO $logs_table (page_token_next, response, data_endpoint, organisation_code, is_processed) VALUES (NULL, ?, ?, ?, 1)",
+                    undef, $msg, $data_endpoint, $current_org_code
                 );
+                die "EndLastPageFromAPI";
             }
-            die "EndLastPageFromAPI";
+
+            $dbh->do(
+                "INSERT INTO $logs_table (page_token_next, response, data_endpoint, organisation_code, is_processed) VALUES (NULL, ?, 'restart_marker', ?, 1)",
+                undef, "Restart " . (($restarts // 0) + 1) . " of $max_restarts from first page: $restart_code", $current_org_code
+            );
+            $dbh->do(
+                "UPDATE $logs_table SET page_token_next = 'RESET'
+                 WHERE data_endpoint = ? AND organisation_code = ? AND DATE(created_at) = CURDATE()
+                 AND page_token_next IS NOT NULL AND page_token_next != 'RESET'",
+                undef, $data_endpoint, $current_org_code
+            );
+
+            log_message('Yes', "Restarting organisation $current_org_code from first page (restart " . (($restarts // 0) + 1) . " of $max_restarts)");
+            $api_url =~ s/&pageToken=[^&]*//;
+            ($response_data, $http_err_code, $http_err_body) = getApiResponse($api_url, $access_token);
+            if (!defined $response_data) {
+                die "Restart from first page failed for org $current_org_code (HTTP " . ($http_err_code // '?') . "): " . ($http_err_body // '');
+            }
+            undef $data_id;
         }
 
         my $response = $debug_mode eq "Yes" ? $response_data : "Debug Mode OFF";
@@ -2540,6 +3135,7 @@ sub fetchDataFromAPI {
                 \@branches_mapping,
                 $dateexpiry_fallback,
                 $dateexpiry_months,
+                $opts,
             );
 
             if (!defined $response_page_token || $response_page_token eq "") {
@@ -2618,18 +3214,13 @@ sub fetchDataFromAPI {
     return 1;
 }
 
-sub getTranslation {
-    my ($string) = @_;
-    return Encode::decode( 'UTF-8', gettext($string) );
-}
-
 # Fetch a URL with Bearer token auth.
 # Returns (body, undef) on HTTP 2xx, (undef, $http_code) on any error.
 # Always logs the HTTP status on failure so the caller gets a meaningful error
 # instead of a cryptic "malformed JSON" from decode_json(undef).
 # Callers that only need the body can still call in scalar context — they just
 # get undef on error, same as before. Callers that need the status code should
-# call in list context: my ($body, $err_code) = getApiResponse(...).
+# call in list context: my ($body, $err_code, $err_body) = getApiResponse(...).
 sub getApiResponse {
     my ($api_url, $access_token) = @_;
 
@@ -2641,10 +3232,12 @@ sub getApiResponse {
     my $api_response = $ua->request($api_request);
 
     if ($api_response->is_success) {
-        return wantarray ? ($api_response->decoded_content, undef) : $api_response->decoded_content;
+        return wantarray ? ($api_response->decoded_content, undef, undef) : $api_response->decoded_content;
     } else {
-        log_message('Yes', "getApiResponse HTTP error: " . $api_response->status_line . " URL: $api_url");
-        return wantarray ? (undef, $api_response->code) : undef;
+        my $err_body = eval { substr($api_response->decoded_content // '', 0, 500) } // '';
+        $err_body =~ s/\s+/ /g;
+        log_message('Yes', "getApiResponse HTTP error: " . $api_response->status_line . " URL: $api_url Response: $err_body");
+        return wantarray ? (undef, $api_response->code, $err_body) : undef;
     }
 }
 
@@ -2655,13 +3248,16 @@ sub verify_categorycode_and_branchcode {
     $dbh->do("SET NAMES utf8mb4");
     $dbh->do("SET CHARACTER SET utf8mb4");
 
-    my $select_categories_mapping_query = qq{SELECT categorycode FROM $categories_mapping_table};
+    # Roles flagged "do not import" never use their category, so only the other rows count here
+    my $select_categories_mapping_query = qq{SELECT categorycode FROM $categories_mapping_table WHERE not_import IS NULL OR not_import = 0};
     my $select_branches_mapping_query   = qq{SELECT branchcode FROM $branches_mapping_table};
 
     my $categories_mapping_exists = $dbh->selectall_arrayref($select_categories_mapping_query);
     my $branches_mapping_exists   = $dbh->selectall_arrayref($select_branches_mapping_query);
 
-    if (@$categories_mapping_exists && @$branches_mapping_exists) {
+    # The branch mapping is required. The category (role) mapping is optional: customers without
+    # staff roles use the default category for everyone.
+    if (@$branches_mapping_exists) {
         my $select_categorycode_query = qq{SELECT categorycode FROM $categories_table};
         my $select_branchcode_query   = qq{SELECT branchcode FROM $branches_table};
 
@@ -2670,7 +3266,7 @@ sub verify_categorycode_and_branchcode {
 
         my $categorycode_in_categories_table_query = qq{
             SELECT categorycode FROM $categories_table
-            WHERE categorycode COLLATE utf8mb4_swedish_ci IN (SELECT categorycode FROM $categories_mapping_table)
+            WHERE categorycode COLLATE utf8mb4_swedish_ci IN (SELECT categorycode FROM $categories_mapping_table WHERE not_import IS NULL OR not_import = 0)
         };
 
         my $categorycode_in_categories_table = $dbh->selectall_arrayref($categorycode_in_categories_table_query);
@@ -2682,7 +3278,16 @@ sub verify_categorycode_and_branchcode {
 
         my $branchcode_in_branches_table = $dbh->selectall_arrayref($branchcode_in_branches_table_query);
 
-        if (@$categorycode_exists && @$branchcode_exists && @$categorycode_in_categories_table && @$branchcode_in_branches_table) {
+        my $category_ok;
+        if (@$categories_mapping_exists) {
+            $category_ok = scalar @$categorycode_in_categories_table;
+        } else {
+            my ($default_cat) = $dbh->selectrow_array("SELECT value FROM $config_table WHERE name = 'koha_default_categorycode'");
+            $category_ok = (defined $default_cat && $default_cat ne ''
+                && $dbh->selectrow_array("SELECT 1 FROM $categories_table WHERE categorycode = ?", undef, $default_cat)) ? 1 : 0;
+        }
+
+        if (@$categorycode_exists && @$branchcode_exists && $category_ok && @$branchcode_in_branches_table) {
             return "Ok";
         } else {
             return "No";
@@ -2712,8 +3317,10 @@ sub fetchBorrowers {
             $branches_mapping_ref,
             $dateexpiry_fallback,
             $dateexpiry_months,
+            $opts,
         ) = @_;
 
+    $opts ||= {};
     my @categories_mapping = @$categories_mapping_ref;
     my @branches_mapping   = @$branches_mapping_ref;
 
@@ -2768,30 +3375,51 @@ sub fetchBorrowers {
                     my $klass_displayName;
                     log_message($debug_mode, '::groupMembership (trying to get Klass) BEGIN');
 
-                    # Collect all valid klasses and pick the newest by startDate
-                    my @valid_klasses;
+                    # A class counts only if BOTH the group and the student's own membership
+                    # are valid today (a group can run all school year while the student has
+                    # been moved to another class). Open-ended dates are treated as valid.
+                    # Order is deterministic: newest membership start, then newest group start, then name.
+                    my @klass_candidates;
                     if (defined $response_data_groupMemberships &&
                         defined $response_data_groupMemberships->{_embedded} &&
                         defined $response_data_groupMemberships->{_embedded}->{groupMemberships}) {
-                        @valid_klasses = grep {
-                            $_->{group}->{groupType} eq "Klass" &&
-                            $_->{group}->{endDate} gt $today &&
-                            $_->{group}->{startDate} lt $today
-                        } @{$response_data_groupMemberships->{_embedded}->{groupMemberships}};
+                        foreach my $gm (@{$response_data_groupMemberships->{_embedded}->{groupMemberships}}) {
+                            my $g = $gm->{group} || {};
+                            next unless ($g->{groupType} // '') eq 'Klass';
+                            my $g_start = $g->{startDate} // '0000-00-00';
+                            my $g_end   = $g->{endDate}   // '9999-12-31';
+                            my $m_start = $gm->{startDate} // '0000-00-00';
+                            my $m_end   = $gm->{endDate}   // '9999-12-31';
+                            push @klass_candidates, {
+                                name     => $g->{displayName} // '',
+                                org      => ((ref $g->{organisation} eq 'HASH') ? ($g->{organisation}{id} // '') : ''),
+                                g_start  => $g_start, g_end => $g_end,
+                                m_start  => $m_start, m_end => $m_end,
+                                in_group => ($g_start le $today && $today le $g_end) ? 1 : 0,
+                                in_memb  => ($m_start le $today && $today le $m_end) ? 1 : 0,
+                            };
+                        }
+                    }
 
-                        @valid_klasses = sort {
-                            $b->{group}->{startDate} cmp $a->{group}->{startDate}
-                        } @valid_klasses;
+                    my @valid_klasses = sort {
+                        $b->{m_start} cmp $a->{m_start} ||
+                        $b->{g_start} cmp $a->{g_start} ||
+                        $a->{name}    cmp $b->{name}
+                    } grep { $_->{in_group} && $_->{in_memb} } @klass_candidates;
+
+                    foreach my $c (@klass_candidates) {
+                        log_message($debug_mode, sprintf(
+                            'Klass candidate "%s": group %s..%s (%s), membership %s..%s (%s)',
+                            $c->{name}, $c->{g_start}, $c->{g_end}, ($c->{in_group} ? 'valid' : 'not valid'),
+                            $c->{m_start}, $c->{m_end}, ($c->{in_memb} ? 'valid' : 'not valid')
+                        ));
                     }
 
                     if (@valid_klasses) {
-                        $klass_displayName = $valid_klasses[0]->{group}->{displayName};
-                        log_message($debug_mode, 'Selected newest klass_displayName: ' . $klass_displayName);
-                        log_message($debug_mode, 'klass startDate: ' . $valid_klasses[0]->{group}->{startDate});
-                        log_message($debug_mode, 'klass endDate: ' . $valid_klasses[0]->{group}->{endDate});
-                        
+                        $klass_displayName = $valid_klasses[0]->{name};
+                        log_message($debug_mode, 'Selected klass_displayName: ' . $klass_displayName);
                         if (@valid_klasses > 1) {
-                            log_message($debug_mode, 'Multiple valid klasses found (' . scalar(@valid_klasses) . '), picked the newest');
+                            log_message($debug_mode, 'Multiple valid klasses found (' . scalar(@valid_klasses) . '), picked by newest membership start, then group start, then name');
                         }
                     } else {
                         log_message($debug_mode, 'No valid Klass found');
@@ -2804,15 +3432,24 @@ sub fetchBorrowers {
                     my $response_data_person;
                     my $duty_role;
 
-                    eval {
-                        my $raw_duties = getApiResponse($person_api_url, $access_token);
-                        if (defined $raw_duties && length($raw_duties) > 0) {
-                            $response_data_person = decode_json($raw_duties);
-                            log_message($debug_mode, 'response_data_person: '.Dumper($response_data_person));
-                        } else {
-                            log_message($debug_mode, "Empty/undef response for duties, person id: $id");
-                        }
-                    };
+                    # Some customers have not ordered duties (HTTP 403). Ask once, then skip
+                    # for the rest of this run instead of one failing call per user.
+                    if ($duties_forbidden) {
+                        log_message($debug_mode, "Skipping duties lookup (API returned 403 earlier in this run)");
+                    } else {
+                        eval {
+                            my ($raw_duties, $duties_err) = getApiResponse($person_api_url, $access_token);
+                            if (defined $raw_duties && length($raw_duties) > 0) {
+                                $response_data_person = decode_json($raw_duties);
+                                log_message($debug_mode, 'response_data_person: '.Dumper($response_data_person));
+                            } elsif (($duties_err // 0) == 403) {
+                                $duties_forbidden = 1;
+                                log_message('Yes', "Duties endpoint is not available for this customer (403 Forbidden): dutyRole will not be used");
+                            } else {
+                                log_message($debug_mode, "Empty/undef response for duties, person id: $id");
+                            }
+                        };
+                    }
 
                     if (
                             $response_data_person && 
@@ -2870,24 +3507,40 @@ sub fetchBorrowers {
                         log_message($debug_mode, 'No current valid enrolment found for student');
                     }
 
+                    # With several valid classes, prefer the class that belongs to the school
+                    # where the student has the active enrolment.
+                    if (@valid_klasses > 1 && $enroledAtId) {
+                        my @preferred = prefer_klass_in_org(\@valid_klasses, $enroledAtId);
+                        if (@preferred && @preferred < @valid_klasses) {
+                            @valid_klasses = @preferred;
+                            $klass_displayName = $valid_klasses[0]->{name};
+                            log_message($debug_mode, 'Klass narrowed to the school of the active enrolment: ' . $klass_displayName);
+                        }
+                    }
+
                     if ($enroledAtId) {
                         log_message($debug_mode, 'enroledAtId: '.$enroledAtId);
                         
                         my $person_api_url = $api_url_base."organisations/".$enroledAtId;
                         log_message($debug_mode, 'person_api_url: '.$person_api_url);
-                        my $organisationCode;
+                        my $organisationCode = $org_code_cache{$enroledAtId};
+                        undef $response_data_person;
 
-                        eval {
-                            my $raw_org = getApiResponse($person_api_url, $access_token);
-                            if (defined $raw_org && length($raw_org) > 0) {
-                                $response_data_person = decode_json($raw_org);
-                                log_message($debug_mode, 'response_data_person: '.Dumper($response_data_person));
-                            } else {
-                                log_message($debug_mode, "Empty/undef response for organisation id: $enroledAtId");
-                            }
-                        };
+                        if (defined $organisationCode) {
+                            log_message($debug_mode, "organisationCode for $enroledAtId taken from cache: $organisationCode");
+                        } else {
+                            eval {
+                                my $raw_org = getApiResponse($person_api_url, $access_token);
+                                if (defined $raw_org && length($raw_org) > 0) {
+                                    $response_data_person = decode_json($raw_org);
+                                    log_message($debug_mode, 'response_data_person: '.Dumper($response_data_person));
+                                } else {
+                                    log_message($debug_mode, "Empty/undef response for organisation id: $enroledAtId");
+                                }
+                            };
+                        }
 
-                        if (defined $response_data_person && ref($response_data_person) eq 'HASH') {
+                        if (!defined $organisationCode && defined $response_data_person && ref($response_data_person) eq 'HASH') {
                             if (defined $response_data_person->{organisationCode} && $response_data_person->{organisationCode} ne '') {
                                 $organisationCode = $response_data_person->{organisationCode};
                             } elsif (defined $response_data_person->{parentOrganisation} &&
@@ -2910,6 +3563,7 @@ sub fetchBorrowers {
                                     log_message($debug_mode, 'Error looking up parent organisation: '.$@);
                                 }
                             }
+                            $org_code_cache{$enroledAtId} = $organisationCode if $organisationCode;
                         }
 
                         if ($organisationCode) {
@@ -3057,6 +3711,18 @@ sub fetchBorrowers {
                     log_message($debug_mode, 'cardnumber: '.$cardnumber);
                     log_message($debug_mode, 'civicNo: '.Dumper($civicNo));
 
+                    # Not every IST subscription includes birthDate. A Swedish civic number
+                    # (YYYYMMDDNNNN, day +60 for coordination numbers) contains the date of birth.
+                    if ((!defined $birthDate || $birthDate eq '') && defined $cardnumber
+                        && $cardnumber =~ /^(\d{4})(\d{2})(\d{2})\d{4}$/) {
+                        my ($by, $bm, $bd) = ($1, $2, $3);
+                        $bd -= 60 if $bd > 60;
+                        if ($bm >= 1 && $bm <= 12 && $bd >= 1 && $bd <= 31 && $by >= 1900) {
+                            $birthDate = sprintf('%04d-%02d-%02d', $by, $bm, $bd);
+                            log_message($debug_mode, 'birthDate derived from civic number: '.$birthDate);
+                        }
+                    }
+
                     my $externalIdentifier;
                     my $externalIdentifiers = $response_page_data->{externalIdentifiers};
                     if (defined $externalIdentifiers && ref $externalIdentifiers eq 'ARRAY') {
@@ -3120,6 +3786,7 @@ sub fetchBorrowers {
                                 $dateexpiry_fallback,
                                 $dateexpiry_months,
                                 $enrolment_cancelled,
+                                $opts,
                             );
                     } else {
                         # User is skipped - update opacnote with reason if user exists
@@ -3146,6 +3813,11 @@ sub fetchBorrowers {
                             END
                             WHERE userid = ? OR cardnumber = ?
                         };
+                        my @skip_binds = ($userid, $cardnumber);
+                        if (($opts->{civic_attribute_code} // '') ne '' && defined $cardnumber && $cardnumber ne '') {
+                            $skip_note_query =~ s/WHERE userid = \? OR cardnumber = \?/WHERE userid = ? OR cardnumber = ? OR borrowernumber IN (SELECT borrowernumber FROM borrower_attributes WHERE code = ? AND attribute = ?)/;
+                            push @skip_binds, $opts->{civic_attribute_code}, $cardnumber;
+                        }
                         eval {
                             my $skip_sth = $dbh->prepare($skip_note_query);
                             $skip_sth->execute(
@@ -3153,7 +3825,7 @@ sub fetchBorrowers {
                                 $current_version_info, $skip_reason,
                                 $current_version_info, $skip_reason,
                                 $current_version_info, $skip_reason,
-                                $userid, $cardnumber
+                                @skip_binds
                             );
                             if ($skip_sth->rows > 0) {
                                 log_message($debug_mode, "Updated opacnote for skipped user (reason: $skip_reason)");
@@ -3229,6 +3901,12 @@ sub fetchBorrowers {
             }
 }
 
+# Keep only the candidate classes whose group belongs to organisation $org (order is kept)
+sub prefer_klass_in_org {
+    my ($klasses, $org) = @_;
+    return grep { defined $_->{org} && $_->{org} ne '' && $_->{org} eq $org } @$klasses;
+}
+
 sub has_changes {
     my ($old_data, $new_values) = @_;
     
@@ -3297,21 +3975,51 @@ sub addOrUpdateBorrower {
         $dateexpiry_fallback,
         $dateexpiry_months,
         $enrolment_cancelled,
+        $opts,
     ) = @_;
     
     my $dbh = C4::Context->dbh;
 
     my $current_version_info = $version_info;
 
-    my $newUserID;
-    my $newCardnumber;
+    $opts ||= {};
 
-    if ($useridPlugin eq "civicNo" || $useridPlugin eq "externalIdentifier") {
-        $newUserID = ($useridPlugin eq "civicNo") ? $userid : $externalIdentifier;
-    }
+    # How existing patrons are found. Default (userid,cardnumber) is the original behaviour.
+    # 'attribute' matches the civic number against a borrower attribute (civic_attribute_code).
+    my $civic_attr_code = $opts->{civic_attribute_code} // '';
+    my $class_attr_code = $opts->{class_attribute_code} || 'CL';
+    my %match_by = map { $_ => 1 } grep { /^(?:attribute|userid|cardnumber)$/ } split /\s*,\s*/, ($opts->{match_methods} || 'userid,cardnumber');
+    delete $match_by{attribute} if $civic_attr_code eq '';
+    %match_by = (userid => 1, cardnumber => 1) unless %match_by;
 
-    if ($cardnumberPlugin eq "civicNo" || $cardnumberPlugin eq "externalIdentifier") {
-        $newCardnumber = ($cardnumberPlugin eq "civicNo") ? $cardnumber : $externalIdentifier;
+    # $userid and $cardnumber both carry the civic number when called from fetchBorrowers
+    my $civic_no = $userid;
+    my ($email_local) = (defined $email ? $email : '') =~ /^([^@\s]+)\@/;
+
+    my %id_source = (
+        civicNo            => $civic_no,
+        externalIdentifier => $externalIdentifier,
+        email_local        => $email_local,
+        email              => $email,
+    );
+
+    # 'keep' (or a source that has no value for this person) leaves the value undefined here;
+    # it is resolved below once we know whether the patron already exists.
+    my $newUserID     = $id_source{ $useridPlugin     // 'civicNo' };
+    my $newCardnumber = $id_source{ $cardnumberPlugin // 'civicNo' };
+    $newUserID     = undef if defined $newUserID     && $newUserID eq '';
+    $newCardnumber = undef if defined $newCardnumber && $newCardnumber eq '';
+
+    # Optional suffix for imported e-mail addresses (for example .NOEMAIL), so no notices are sent
+    # before go-live. The user id is derived from the address above, i.e. without the suffix.
+    my $email_suffix = $opts->{email_suffix} // '';
+    if ($email_suffix ne '') {
+        my $suffix_lc = lc $email_suffix;
+        foreach my $addr ($email, $B_email) {
+            next unless defined $addr && $addr ne '';
+            next if lc($addr) =~ /\Q$suffix_lc\E$/;
+            $addr .= $email_suffix;
+        }
     }
 
     # Hash dispatcher for dateexpiry fallback strategies.
@@ -3356,6 +4064,28 @@ sub addOrUpdateBorrower {
         log_message('Yes', "dateexpiry: fallback=$dateexpiry_fallback => $dateexpiry->{fragment}");
     }
 
+    my (@match_conds, @match_binds);
+    my $has_value = sub { defined $_[0] && $_[0] ne '' };
+    if ($match_by{userid}) {
+        foreach my $v (grep { $has_value->($_) } ($userid, $newUserID)) {
+            push @match_conds, 'b.userid = ?';
+            push @match_binds, $v;
+        }
+    }
+    if ($match_by{cardnumber}) {
+        foreach my $v (grep { $has_value->($_) } ($cardnumber, $newCardnumber)) {
+            push @match_conds, 'b.cardnumber = ?';
+            push @match_binds, $v;
+        }
+    }
+    if ($match_by{attribute} && $has_value->($civic_no)) {
+        # compare digits only, so a stored 20120811-4011 matches 201208114011
+        push @match_conds, q{b.borrowernumber IN (SELECT ba2.borrowernumber FROM borrower_attributes ba2 WHERE ba2.code = ? AND REPLACE(REPLACE(TRIM(ba2.attribute), '-', ''), ' ', '') = ?)};
+        push @match_binds, $civic_attr_code, $civic_no;
+    }
+    my $match_where = @match_conds ? join(' OR ', @match_conds) : '0';
+    log_message('Yes', "Looking for existing patron using: " . join(',', sort keys %match_by));
+
     my $find_duplicates_query = qq{
         SELECT b.*, 
             dateofbirth, email, sex, phone, mobile, 
@@ -3369,14 +4099,14 @@ sub addOrUpdateBorrower {
             (SELECT COUNT(*) FROM accountlines al WHERE al.borrowernumber = b.borrowernumber) as accountlines_count,
             (SELECT COUNT(*) FROM message_queue mq WHERE mq.borrowernumber = b.borrowernumber) as messages_count
         FROM $borrowers_table b
-        WHERE userid = ? OR cardnumber = ? OR userid = ? OR cardnumber = ?
+        WHERE $match_where
         ORDER BY
             (issues_count + old_issues_count + reserves_count + attributes_count + accountlines_count + messages_count) DESC,
             updated_on DESC
     };
     my $borrowernumber;
     my $find_sth = $dbh->prepare($find_duplicates_query);
-    $find_sth->execute($userid, $cardnumber, $newUserID, $newCardnumber);
+    $find_sth->execute(@match_binds);
     
     my @duplicates = ();
     while (my $row = $find_sth->fetchrow_hashref) {
@@ -3482,6 +4212,51 @@ sub addOrUpdateBorrower {
         
     } elsif (@duplicates == 1) {
         $existing_borrower = $duplicates[0];
+    }
+
+    # Resolve identifiers that have no value from the chosen source:
+    # an existing patron keeps what it has; a new patron falls back to school e-mail (userid) / civic number.
+    if ($existing_borrower) {
+        $newUserID     = $existing_borrower->{userid}     unless defined $newUserID;
+        $newCardnumber = $existing_borrower->{cardnumber} unless defined $newCardnumber;
+        # Never replace a known date of birth with nothing (IST may not deliver it)
+        $birthdate = $existing_borrower->{dateofbirth} unless defined $birthdate && $birthdate ne '';
+
+        # Optional: an existing patron keeps its category (the category is then only set for new patrons)
+        $categorycode = $existing_borrower->{categorycode}
+            if ($opts->{keep_existing_category} // 0) && $has_value->($existing_borrower->{categorycode});
+
+        # Optional: IST has no value for a contact field, so keep what the patron already has
+        if ($opts->{keep_existing_contact}) {
+            $email         = $existing_borrower->{email}   unless $has_value->($email);
+            $B_email       = $existing_borrower->{B_email} unless $has_value->($B_email);
+            $phone         = $existing_borrower->{phone}   unless $has_value->($phone);
+            $mobile_phone  = $existing_borrower->{mobile}  unless $has_value->($mobile_phone);
+            $streetAddress = $existing_borrower->{address} unless $has_value->($streetAddress);
+            $locality      = $existing_borrower->{city}    unless $has_value->($locality);
+            $postalCode    = $existing_borrower->{zipcode} unless $has_value->($postalCode);
+            $country       = $existing_borrower->{country} unless $has_value->($country);
+        }
+    } else {
+        $newUserID     = (defined $email_local ? $email_local : $civic_no) unless defined $newUserID;
+        $newCardnumber = $civic_no unless defined $newCardnumber;
+
+        # A new patron must not take a userid or cardnumber that already belongs to someone else
+        # (Koha keeps them unique). Fall back to the civic number, which identifies the person.
+        if (defined $newUserID && $has_value->($civic_no) && $newUserID ne $civic_no) {
+            my ($taken) = $dbh->selectrow_array("SELECT borrowernumber FROM $borrowers_table WHERE userid = ? LIMIT 1", undef, $newUserID);
+            if ($taken) {
+                log_message('Yes', "userid '$newUserID' already belongs to borrowernumber $taken (not matched to this person), using the civic number as userid");
+                $newUserID = $civic_no;
+            }
+        }
+        if (defined $newCardnumber && $has_value->($civic_no) && $newCardnumber ne $civic_no) {
+            my ($taken) = $dbh->selectrow_array("SELECT borrowernumber FROM $borrowers_table WHERE cardnumber = ? LIMIT 1", undef, $newCardnumber);
+            if ($taken) {
+                log_message('Yes', "cardnumber '$newCardnumber' already belongs to borrowernumber $taken, using the civic number as cardnumber");
+                $newCardnumber = $civic_no;
+            }
+        }
     }
 
     if ($existing_borrower) {
@@ -3696,9 +4471,14 @@ sub addOrUpdateBorrower {
         }
     }
 
+    # Optionally keep the civic number in a borrower attribute (e.g. CIVICNO), used for matching
+    if ($borrowernumber && $civic_attr_code ne '' && $has_value->($civic_no)) {
+        set_borrower_attribute($dbh, $borrowernumber, $civic_attr_code, $civic_no);
+    }
+
     if ($borrowernumber && $klass_displayName) {
-        my $code = 'CL';
-        log_message('Yes', "Processing Klass attribute for borrowernumber $borrowernumber, plugin version: $VERSION");
+        my $code = $class_attr_code;
+        log_message('Yes', "Processing Klass attribute ($code) for borrowernumber $borrowernumber, plugin version: $VERSION");
 
         my $check_types_query = qq{
             SELECT 1 FROM borrower_attribute_types WHERE code = ?
@@ -3706,6 +4486,11 @@ sub addOrUpdateBorrower {
         my $check_types_sth = $dbh->prepare($check_types_query);
         $check_types_sth->execute($code);
         my ($exists) = $check_types_sth->fetchrow_array();
+
+        if (!$exists && $code ne 'CL') {
+            log_message('Yes', "Class attribute type '$code' does not exist in Koha (Administration > Patron attribute types) - class not saved");
+            return;
+        }
 
         unless ($exists) {
             my $insert_types_query = qq{
@@ -3732,7 +4517,7 @@ sub addOrUpdateBorrower {
             eval {
                 $insert_types_sth->execute();
                 log_message('Yes', "Created borrower_attribute_types for 'CL'");
-                $dbh->commit();
+                $dbh->commit() unless $dbh->{AutoCommit};
             };
             if ($@) {
                 log_message('Yes', "Error creating borrower_attribute_types: $@");
@@ -3768,7 +4553,7 @@ sub addOrUpdateBorrower {
                 eval {
                     $update_sth->execute($klass_displayName, $borrowernumber, $code);
                     log_message('Yes', "Updated Klass attribute to $klass_displayName for borrowernumber $borrowernumber");
-                    $dbh->commit();
+                    $dbh->commit() unless $dbh->{AutoCommit};
                 };
                 if ($@) {
                     log_message('Yes', "Error updating borrower_attributes: $@");
@@ -3785,7 +4570,7 @@ sub addOrUpdateBorrower {
             eval {
                 $insert_sth->execute($borrowernumber, $code, $klass_displayName);
                 log_message('Yes', "Inserted new Klass attribute $klass_displayName for borrowernumber $borrowernumber");
-                $dbh->commit();
+                $dbh->commit() unless $dbh->{AutoCommit};
             };
             if ($@) {
                 log_message('Yes', "Error inserting into borrower_attributes: $@");
@@ -3796,6 +4581,37 @@ sub addOrUpdateBorrower {
     }
 }
 
+# Insert or update a single-value borrower attribute. The attribute type must already exist.
+sub set_borrower_attribute {
+    my ($dbh, $borrowernumber, $code, $value) = @_;
+
+    my ($type_exists) = $dbh->selectrow_array("SELECT 1 FROM borrower_attribute_types WHERE code = ?", undef, $code);
+    unless ($type_exists) {
+        log_message('Yes', "Patron attribute type '$code' does not exist in Koha - attribute not saved");
+        return 0;
+    }
+
+    my ($existing) = $dbh->selectrow_array(
+        "SELECT attribute FROM borrower_attributes WHERE borrowernumber = ? AND code = ? LIMIT 1",
+        undef, $borrowernumber, $code
+    );
+
+    eval {
+        if (!defined $existing) {
+            $dbh->do("INSERT INTO borrower_attributes (borrowernumber, code, attribute) VALUES (?, ?, ?)", undef, $borrowernumber, $code, $value);
+            log_message('Yes', "Inserted attribute $code for borrowernumber $borrowernumber");
+        } elsif ($existing ne $value) {
+            $dbh->do("UPDATE borrower_attributes SET attribute = ? WHERE borrowernumber = ? AND code = ?", undef, $value, $borrowernumber, $code);
+            log_message('Yes', "Updated attribute $code for borrowernumber $borrowernumber");
+        }
+    };
+    if ($@) {
+        log_message('Yes', "Error saving attribute $code: $@");
+        return 0;
+    }
+    return 1;
+}
+
 
 
 sub get_log_contents {
@@ -3804,13 +4620,14 @@ sub get_log_contents {
     my @log_lines;
 
     if (-f $log_file) {
-        open my $fh, '<', $log_file or return [];
+        open my $fh, '<:raw', $log_file or return [];
         my @lines = <$fh>;
         close $fh;
 
         @lines = @lines[-100..-1] if @lines > 100;
 
         foreach my $line (@lines) {
+            $line = Encode::decode('UTF-8', $line, Encode::FB_DEFAULT);
             if ($line =~ /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(.+)$/) {
                 push @log_lines, {
                     timestamp => $1,
@@ -3951,7 +4768,7 @@ sub start_export_process {
     if ($self->is_process_running()) {
         return { 
             status  => 'error',
-            message => 'Export process is already running'
+            message => $self->t('Export process is already running')
         };
     }
 
@@ -3961,7 +4778,7 @@ sub start_export_process {
     if ($existing) {
         return {
             status  => 'error',
-            message => 'Could not acquire process lock — another process is running'
+            message => $self->t('Could not acquire process lock — another process is running')
         };
     }
 
@@ -4004,7 +4821,7 @@ sub start_export_process {
         $self->release_lock();
         return {
             status  => 'error',
-            message => 'Failed to fork export process'
+            message => $self->t('Failed to fork export process')
         };
     }
 }
@@ -4032,7 +4849,7 @@ sub run_web_export {
             $status->{pid}     = undef;
             push @{$status->{messages}}, {
                 time  => time(),
-                text  => "All pages processed successfully",
+                text  => $self->t('All pages processed successfully'),
                 error => 0
             };
             $self->save_status($status);
@@ -4052,7 +4869,7 @@ sub run_web_export {
             $status->{pages_completed} = $pages_done;
             push @{$status->{messages}}, {
                 time  => time(),
-                text  => "Page $pages_done processed. More pages available.",
+                text  => $self->t('Page %s processed. More pages available.', $pages_done),
                 error => 0
             };
             $self->save_status($status);
@@ -4070,7 +4887,7 @@ sub run_web_export {
             $status->{pid}    = undef;
             push @{$status->{messages}}, {
                 time  => time(),
-                text  => "All pages processed successfully",
+                text  => $self->t('All pages processed successfully'),
                 error => 0
             };
             $self->save_status($status);
@@ -4084,7 +4901,7 @@ sub run_web_export {
             $status->{pid}    = undef;
             push @{$status->{messages}}, {
                 time  => time(),
-                text  => "Error during export: $error",
+                text  => $self->t('Error during export: %s', $error),
                 error => 1
             };
             $self->save_status($status);
@@ -4101,7 +4918,7 @@ sub force_unlock {
     if ($lock_info && $lock_info->{pid} && kill(0, $lock_info->{pid})) {
         return {
             status  => 'error',
-            message => 'Process is still running'
+            message => $self->t('Process is still running')
         };
     }
     
@@ -4115,7 +4932,7 @@ sub force_unlock {
     
     return {
         status  => 'success',
-        message => 'Process unlocked successfully'
+        message => $self->t('Process unlocked successfully')
     };
 }
 

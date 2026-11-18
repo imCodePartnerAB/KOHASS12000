@@ -1,390 +1,737 @@
-# For package Koha::Plugin::imCode::KohaSS12000::ExportUsers
-# Copyright (C) 2023 imCode, https://www.imcode.com, <info@imcode.com>
-# This file is distributed under the same license as the imCode::KohaSS12000::ExportUsers package.
-# Tkachuk Serge <tkachuk.serge@gmail.com>, 2023.
-#
+# Template for translations of the imCode SS12000 plugin.
+# Copy this file to <language code>.po (for example sv.po, fi.po, sv-SE.po) in the same folder,
+# translate every msgstr and keep %s placeholders. Texts left empty are shown in English.
+# The files are read directly by the plugin, nothing has to be compiled.
 msgid ""
 msgstr ""
-"Project-Id-Version: 1.1\n"
-"Report-Msgid-Bugs-To: <tkachuk.serge@gmail.com>\n"
-"Last-Translator: Tkachuk Serge <tkachuk.serge@gmail.com> \n"
-"Language-Team: imCode.com \n"
+"Project-Id-Version: 1.91\n"
 "Language: \n"
-"MIME-Version: \n"
+"MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit"
+"Content-Transfer-Encoding: 8bit\n"
 
-
-
-#: ExportUsers.pm:52
-msgid "Export Users from SS12000"
-msgstr ""
-
-#: config.tt:3 tool.tt:3 error.tt:3
 msgid "Configuration imCode SS12000"
 msgstr ""
 
-#: config.tt:13 tool.tt:13 error.tt:13
-msgid "Home"
-msgstr ""
-
-#: config.tt:14 tool.tt:14 error.tt:14
 msgid "Plugins"
 msgstr ""
 
-#: tool.tt:15
-msgid "KohaSS12000 &rsaquo; Tool"
+msgid "Administration"
 msgstr ""
 
-#: config.tt:15
 msgid "KohaSS12000 &rsaquo; Configuration"
 msgstr ""
 
-#: config.tt:23
 msgid "Configuration Settings"
 msgstr ""
 
-#: tool.tt:23
-msgid "Tool"
-msgstr ""
-
-#: tool.tt:28
-msgid "Action"
-msgstr ""
-
-#: tool.tt:31
-msgid "Show user export log"
-msgstr ""
-
-#: tool.tt:32
-msgid "Show user export statistics"
-msgstr ""
-
-#: tool.tt:43
-msgid "Ok"
-msgstr ""
-
-#: tool.tt:51
-msgid "Logs Lines"
-msgstr ""
-
-#: tool.tt:56
-msgid "Page token Next"
-msgstr ""
-
-#: tool.tt:57
-msgid "Record Count"
-msgstr ""
-
-#: tool.tt:58
-msgid "Response"
-msgstr ""
-
-#: tool.tt:59
-msgid "Data Status"
-msgstr ""
-
-#: tool.tt:60
-msgid "Created At"
-msgstr ""
-
-#: tool.tt:61
-msgid "Is Processed"
-msgstr ""
-
-#: tool.tt:62
-msgid "Data Hash"
-msgstr ""
-
-#: tool.tt:83
-msgid "Last 10 Statistics Lines"
-msgstr ""
-
-#: tool.tt:87
-msgid "Added"
-msgstr ""
-
-#: tool.tt:88
-msgid "Updated"
-msgstr ""
-
-#: tool.tt:89
-msgid "Date"
-msgstr ""
-
-#: tool.tt:73
-msgid "Yes"
-msgstr ""
-
-#: tool.tt:73
-msgid "No"
-msgstr ""
-
-#: config.tt:28
-msgid "Client ID"
-msgstr ""
-
-#: config.tt:35
-msgid "Client Secret"
-msgstr ""
-
-#: config.tt:42
-msgid "Customer ID"
-msgstr ""
-
-#: config.tt:49
-msgid "API URL"
-msgstr ""
-
-#: config.tt:56
-msgid "OAUTH API URL"
-msgstr ""
-
-#: config.tt:63
-msgid "Koha Default Categorycode"
-msgstr ""
-
-#: config.tt:66, config.tt:118
-msgid "Select a category"
-msgstr ""
-
-#: config.tt:71 config.tt:84
-msgid "When you change a parameter, it will be changed for all existing users in the next data update cycle"
-msgstr ""
-
-#: config.tt:76
-msgid "Koha Default Branchcode"
-msgstr ""
-
-#: config.tt:79, config.tt:145
-msgid "Choose a branch"
-msgstr ""
-
-#: config.tt:156
-msgid "Debug Mode"
-msgstr ""
-
-#: config.tt:163
-msgid "If this option is enabled, then there will be more data in the Tool tab and the Response from the API will be put into the database in full"
-msgstr ""
-
-#: config.tt:168
-msgid "SS12000 API limit per page"
-msgstr ""
-
-#: config.tt:175
-msgid "10 or 20 - fast, 30 - normal, 100 - very slowly"
-msgstr ""
-
-#: config.tt:180
-msgid "CardNumber for Koha"
-msgstr ""
-
-#: config.tt:187, config.tt:199
-msgid "CivicNo is used by default"
-msgstr ""
-
-#: config.tt:192
-msgid "UserID for Koha"
-msgstr ""
-
-#: config.tt:204
-msgid "How many days to keep plugin logs"
-msgstr ""
-
-#: config.tt:211
-msgid "The default value is 3 days"
-msgstr ""
-
-#: config.tt:221
-msgid "Save"
-msgstr ""
-
-#: config.tt:247
-msgid "Please select values for both Koha Default Categorycode and Koha Default Branchcode"
-msgstr ""
-
-#: ExportUsers.pm:60
-msgid "This plugin implements export users from SS12000"
-msgstr ""
-
-#: ExportUsers.pm:228
 msgid "Configuration successfully updated"
 msgstr ""
 
-#: error.tt:23
-msgid "An error was detected"
-msgstr ""
-
-#: error.tt:15
-msgid "KohaSS12000 &rsaquo; Error"
-msgstr ""
-
-#: error.pm:26
-msgid "Missing required module"
-msgstr ""
-
-#: error.pm:27
-msgid "Run in the server command line"
-msgstr ""
-
-#: error.pm:38
-msgid "Text copied to clipboard"
-msgstr ""
-
-#: tool.tt:33
-msgid "Show users data update"
-msgstr ""
-
-#: config.tt:94
-msgid "Branches mapping and/or Categories mapping not configured correctly"
-msgstr ""
-
-#: config.tt:94
 msgid "WARNING"
 msgstr ""
 
-#: config.tt:100
-msgid "Categories mapping"
+msgid "Branches mapping and/or Categories mapping not configured correctly"
 msgstr ""
 
-#: config.tt:104, config.tt:131
-msgid "click here to mark this object for deletion"
+msgid "Connection to IST"
 msgstr ""
 
-#: config.tt:114
-msgid "Add category mapping"
+msgid "Patron identity"
 msgstr ""
 
-#: config.tt:116
-msgid "If need be added, enter existing dutyRole here"
+msgid "Import rules"
 msgstr ""
 
-#: config.tt:127
 msgid "Branches mapping"
 msgstr ""
 
-#: config.tt:141
-msgid "Add branch mapping"
+msgid "Categories mapping"
 msgstr ""
 
-#: config.tt:143
-msgid "If need be added, enter existing organisationCode here"
+msgid "Advanced"
 msgstr ""
 
-#: tool.tt:146
-msgid "Updates Lines"
+msgid "SS12000 log"
 msgstr ""
 
-#: tool.tt:152, tool.tt:153, tool.tt:171, tool.tt:172
-msgid "Search"
+msgid "Client ID"
 msgstr ""
 
-#: tool.tt:158
-msgid "Nothing was found for your request"
+msgid "Client Secret"
 msgstr ""
 
-#: tool.tt:180
-msgid "User"
+msgid "A secret is stored - enter a new value to replace it"
 msgstr ""
 
-#: tool.tt:181
-msgid "Change Description"
+msgid "Enter the client secret"
 msgstr ""
 
-#: tool.tt:182
-msgid "Change Timestamp"
+msgid "The secret is never shown again after saving. Leave the field empty to keep the stored secret."
 msgstr ""
 
-#: tool.tt:204, tool.tt:77
-msgid "Previous page"
+msgid "Customer ID"
 msgstr ""
 
-#: tool.tt:235, tool.tt:108
-msgid "Next page"
+msgid "API URL"
 msgstr ""
 
-#: tool.tt:239, tool.tt:112
-msgid "Last"
+msgid "OAUTH API URL"
 msgstr ""
 
-#: tool.tt:239, tool.tt:112
-msgid "page"
+msgid "Connection test"
 msgstr ""
 
-#: config.tt:162, config.tt:125
-msgid "To delete an item from the list, select the checkbox of the item to be deleted, and press Save"
+msgid "Test connection (uses saved settings)"
 msgstr ""
 
-
-#: config.tt:111, config.tt:154
-msgid "Click to mark for deletion"
+msgid "Find existing patrons by"
 msgstr ""
 
-
-#: config.tt:117
-msgid "Click to mark do not import"
+msgid "User ID"
 msgstr ""
 
-
-#: config.tt:112, config.tt:113, config.tt:155
-msgid "Delete"
+msgid "Card number"
 msgstr ""
 
-
-#: config.tt:118, config.tt:119
-msgid "Do not import"
+msgid "Patron attribute (civic number attribute below)"
 msgstr ""
 
-
-msgid "Exclude empty users, dutyRole"
+msgid "Several can be combined: a patron matching any of them is considered the same person. Combine with care, since two different patrons found for one person are merged and the extra one is archived."
 msgstr ""
 
-
-msgid "Excluding all users that does not have dutyRole"
+msgid "Civic number attribute"
 msgstr ""
 
+msgid "- not used -"
+msgstr ""
+
+msgid "If a patron attribute type holds the civic number (for example CIVICNO), it is used for matching and kept up to date. Leave unused to not store the civic number in an attribute."
+msgstr ""
+
+msgid "UserID for Koha"
+msgstr ""
+
+msgid "Civic number"
+msgstr ""
+
+msgid "External identifier"
+msgstr ""
+
+msgid "School e-mail, part before @"
+msgstr ""
+
+msgid "School e-mail, full address"
+msgstr ""
+
+msgid "Keep the existing value"
+msgstr ""
+
+msgid "New patrons that cannot get a value from the chosen source fall back to the school e-mail (part before @), then the civic number. Existing patrons keep their value."
+msgstr ""
+
+msgid "CardNumber for Koha"
+msgstr ""
+
+msgid "With \"Keep the existing value\", patrons that already have a card keep it. New patrons get the civic number."
+msgstr ""
+
+msgid "Append to e-mail addresses"
+msgstr ""
+
+msgid "Yes, append this text"
+msgstr ""
+
+msgid "When ticked, the text is added to the end of every imported e-mail address (both e-mail fields), for example .NOEMAIL, so that Koha cannot send notices before go-live. When unticked the addresses are imported as they are and the text is kept for later. Untick when the library is ready to send; the addresses are corrected in the next import."
+msgstr ""
+
+msgid "Class attribute"
+msgstr ""
+
+msgid "created automatically"
+msgstr ""
+
+msgid "Patron attribute type where the class (for example 9A) is stored. The type CL is created automatically if it does not exist. Any other type must already exist."
+msgstr ""
+
+msgid "Koha Default Categorycode"
+msgstr ""
+
+msgid "Select a category"
+msgstr ""
+
+msgid "Used for everyone who does not get a category from the roles mapping, normally all students."
+msgstr ""
+
+msgid "When you change a parameter, it will be changed for all existing users in the next data update cycle"
+msgstr ""
+
+msgid "Koha Default Branchcode"
+msgstr ""
+
+msgid "- none (skip schools without mapping) -"
+msgstr ""
+
+msgid "Used for schools that are not in the branches mapping when \"Use default for unmapped schools\" is on."
+msgstr ""
+
+msgid "Use default for unmapped schools"
+msgstr ""
+
+msgid "Sync users from schools not in branch mapping using default branchcode"
+msgstr ""
 
 msgid "Exclude empty users, enrolments"
 msgstr ""
 
-
 msgid "Excluding all users that does not have enrolments"
 msgstr ""
 
+msgid "Exclude empty users, dutyRole"
+msgstr ""
+
+msgid "Excluding all users that does not have dutyRole"
+msgstr ""
+
+msgid "Ignore cancelled flag"
+msgstr ""
+
+msgid "Ignore the cancelled flag on enrolments and only use start/end dates"
+msgstr ""
+
+msgid "Action on no dateexpiry"
+msgstr ""
+
+msgid "None (leave empty)"
+msgstr ""
+
+msgid "Keep existing value"
+msgstr ""
+
+msgid "Set months from now"
+msgstr ""
+
+msgid "months from today"
+msgstr ""
+
+msgid "What to set as expiry date when no valid enrolment end date is returned from the API"
+msgstr ""
+
+msgid "Connects each school (organisation) in IST to a Koha branch. Several organisations can point to the same branch. Rows without a branch are ignored when saving."
+msgstr ""
+
+msgid "Load organisations from IST"
+msgstr ""
+
+msgid "Suggest mapping from names"
+msgstr ""
+
+msgid "Add row"
+msgstr ""
+
+msgid "Filter..."
+msgstr ""
+
+msgid "Only unmapped"
+msgstr ""
+
+msgid "IST organisation"
+msgstr ""
+
+msgid "Organisation code"
+msgstr ""
+
+msgid "Koha branch"
+msgstr ""
+
+msgid "Connects a role (dutyRole, for example Lärare) in IST to a Koha patron category. Only roles that are in the mapping get that category; everyone else gets the default category."
+msgstr ""
+
+msgid "Load roles from IST"
+msgstr ""
+
+msgid "Role (dutyRole)"
+msgstr ""
+
+msgid "Koha category"
+msgstr ""
+
+msgid "Do not import"
+msgstr ""
+
+msgid "Debug Mode"
+msgstr ""
+
+msgid "If this option is enabled, then there will be more data in the Tool tab and the Response from the API will be put into the database in full"
+msgstr ""
+
+msgid "If Yes is set here, the received data from the api will be additionally recorded in the imcode-debug.log file"
+msgstr ""
+
+msgid "SS12000 API limit per page"
+msgstr ""
+
+msgid "10 or 20 - fast, 30 - normal, 100 - very slowly"
+msgstr ""
+
+msgid "How many days to keep plugin logs"
+msgstr ""
+
+msgid "The default value is 3 days"
+msgstr ""
 
 msgid "Delete users who have been marked as ARCHIVED?"
 msgstr ""
 
-
-msgid "Start exporting data from the API"
+msgid "No"
 msgstr ""
 
-
-msgid "SS12000 Export Users Tool"
+msgid "Yes, after 3 days"
 msgstr ""
 
-
-msgid "This tool will export users data using SS12000 format"
+msgid "Yes, after 7 days"
 msgstr ""
 
-
-msgid "The process will run in the background and may take several minutes to complete"
+msgid "Yes, after 14 days"
 msgstr ""
 
-
-msgid "Start Export"
+msgid "Yes, after 30 days"
 msgstr ""
 
-
-msgid "Force Unlock Process"
+msgid "The default value is No"
 msgstr ""
 
-
-msgid "Are you sure you want to force unlock the process? Only do this if the process is stuck"
+msgid "Save"
 msgstr ""
-
 
 msgid "Set API scanner from the first page"
 msgstr ""
 
+msgid "Loading..."
+msgstr ""
+
+msgid "- choose branch -"
+msgstr ""
+
+msgid "- choose category -"
+msgstr ""
+
+msgid "Not found in IST"
+msgstr ""
+
+msgid "Not mapped"
+msgstr ""
+
+msgid "Suggested"
+msgstr ""
+
+msgid "Check this one"
+msgstr ""
+
+msgid "Remove"
+msgstr ""
+
+msgid "Are you sure you want to clear the log? This action cannot be undone."
+msgstr ""
+
+msgid "Please select a default category"
+msgstr ""
+
+msgid "Matching on a patron attribute needs a civic number attribute to be selected"
+msgstr ""
+
+msgid "Select at least one way to find existing patrons"
+msgstr ""
+
+msgid "Changing UserID or CardNumber source restarts today's import from the first page. Continue?"
+msgstr ""
+
+msgid "organisations loaded from IST"
+msgstr ""
+
+msgid "IST organisations"
+msgstr ""
+
+msgid "mapped"
+msgstr ""
+
+msgid "not mapped"
+msgstr ""
+
+msgid "in the mapping but not in IST"
+msgstr ""
+
+msgid "suggestions applied. Review them and press Save."
+msgstr ""
+
+msgid "No new suggestions found."
+msgstr ""
+
+msgid "roles loaded from IST"
+msgstr ""
+
+msgid "Import runs"
+msgstr ""
+
+msgid "Patron changes"
+msgstr ""
+
+msgid "Rows older than the log retention setting are removed by the import. Retention in days:"
+msgstr ""
+
+msgid "Period"
+msgstr ""
+
+msgid "All"
+msgstr ""
+
+msgid "Last 24 hours"
+msgstr ""
+
+msgid "Last 3 days"
+msgstr ""
+
+msgid "Last 7 days"
+msgstr ""
+
+msgid "Last 30 days"
+msgstr ""
+
+msgid "Organisation"
+msgstr ""
+
+msgid "State"
+msgstr ""
+
+msgid "Action"
+msgstr ""
+
+msgid "Reload"
+msgstr ""
+
+msgid "Refresh every 10 seconds"
+msgstr ""
+
+msgid "Time"
+msgstr ""
+
+msgid "Endpoint"
+msgstr ""
+
+msgid "Iteration"
+msgstr ""
+
+msgid "Added"
+msgstr ""
+
+msgid "Updated"
+msgstr ""
+
+msgid "Processed"
+msgstr ""
+
+msgid "Message / response"
+msgstr ""
+
+msgid "Patron"
+msgstr ""
+
+msgid "Description"
+msgstr ""
+
+msgid "Close"
+msgstr ""
+
+msgid "No log rows found"
+msgstr ""
+
+msgid "(empty)"
+msgstr ""
+
+msgid "view"
+msgstr ""
+
+msgid "Home"
+msgstr ""
+
+msgid "KohaSS12000 &rsaquo; Tool"
+msgstr ""
+
+msgid "Tool"
+msgstr ""
+
+msgid "Start exporting data from the API"
+msgstr ""
+
+msgid "Show user export log"
+msgstr ""
+
+msgid "Show user export statistics"
+msgstr ""
+
+msgid "Show users data update"
+msgstr ""
+
+msgid "Ok"
+msgstr ""
+
+msgid "SS12000 Export Users Tool"
+msgstr ""
+
+msgid "Scan next page"
+msgstr ""
+
+msgid "Force Unlock Process"
+msgstr ""
+
+msgid "Are you sure you want to force unlock the process? Only do this if the process is stuck"
+msgstr ""
+
+msgid "This tool will export users data using SS12000 format"
+msgstr ""
+
+msgid "The process will run in the background and may take several minutes to complete"
+msgstr ""
+
+msgid "Start Export"
+msgstr ""
+
+msgid "Logs Lines"
+msgstr ""
+
+msgid "Page token Next"
+msgstr ""
+
+msgid "Record Count"
+msgstr ""
+
+msgid "Response"
+msgstr ""
+
+msgid "Data Status"
+msgstr ""
+
+msgid "Created At"
+msgstr ""
+
+msgid "Is Processed"
+msgstr ""
+
+msgid "Yes"
+msgstr ""
+
+msgid "Previous page"
+msgstr ""
+
+msgid "Next page"
+msgstr ""
+
+msgid "Last"
+msgstr ""
+
+msgid "page"
+msgstr ""
+
+msgid "Last Statistics Lines"
+msgstr ""
+
+msgid "Date"
+msgstr ""
+
+msgid "Updates Lines"
+msgstr ""
+
+msgid "Search"
+msgstr ""
+
+msgid "Nothing was found for your request"
+msgstr ""
+
+msgid "User"
+msgstr ""
+
+msgid "Change Description"
+msgstr ""
+
+msgid "Change Timestamp"
+msgstr ""
+
+msgid "KohaSS12000 &rsaquo; Error"
+msgstr ""
+
+msgid "An error was detected"
+msgstr ""
+
+msgid "Missing required module"
+msgstr ""
+
+msgid "Run in the server command line"
+msgstr ""
+
+msgid "Text copied to clipboard"
+msgstr ""
+
+msgid "Unknown Koha branch '%s' (organisation %s) was not saved"
+msgstr ""
+
+msgid "Branch mappings could not be saved: %s"
+msgstr ""
+
+msgid "Branch mappings had an invalid format and were not saved"
+msgstr ""
+
+msgid "Unknown Koha category '%s' (dutyRole %s) was not saved"
+msgstr ""
+
+msgid "Category mappings could not be saved: %s"
+msgstr ""
+
+msgid "Category mappings had an invalid format and were not saved"
+msgstr ""
+
+msgid "Civic number attribute '%s' does not exist (Administration > Patron attribute types)"
+msgstr ""
+
+msgid "Class attribute '%s' does not exist (Administration > Patron attribute types)"
+msgstr ""
+
+msgid "The e-mail suffix may only contain letters, digits and . _ - + @ (max 40 characters)"
+msgstr ""
+
+msgid "Enter the text to append to e-mail addresses, or untick the box"
+msgstr ""
+
+msgid "%s - the patron identity settings (matching, attributes, e-mail text) were not saved"
+msgstr ""
+
+msgid "Unexpected error: %s"
+msgstr ""
+
+msgid "No such log row"
+msgstr ""
+
+msgid "Save Client ID, Client Secret and Customer ID first, then try again."
+msgstr ""
+
+msgid "Could not get an access token. Check Client ID, Client Secret and OAUTH API URL."
+msgstr ""
+
+msgid "Token received, but organisations returned HTTP %s. Check API URL and Customer ID."
+msgstr ""
+
+msgid "Connected to IST. %s organisations found."
+msgstr ""
+
+msgid "Duties (staff roles) are not included in this customer's subscription."
+msgstr ""
+
+msgid "Could not read organisations (HTTP %s)"
+msgstr ""
+
+msgid "The duties endpoint is not included in this customer's IST subscription (403). Staff roles cannot be read."
+msgstr ""
+
+msgid "Could not read duties (HTTP %s)"
+msgstr ""
+
+msgid "Unknown operation %s"
+msgstr ""
+
+msgid "Process died unexpectedly"
+msgstr ""
+
+msgid "Permission denied"
+msgstr ""
+
+msgid "Process is still young, wait at least 5 minutes before forcing unlock"
+msgstr ""
+
+msgid "Process forcefully unlocked by user"
+msgstr ""
+
+msgid "Process unlocked successfully"
+msgstr ""
+
+msgid "Export process is already running"
+msgstr ""
+
+msgid "Could not acquire process lock — another process is running"
+msgstr ""
+
+msgid "Failed to fork export process"
+msgstr ""
+
+msgid "All pages processed successfully"
+msgstr ""
+
+msgid "Page %s processed. More pages available."
+msgstr ""
+
+msgid "Error during export: %s"
+msgstr ""
+
+msgid "Process is still running"
+msgstr ""
+
+msgid "Export Users from SS12000"
+msgstr ""
+
+msgid "This plugin implements export users from SS12000"
+msgstr ""
+
+msgid "Imported SS12000 users (log)"
+msgstr ""
+
+msgid "Log of the SS12000 import: import runs and changes made to patrons"
+msgstr ""
+
+msgid "SS12000 for Koha"
+msgstr ""
+
+msgid "Keeps your patron register up to date automatically. The plugin reads students (and staff, if your municipality has ordered it) from the school administration system through the SS12000 standard (IST and others) and creates and updates the patrons in Koha: name, civic number, class, school, contact details and expiry date."
+msgstr ""
+
+msgid "Daily automatic import - no manual lists, no spreadsheets"
+msgstr ""
+
+msgid "Schools are mapped to library branches, classes follow the students from year to year"
+msgstr ""
+
+msgid "Existing patrons are recognised, so no duplicates and no lost loan history"
+msgstr ""
+
+msgid "Full log of every run and every change, searchable in Koha"
+msgstr ""
+
+msgid "About imCode"
+msgstr ""
+
+msgid "Contact us"
+msgstr ""
+
+msgid "Documentation and releases"
+msgstr ""
+
+msgid "Developed and supported by imCode."
+msgstr ""
+
+msgid "Category of existing patrons"
+msgstr ""
+
+msgid "Do not change the category of patrons that already exist"
+msgstr ""
+
+msgid "When ticked, the category is only set for new patrons. Existing patrons keep the category they have, so categories that are handled in Koha are not overwritten by the default category."
+msgstr ""
+
+msgid "Contact details"
+msgstr ""
+
+msgid "Keep existing contact details when IST has no value"
+msgstr ""
+
+msgid "When ticked, an empty e-mail, phone, mobile or address from IST never replaces a value the patron already has in Koha. Patrons missing these details in IST are still imported."
+msgstr ""
+
+msgid "missing in Koha"
+msgstr ""

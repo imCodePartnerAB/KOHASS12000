@@ -407,3 +407,485 @@ msgstr "Antal månader från dagens datum"
 
 msgid "What to set as expiry date when no valid enrolment end date is returned from the API"
 msgstr "Vad som ska sättas som utgångsdatum när API:et inte returnerar något giltigt inskrivningsslutdatum"
+
+msgid "Administration"
+msgstr "Administration"
+
+msgid "Connection to IST"
+msgstr "Anslutning till IST"
+
+msgid "Patron identity"
+msgstr "Låntagarens identitet"
+
+msgid "Import rules"
+msgstr "Importregler"
+
+msgid "Advanced"
+msgstr "Avancerat"
+
+msgid "A secret is stored - enter a new value to replace it"
+msgstr "En hemlighet är sparad - ange ett nytt värde för att ersätta den"
+
+msgid "Enter the client secret"
+msgstr "Ange klienthemligheten"
+
+msgid "The secret is never shown again after saving. Leave the field empty to keep the stored secret."
+msgstr "Hemligheten visas aldrig igen efter att den sparats. Lämna fältet tomt för att behålla den sparade hemligheten."
+
+msgid "Connection test"
+msgstr "Anslutningstest"
+
+msgid "Test connection (uses saved settings)"
+msgstr "Testa anslutningen (använder sparade inställningar)"
+
+msgid "Find existing patrons by"
+msgstr "Hitta befintliga låntagare via"
+
+msgid "User ID"
+msgstr "Användar-ID"
+
+msgid "Card number"
+msgstr "Kortnummer"
+
+msgid "Patron attribute (civic number attribute below)"
+msgstr "Låntagarattribut (personnummerattributet nedan)"
+
+msgid "Several can be combined: a patron matching any of them is considered the same person. Combine with care, since two different patrons found for one person are merged and the extra one is archived."
+msgstr "Flera kan kombineras: en låntagare som matchar något av dem anses vara samma person. Kombinera med försiktighet, eftersom två olika låntagare som hittas för en person slås ihop och den extra arkiveras."
+
+msgid "Civic number attribute"
+msgstr "Personnummerattribut"
+
+msgid "- not used -"
+msgstr "- används inte -"
+
+msgid "If a patron attribute type holds the civic number (for example CIVICNO), it is used for matching and kept up to date. Leave unused to not store the civic number in an attribute."
+msgstr "Om en låntagarattributtyp innehåller personnumret (till exempel PERSONNR) används den för matchning och hålls uppdaterad. Lämna den oanvänd om personnumret inte ska sparas i ett attribut."
+
+msgid "Civic number"
+msgstr "Personnummer"
+
+msgid "External identifier"
+msgstr "Externt id"
+
+msgid "School e-mail, part before @"
+msgstr "Skol-e-post, delen före @"
+
+msgid "School e-mail, full address"
+msgstr "Skol-e-post, hela adressen"
+
+msgid "Keep the existing value"
+msgstr "Behåll det befintliga värdet"
+
+msgid "New patrons that cannot get a value from the chosen source fall back to the school e-mail (part before @), then the civic number. Existing patrons keep their value."
+msgstr "Nya låntagare som inte får något värde från vald källa får i första hand skol-e-postens del före @, i andra hand personnumret. Befintliga låntagare behåller sitt värde."
+
+msgid "With \"Keep the existing value\", patrons that already have a card keep it. New patrons get the civic number."
+msgstr "Med \"Behåll det befintliga värdet\" behåller låntagare som redan har ett kort det. Nya låntagare får personnumret."
+
+msgid "Class attribute"
+msgstr "Klassattribut"
+
+msgid "created automatically"
+msgstr "skapas automatiskt"
+
+msgid "Patron attribute type where the class (for example 9A) is stored. The type CL is created automatically if it does not exist. Any other type must already exist."
+msgstr "Låntagarattributtyp där klassen (till exempel 9A) sparas. Typen CL skapas automatiskt om den saknas. Alla andra typer måste redan finnas."
+
+msgid "Used for everyone who does not get a category from the roles mapping, normally all students."
+msgstr "Används för alla som inte får en kategori från rollmappningen, normalt alla elever."
+
+msgid "- none (skip schools without mapping) -"
+msgstr "- ingen (hoppa över skolor utan mappning) -"
+
+msgid "Used for schools that are not in the branches mapping when \"Use default for unmapped schools\" is on."
+msgstr "Används för skolor som saknas i filialmappningen när \"Använd standard för ej mappade skolor\" är på."
+
+msgid "Use default for unmapped schools"
+msgstr "Använd standard för ej mappade skolor"
+
+msgid "Sync users from schools not in branch mapping using default branchcode"
+msgstr "Synka användare från skolor som saknas i filialmappningen med standardfilialen"
+
+msgid "Ignore cancelled flag"
+msgstr "Ignorera flaggan \"cancelled\""
+
+msgid "Ignore the cancelled flag on enrolments and only use start/end dates"
+msgstr "Ignorera flaggan \"cancelled\" på inskrivningar och använd bara start- och slutdatum"
+
+msgid "months from today"
+msgstr "månader från idag"
+
+msgid "Connects each school (organisation) in IST to a Koha branch. Several organisations can point to the same branch. Rows without a branch are ignored when saving."
+msgstr "Kopplar varje skola (organisation) i IST till en Koha-filial. Flera organisationer kan peka på samma filial. Rader utan filial ignoreras vid sparande."
+
+msgid "Load organisations from IST"
+msgstr "Hämta organisationer från IST"
+
+msgid "Suggest mapping from names"
+msgstr "Föreslå mappning utifrån namn"
+
+msgid "Add row"
+msgstr "Lägg till rad"
+
+msgid "Filter..."
+msgstr "Filtrera..."
+
+msgid "Only unmapped"
+msgstr "Bara ej mappade"
+
+msgid "IST organisation"
+msgstr "IST-organisation"
+
+msgid "Organisation code"
+msgstr "Organisationskod"
+
+msgid "Koha branch"
+msgstr "Koha-filial"
+
+msgid "Connects a role (dutyRole, for example Lärare) in IST to a Koha patron category. Only roles that are in the mapping get that category; everyone else gets the default category."
+msgstr "Kopplar en roll (dutyRole, till exempel Lärare) i IST till en Koha-låntagarkategori. Bara roller i mappningen får den kategorin; alla andra får standardkategorin."
+
+msgid "Load roles from IST"
+msgstr "Hämta roller från IST"
+
+msgid "Role (dutyRole)"
+msgstr "Roll (dutyRole)"
+
+msgid "Koha category"
+msgstr "Koha-kategori"
+
+msgid "If Yes is set here, the received data from the api will be additionally recorded in the imcode-debug.log file"
+msgstr "Om Yes anges här sparas den mottagna API-datan dessutom i filen imcode-debug.log"
+
+msgid "Yes, after 3 days"
+msgstr "Ja, efter 3 dagar"
+
+msgid "Yes, after 7 days"
+msgstr "Ja, efter 7 dagar"
+
+msgid "Yes, after 14 days"
+msgstr "Ja, efter 14 dagar"
+
+msgid "Yes, after 30 days"
+msgstr "Ja, efter 30 dagar"
+
+msgid "The default value is No"
+msgstr "Standardvärdet är Nej"
+
+msgid "Loading..."
+msgstr "Hämtar..."
+
+msgid "- choose branch -"
+msgstr "- välj filial -"
+
+msgid "- choose category -"
+msgstr "- välj kategori -"
+
+msgid "Not found in IST"
+msgstr "Finns inte i IST"
+
+msgid "Not mapped"
+msgstr "Ej mappad"
+
+msgid "Suggested"
+msgstr "Föreslagen"
+
+msgid "Check this one"
+msgstr "Kontrollera denna"
+
+msgid "Remove"
+msgstr "Ta bort"
+
+msgid "Are you sure you want to clear the log? This action cannot be undone."
+msgstr "Är du säker på att du vill rensa loggen? Detta kan inte ångras."
+
+msgid "Please select a default category"
+msgstr "Välj en standardkategori"
+
+msgid "Matching on a patron attribute needs a civic number attribute to be selected"
+msgstr "Matchning på ett låntagarattribut kräver att ett personnummerattribut är valt"
+
+msgid "Select at least one way to find existing patrons"
+msgstr "Välj minst ett sätt att hitta befintliga låntagare"
+
+msgid "Changing UserID or CardNumber source restarts today's import from the first page. Continue?"
+msgstr "Om källan för användar-ID eller kortnummer ändras startar dagens import om från första sidan. Fortsätta?"
+
+msgid "organisations loaded from IST"
+msgstr "organisationer hämtade från IST"
+
+msgid "IST organisations"
+msgstr "IST-organisationer"
+
+msgid "mapped"
+msgstr "mappade"
+
+msgid "not mapped"
+msgstr "ej mappade"
+
+msgid "in the mapping but not in IST"
+msgstr "finns i mappningen men inte i IST"
+
+msgid "suggestions applied. Review them and press Save."
+msgstr "förslag tillämpade. Granska dem och tryck på Spara."
+
+msgid "No new suggestions found."
+msgstr "Inga nya förslag hittades."
+
+msgid "roles loaded from IST"
+msgstr "roller hämtade från IST"
+
+msgid "SS12000 log"
+msgstr "SS12000-logg"
+
+msgid "Import runs"
+msgstr "Importkörningar"
+
+msgid "Patron changes"
+msgstr "Låntagarändringar"
+
+msgid "Rows older than the log retention setting are removed by the import. Retention in days:"
+msgstr "Rader som är äldre än inställningen för loggens livslängd tas bort av importen. Antal dagar:"
+
+msgid "Period"
+msgstr "Period"
+
+msgid "All"
+msgstr "Alla"
+
+msgid "Last 24 hours"
+msgstr "Senaste 24 timmarna"
+
+msgid "Last 3 days"
+msgstr "Senaste 3 dagarna"
+
+msgid "Last 7 days"
+msgstr "Senaste 7 dagarna"
+
+msgid "Last 30 days"
+msgstr "Senaste 30 dagarna"
+
+msgid "Organisation"
+msgstr "Organisation"
+
+msgid "State"
+msgstr "Status"
+
+msgid "Reload"
+msgstr "Ladda om"
+
+msgid "Refresh every 10 seconds"
+msgstr "Uppdatera var 10:e sekund"
+
+msgid "Time"
+msgstr "Tid"
+
+msgid "Endpoint"
+msgstr "Endpoint"
+
+msgid "Iteration"
+msgstr "Iteration"
+
+msgid "Processed"
+msgstr "Behandlade"
+
+msgid "Message / response"
+msgstr "Meddelande / svar"
+
+msgid "Patron"
+msgstr "Låntagare"
+
+msgid "Description"
+msgstr "Beskrivning"
+
+msgid "Close"
+msgstr "Stäng"
+
+msgid "No log rows found"
+msgstr "Inga loggrader hittades"
+
+msgid "(empty)"
+msgstr "(tomt)"
+
+msgid "view"
+msgstr "visa"
+
+
+msgid "Append to e-mail addresses"
+msgstr "Lägg till på e-postadresser"
+
+
+msgid "Text added to the end of every imported e-mail address (both e-mail fields), for example .NOEMAIL, so that Koha cannot send notices before go-live. Leave empty to import the addresses as they are. Remove the text when the library is ready to send; the addresses are corrected in the next import."
+msgstr "Text som läggs till sist på alla importerade e-postadresser (båda e-postfälten), till exempel .NOEMAIL, så att Koha inte kan skicka meddelanden före driftstart. Lämna tomt för att importera adresserna som de är. Ta bort texten när biblioteket är redo att skicka; adresserna rättas vid nästa import."
+
+
+msgid "Yes, append this text"
+msgstr "Ja, lägg till den här texten"
+
+
+msgid "When ticked, the text is added to the end of every imported e-mail address (both e-mail fields), for example .NOEMAIL, so that Koha cannot send notices before go-live. When unticked the addresses are imported as they are and the text is kept for later. Untick when the library is ready to send; the addresses are corrected in the next import."
+msgstr "När rutan är ikryssad läggs texten till sist på alla importerade e-postadresser (båda e-postfälten), till exempel .NOEMAIL, så att Koha inte kan skicka meddelanden före driftstart. När rutan inte är ikryssad importeras adresserna som de är och texten sparas till senare. Ta bort kryssen när biblioteket är redo att skicka; adresserna rättas vid nästa import."
+
+msgid "Imported SS12000 users (log)"
+msgstr "Importerade SS12000-användare (logg)"
+
+msgid "Log of the SS12000 import: import runs and changes made to patrons"
+msgstr "Logg över SS12000-importen: importkörningar och ändringar som gjorts på låntagare"
+
+msgid "Unknown Koha branch '%s' (organisation %s) was not saved"
+msgstr "Okänd Koha-filial '%s' (organisation %s) sparades inte"
+
+msgid "Branch mappings could not be saved: %s"
+msgstr "Filialmappningen kunde inte sparas: %s"
+
+msgid "Branch mappings had an invalid format and were not saved"
+msgstr "Filialmappningen hade ogiltigt format och sparades inte"
+
+msgid "Unknown Koha category '%s' (dutyRole %s) was not saved"
+msgstr "Okänd Koha-kategori '%s' (dutyRole %s) sparades inte"
+
+msgid "Category mappings could not be saved: %s"
+msgstr "Kategorimappningen kunde inte sparas: %s"
+
+msgid "Category mappings had an invalid format and were not saved"
+msgstr "Kategorimappningen hade ogiltigt format och sparades inte"
+
+msgid "Civic number attribute '%s' does not exist (Administration > Patron attribute types)"
+msgstr "Personnummerattributet '%s' finns inte (Administration > Låntagarattribut)"
+
+msgid "Class attribute '%s' does not exist (Administration > Patron attribute types)"
+msgstr "Klassattributet '%s' finns inte (Administration > Låntagarattribut)"
+
+msgid "The e-mail suffix may only contain letters, digits and . _ - + @ (max 40 characters)"
+msgstr "E-posttexten får bara innehålla bokstäver, siffror och . _ - + @ (högst 40 tecken)"
+
+msgid "Enter the text to append to e-mail addresses, or untick the box"
+msgstr "Ange texten som ska läggas till på e-postadresser, eller ta bort kryssen"
+
+msgid "%s - the patron identity settings (matching, attributes, e-mail text) were not saved"
+msgstr "%s - inställningarna för låntagarens identitet (matchning, attribut, e-posttext) sparades inte"
+
+msgid "Unexpected error: %s"
+msgstr "Oväntat fel: %s"
+
+msgid "No such log row"
+msgstr "Loggraden finns inte"
+
+msgid "Save Client ID, Client Secret and Customer ID first, then try again."
+msgstr "Spara Client ID, Client Secret och Customer ID först och försök sedan igen."
+
+msgid "Could not get an access token. Check Client ID, Client Secret and OAUTH API URL."
+msgstr "Kunde inte hämta en åtkomsttoken. Kontrollera Client ID, Client Secret och OAUTH API URL."
+
+msgid "Token received, but organisations returned HTTP %s. Check API URL and Customer ID."
+msgstr "Token hämtades, men organisationer svarade med HTTP %s. Kontrollera API URL och Customer ID."
+
+msgid "Connected to IST. %s organisations found."
+msgstr "Ansluten till IST. %s organisationer hittades."
+
+msgid "Duties (staff roles) are not included in this customer's subscription."
+msgstr "Duties (personalroller) ingår inte i kundens prenumeration."
+
+msgid "Could not read organisations (HTTP %s)"
+msgstr "Kunde inte läsa organisationer (HTTP %s)"
+
+msgid "The duties endpoint is not included in this customer's IST subscription (403). Staff roles cannot be read."
+msgstr "Duties ingår inte i kundens IST-prenumeration (403). Personalroller kan inte läsas."
+
+msgid "Could not read duties (HTTP %s)"
+msgstr "Kunde inte läsa duties (HTTP %s)"
+
+msgid "Unknown operation %s"
+msgstr "Okänd åtgärd %s"
+
+msgid "Permission denied"
+msgstr "Åtkomst nekad"
+
+msgid "Process is still young, wait at least 5 minutes before forcing unlock"
+msgstr "Processen är fortfarande ung, vänta minst 5 minuter innan du tvingar upplåsning"
+
+msgid "Export process is already running"
+msgstr "Exportprocessen körs redan"
+
+msgid "Process unlocked successfully"
+msgstr "Processen är upplåst"
+
+msgid "Could not acquire process lock — another process is running"
+msgstr "Kunde inte låsa processen — en annan process körs"
+
+msgid "Failed to fork export process"
+msgstr "Kunde inte starta exportprocessen"
+
+msgid "Process is still running"
+msgstr "Processen körs fortfarande"
+
+msgid "All pages processed successfully"
+msgstr "Alla sidor har behandlats"
+
+msgid "Page %s processed. More pages available."
+msgstr "Sida %s behandlad. Fler sidor finns."
+
+msgid "Error during export: %s"
+msgstr "Fel under exporten: %s"
+
+msgid "Process died unexpectedly"
+msgstr "Processen avslutades oväntat"
+
+msgid "Process forcefully unlocked by user"
+msgstr "Processen låstes upp av användaren"
+
+
+msgid "Scan next page"
+msgstr "Hämta nästa sida"
+
+msgid "SS12000 for Koha"
+msgstr "SS12000 för Koha"
+
+msgid "Keeps your patron register up to date automatically. The plugin reads students (and staff, if your municipality has ordered it) from the school administration system through the SS12000 standard (IST and others) and creates and updates the patrons in Koha: name, civic number, class, school, contact details and expiry date."
+msgstr "Håller låntagarregistret uppdaterat automatiskt. Pluginet läser elever (och personal, om kommunen har beställt det) från skolans administrationssystem via standarden SS12000 (IST med flera) och skapar och uppdaterar låntagare i Koha: namn, personnummer, klass, skola, kontaktuppgifter och utgångsdatum."
+
+msgid "Daily automatic import - no manual lists, no spreadsheets"
+msgstr "Automatisk import varje dag - inga manuella listor och inga kalkylblad"
+
+msgid "Schools are mapped to library branches, classes follow the students from year to year"
+msgstr "Skolor kopplas till bibliotekets filialer och klasserna följer eleverna från år till år"
+
+msgid "Existing patrons are recognised, so no duplicates and no lost loan history"
+msgstr "Befintliga låntagare känns igen, så inga dubbletter och ingen förlorad lånehistorik"
+
+msgid "Full log of every run and every change, searchable in Koha"
+msgstr "Fullständig logg över varje körning och varje ändring, sökbar i Koha"
+
+msgid "About imCode"
+msgstr "Om imCode"
+
+msgid "Contact us"
+msgstr "Kontakta oss"
+
+msgid "Documentation and releases"
+msgstr "Dokumentation och versioner"
+
+msgid "Developed and supported by imCode."
+msgstr "Utvecklat och supporterat av imCode."
+
+msgid "Category of existing patrons"
+msgstr "Kategori för befintliga låntagare"
+
+msgid "Do not change the category of patrons that already exist"
+msgstr "Ändra inte kategorin för låntagare som redan finns"
+
+msgid "When ticked, the category is only set for new patrons. Existing patrons keep the category they have, so categories that are handled in Koha are not overwritten by the default category."
+msgstr "När rutan är ikryssad sätts kategorin bara för nya låntagare. Befintliga låntagare behåller sin kategori, så kategorier som hanteras i Koha skrivs inte över av standardkategorin."
+
+msgid "Contact details"
+msgstr "Kontaktuppgifter"
+
+msgid "Keep existing contact details when IST has no value"
+msgstr "Behåll befintliga kontaktuppgifter när IST saknar värde"
+
+msgid "When ticked, an empty e-mail, phone, mobile or address from IST never replaces a value the patron already has in Koha. Patrons missing these details in IST are still imported."
+msgstr "När rutan är ikryssad ersätter en tom e-postadress, telefon, mobil eller adress från IST aldrig ett värde som låntagaren redan har i Koha. Låntagare som saknar uppgifterna i IST importeras ändå."
+
+msgid "missing in Koha"
+msgstr "saknas i Koha"

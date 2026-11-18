@@ -1,0 +1,253 @@
+[% USE raw %]
+[% USE Koha %]
+[% USE Asset %]
+[% SET footerjs = 1 %]
+[% INCLUDE 'doc-head-open.inc' %]
+    <title>[% ss('SS12000 log') %] &rsaquo; [% ss('Plugins') %] &rsaquo; Koha</title>
+[% INCLUDE 'doc-head-close.inc' %]
+<style nonce="[% Koha.CSPNonce | $raw %]">
+    .ss12000-nav { margin: 0 0 1em 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: .5em; }
+    .ss12000-nav a { display: inline-block; padding: .3em .8em; border: 1px solid #c4c4c4; border-radius: 1em; background: #f5f5f5; text-decoration: none; }
+    .ss12000-nav a.active { background: #e6eef7; font-weight: bold; }
+    .ss12000-filters { display: flex; flex-wrap: wrap; gap: 1em; align-items: center; margin: .5em 0 1em 0; }
+    .ss12000-filters label { display: inline-flex; gap: .4em; align-items: center; }
+    .ss12000-badge { display: inline-block; padding: 0 .5em; border-radius: .8em; font-size: 85%; background: #ddd; white-space: nowrap; }
+    .ss12000-badge.done { background: #bfe5bf; }
+    .ss12000-badge.restart, .ss12000-badge.reset { background: #ffe08a; }
+    .ss12000-badge.pending { background: #cfe3f7; }
+    .ss12000-resp { cursor: pointer; color: #0b5394; max-width: 32em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
+    .ss12000-tab { display: none; }
+    .ss12000-tab.active { display: block; }
+    #resp-dialog { width: 70em; max-width: 95vw; }
+    #resp-dialog pre { max-height: 60vh; overflow: auto; background: #f7f7f7; padding: .6em; white-space: pre-wrap; word-break: break-all; }
+    .ss12000-code { font-family: monospace; }
+</style>
+</head>
+
+<body id="plugins_ss12000_log" class="plugins">
+[% WRAPPER 'header.inc' %]
+    [% INCLUDE 'prefs-admin-search.inc' %]
+[% END %]
+
+[% WRAPPER 'sub-header.inc' %]
+    [% WRAPPER breadcrumbs %]
+        [% WRAPPER breadcrumb_item %]
+            <a href="/cgi-bin/koha/admin/admin-home.pl">[% ss('Administration') %]</a>
+        [% END %]
+        [% WRAPPER breadcrumb_item %]
+            <a href="/cgi-bin/koha/plugins/plugins-home.pl">[% ss('Plugins') %]</a>
+        [% END %]
+        [% WRAPPER breadcrumb_item bc_active= 1 %]
+            <span>[% ss('SS12000 log') %]</span>
+        [% END %]
+    [% END %]
+[% END %]
+
+[% WRAPPER 'main-container.inc' %]
+
+<h1>[% ss('SS12000 log') %] <small class="text-muted">v[% plugin_version | html %]</small></h1>
+
+<ul class="ss12000-nav">
+    <li><a href="/cgi-bin/koha/plugins/run.pl?class=[% CLASS | uri %]&amp;method=[% METHOD | uri %]">[% ss('Configuration Settings') %]</a></li>
+    <li><a href="#" id="tab-link-runs" class="active" data-tab="runs">[% ss('Import runs') %] ([% runs_total %])</a></li>
+    <li><a href="#" id="tab-link-changes" data-tab="changes">[% ss('Patron changes') %] ([% changes_total %])</a></li>
+</ul>
+
+<p class="ss12000-help">[% ss('Rows older than the log retention setting are removed by the import. Retention in days:') %] [% logs_limit %].</p>
+
+<div class="ss12000-filters">
+    <label>[% ss('Period') %]:
+        <select id="f-days">
+            <option value="0">[% ss('All') %]</option>
+            <option value="1">[% ss('Last 24 hours') %]</option>
+            <option value="3">[% ss('Last 3 days') %]</option>
+            <option value="7">[% ss('Last 7 days') %]</option>
+            <option value="30">[% ss('Last 30 days') %]</option>
+        </select>
+    </label>
+    <label class="runs-only">[% ss('Organisation') %]:
+        <select id="f-org">
+            <option value="">[% ss('All') %]</option>
+            [% FOREACH o IN orgs %]<option value="[% o | html %]">[% o | html %]</option>[% END %]
+        </select>
+    </label>
+    <label class="runs-only">[% ss('State') %]:
+        <select id="f-state">
+            <option value="">[% ss('All') %]</option>
+            <option value="done">done</option>
+            <option value="more pages">more pages</option>
+            <option value="pending">pending</option>
+            <option value="reset">reset</option>
+            <option value="restart">restart</option>
+        </select>
+    </label>
+    <label class="changes-only">[% ss('Action') %]:
+        <select id="f-action">
+            <option value="">[% ss('All') %]</option>
+            [% FOREACH a IN actions %]<option value="[% a | html %]">[% a | html %]</option>[% END %]
+        </select>
+    </label>
+    <button type="button" class="btn btn-default" id="btn-reload"><i class="fa fa-refresh" aria-hidden="true"></i> [% ss('Reload') %]</button>
+    <label><input type="checkbox" id="f-auto" /> [% ss('Refresh every 10 seconds') %]</label>
+</div>
+
+<div id="tab-runs" class="ss12000-tab active">
+    <table id="runs-table" class="table table-striped table-bordered" style="width:100%">
+        <thead><tr>
+            <th>ID</th>
+            <th>[% ss('Time') %]</th>
+            <th>[% ss('Organisation') %]</th>
+            <th>[% ss('Endpoint') %]</th>
+            <th>[% ss('Iteration') %]</th>
+            <th>[% ss('Added') %]</th>
+            <th>[% ss('Updated') %]</th>
+            <th>[% ss('Processed') %]</th>
+            <th>[% ss('State') %]</th>
+            <th>[% ss('Message / response') %]</th>
+        </tr></thead>
+    </table>
+</div>
+
+<div id="tab-changes" class="ss12000-tab">
+    <table id="changes-table" class="table table-striped table-bordered" style="width:100%">
+        <thead><tr>
+            <th>ID</th>
+            <th>[% ss('Time') %]</th>
+            <th>[% ss('Patron') %]</th>
+            <th>[% ss('Action') %]</th>
+            <th>[% ss('Description') %]</th>
+        </tr></thead>
+    </table>
+</div>
+
+<dialog id="resp-dialog">
+    <h3 id="resp-title"></h3>
+    <pre id="resp-body"></pre>
+    <div><button type="button" class="btn btn-default" id="resp-close">[% ss('Close') %]</button></div>
+</dialog>
+
+<div id="ss12000-i18n" class="ss12000-hidden" style="display:none"
+    data-loading="[% ss('Loading...') | html %]"
+    data-empty="[% ss('No log rows found') | html %]"
+    data-no-response="[% ss('(empty)') | html %]"
+    data-view="[% ss('view') | html %]"></div>
+
+[% END %]
+
+[% MACRO jsinclude BLOCK %]
+    [% INCLUDE 'datatables.inc' %]
+<script nonce="[% Koha.CSPNonce | $raw %]">
+(function () {
+    "use strict";
+    var base = window.location.pathname + "?class=" + encodeURIComponent("[% CLASS | html %]") + "&method=" + encodeURIComponent("[% METHOD | html %]");
+    var msg = document.getElementById("ss12000-i18n").dataset;
+    var tables = {};
+    var current = "runs";
+
+    function text(s) {
+        var d = document.createElement("div");
+        d.textContent = s == null ? "" : String(s);
+        return d.innerHTML;
+    }
+
+    function params(d) {
+        d.days = $("#f-days").val();
+        if (current === "runs") { d.org = $("#f-org").val(); d.state = $("#f-state").val(); }
+        else { d.action = $("#f-action").val(); }
+    }
+
+    function make(id, op, columns, order) {
+        return $("#" + id).DataTable({
+            serverSide: true,
+            processing: true,
+            searchDelay: 400,
+            pageLength: 25,
+            lengthMenu: [10, 25, 50, 100, 250],
+            order: order,
+            columns: columns,
+            language: { emptyTable: msg.empty, zeroRecords: msg.empty },
+            ajax: {
+                url: base + "&op=" + op,
+                type: "GET",
+                data: params
+            }
+        });
+    }
+
+    var runCols = [
+        { render: text },
+        { render: text },
+        { render: text },
+        { render: text },
+        { render: text },
+        { render: text },
+        { render: text },
+        { render: text },
+        { render: function (v) { return '<span class="ss12000-badge ' + text(v).replace(/ .*/, "") + '">' + text(v) + "</span>"; } },
+        { orderable: false, render: function (v, type, row) {
+            var shown = v ? text(v) : text(msg.noResponse);
+            return '<a href="#" class="ss12000-resp" data-id="' + text(row[0]) + '" title="' + text(msg.view) + '">' + shown + "</a>";
+        } }
+    ];
+    var changeCols = [
+        { render: text },
+        { render: text },
+        { render: function (v) {
+            return v ? '<a href="/cgi-bin/koha/members/moremember.pl?borrowernumber=' + encodeURIComponent(v) + '">' + text(v) + "</a>" : "";
+        } },
+        { render: text },
+        { render: text }
+    ];
+
+    function show(tab) {
+        current = tab;
+        ["runs", "changes"].forEach(function (t) {
+            document.getElementById("tab-" + t).classList.toggle("active", t === tab);
+            document.getElementById("tab-link-" + t).classList.toggle("active", t === tab);
+        });
+        $(".runs-only").toggle(tab === "runs");
+        $(".changes-only").toggle(tab === "changes");
+        if (!tables[tab]) {
+            tables[tab] = tab === "runs"
+                ? make("runs-table", "ajax-log-runs", runCols, [[0, "desc"]])
+                : make("changes-table", "ajax-log-changes", changeCols, [[0, "desc"]]);
+        } else {
+            tables[tab].ajax.reload(null, false);
+        }
+    }
+
+    $("[data-tab]").on("click", function (e) { e.preventDefault(); show($(this).data("tab")); });
+    $("#f-days, #f-org, #f-state, #f-action").on("change", function () { if (tables[current]) { tables[current].ajax.reload(); } });
+    $("#btn-reload").on("click", function () { if (tables[current]) { tables[current].ajax.reload(null, false); } });
+
+    var timer = null;
+    $("#f-auto").on("change", function () {
+        if (timer) { clearInterval(timer); timer = null; }
+        if (this.checked) { timer = setInterval(function () { if (tables[current]) { tables[current].ajax.reload(null, false); } }, 10000); }
+    });
+
+    var dlg = document.getElementById("resp-dialog");
+    document.getElementById("resp-close").addEventListener("click", function () { dlg.close(); });
+    $("#runs-table").on("click", "a.ss12000-resp", function (e) {
+        e.preventDefault();
+        var id = $(this).data("id");
+        document.getElementById("resp-title").textContent = "#" + id;
+        document.getElementById("resp-body").textContent = msg.loading;
+        dlg.showModal();
+        fetch(base + "&op=ajax-log-response&id=" + encodeURIComponent(id), { credentials: "same-origin", headers: { "Accept": "application/json" } })
+            .then(function (r) { return r.json(); })
+            .then(function (r) {
+                document.getElementById("resp-title").textContent = "#" + id + (r.created_at ? " - " + r.created_at : "") + (r.organisation ? " - " + r.organisation : "");
+                var body = r.response || msg.noResponse;
+                try { body = JSON.stringify(JSON.parse(body), null, 2); } catch (err) { /* not JSON, show as is */ }
+                document.getElementById("resp-body").textContent = r.ok === false ? r.message : body;
+            })
+            .catch(function (err) { document.getElementById("resp-body").textContent = String(err); });
+    });
+
+    show("runs");
+})();
+</script>
+[% END %]
+
+[% INCLUDE 'intranet-bottom.inc' %]

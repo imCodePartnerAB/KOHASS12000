@@ -48,6 +48,20 @@ Examples of use in cron:
 sudo /etc/init.d/cron restart
 ```
 
+# KohaSS12000 › What is new in 2.0
+
+**Category rules (new section on the configuration page)**
+- Decide the patron category with rules instead of the roles mapping. A rule has one or more *conditions*, an *action* (a Koha category, or *Do not import*) and a *priority*. All conditions of a rule must be true; several values in one condition mean any of them. Rules are tried in priority order (lowest number first), the first rule that matches decides, and a person that matches no rule gets the default category. Two rules with the same priority are allowed but warned about; the rule with the lower id is tried first.
+- Conditions can use: school (organisation code), school type, school year, education code, class, role (any of the person's active duties), assignment role, age, person kind (student, staff or both) and the school of the duty. Operators: is one of, starts with, is empty, is not empty, is at least, is at most. Text is compared without regard to case, numbers numerically. A missing value only matches *is empty*. If the duties endpoint is not available (HTTP 403), role conditions never match. Under *Other field (advanced)* a rule can also use any field of the person record by path (for example `enrolments.educationCode`).
+- A value that no rule knows about never causes an error: the person simply goes on to the next rule or to the default category. A rule that points to a Koha category that does not exist is skipped and logged.
+- **Use rules** is a checkbox, off by default. With it off everything works exactly as in 1.91 (roles mapping, *Exclude empty users, dutyRole*). With it on, the roles mapping and *Exclude empty users, dutyRole* are not used; the button *Import roles mapping as rules* turns the existing roles mapping into rules (it never runs by itself). The setting *Exclude empty users, enrolments* is still applied before the rules.
+- The duties of a person are only fetched when a rule needs them.
+- For every person the latest rule decision is kept in the table `imcode_rule_log`: which rule won and which other rules also matched but were not used (the table keeps one row per person and rows not seen for 90 days are removed). It is also written to the plugin log when debug mode is on.
+- The rule engine (`ExportUsers/Rules.pm`) has no Koha dependencies and is covered by unit tests: run `prove t/` from the repository root.
+
+**Upgrade**
+- Version 2.0 creates the tables `imcode_rules` and `imcode_rule_log` (also when upgrading from 1.90 or 1.91). The new setting `use_rules` defaults to `No`.
+
 # KohaSS12000 › What is new in 1.91
 
 **Configuration page**

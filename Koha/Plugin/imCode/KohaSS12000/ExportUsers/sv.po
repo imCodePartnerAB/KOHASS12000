@@ -889,3 +889,141 @@ msgstr "När rutan är ikryssad ersätter en tom e-postadress, telefon, mobil el
 
 msgid "missing in Koha"
 msgstr "saknas i Koha"
+
+msgid "Category rules"
+msgstr "Kategoriregler"
+
+msgid "A rule has one or more conditions and an action: a Koha category, or do not import. Conditions in one rule must all be true. Several values in one condition mean any of them. Rules are tried in priority order (lowest number first) and the first rule that matches decides. When no rule matches, the default category is used."
+msgstr "En regel har ett eller flera villkor och en åtgärd: en Koha-kategori, eller importera inte. Alla villkor i en regel måste vara sanna. Flera värden i ett villkor betyder något av dem. Reglerna prövas i prioritetsordning (lägst nummer först) och den första regel som träffar avgör. Om ingen regel träffar används standardkategorin."
+
+msgid "Use rules"
+msgstr "Använd regler"
+
+msgid "Decide the patron category with the rules below instead of the roles mapping"
+msgstr "Avgör låntagarens kategori med reglerna nedan i stället för rollmappningen"
+
+msgid "When this is not ticked the rules are ignored and the roles mapping works as before. When ticked, the roles mapping and \"Exclude empty users, dutyRole\" are not used; use a rule with the condition role is empty instead."
+msgstr "När rutan inte är ikryssad ignoreras reglerna och rollmappningen fungerar som tidigare. När den är ikryssad används varken rollmappningen eller \"Exclude empty users, dutyRole\"; använd i stället en regel med villkoret roll är tom."
+
+msgid "Add rule"
+msgstr "Lägg till regel"
+
+msgid "Import roles mapping as rules"
+msgstr "Importera rollmappningen som regler"
+
+msgid "Add condition"
+msgstr "Lägg till villkor"
+
+msgid "Priority"
+msgstr "Prioritet"
+
+msgid "Name (optional)"
+msgstr "Namn (valfritt)"
+
+msgid "Active"
+msgstr "Aktiv"
+
+msgid "Other field (advanced)"
+msgstr "Annat fält (avancerat)"
+
+msgid "Field path, for example enrolments.educationCode"
+msgstr "Fältsökväg, till exempel enrolments.educationCode"
+
+msgid "Values, separated by comma"
+msgstr "Värden, avgränsade med komma"
+
+msgid "Then"
+msgstr "Då"
+
+msgid "No rules yet."
+msgstr "Inga regler ännu."
+
+msgid "Rule"
+msgstr "Regel"
+
+msgid "Every rule needs at least one condition"
+msgstr "Varje regel behöver minst ett villkor"
+
+msgid "Every condition needs a value"
+msgstr "Varje villkor behöver ett värde"
+
+msgid "Every rule needs a category or Do not import"
+msgstr "Varje regel behöver en kategori eller Importera inte"
+
+msgid "Enter a field path"
+msgstr "Ange en fältsökväg"
+
+msgid "Use a number for this field"
+msgstr "Använd ett tal för detta fält"
+
+msgid "rules added from the roles mapping. Review them and press Save."
+msgstr "regler lades till från rollmappningen. Granska dem och tryck på Spara."
+
+msgid "The roles mapping is empty."
+msgstr "Rollmappningen är tom."
+
+msgid "The same priority is used by more than one rule (the lower rule number is tried first)"
+msgstr "Samma prioritet används av fler än en regel (den med lägre regelnummer prövas först)"
+
+msgid "From roles mapping"
+msgstr "Från rollmappningen"
+
+msgid "No role (from Exclude empty users, dutyRole)"
+msgstr "Ingen roll (från Exclude empty users, dutyRole)"
+
+msgid "Rules were not saved: %s"
+msgstr "Reglerna sparades inte: %s"
+
+msgid "Rules could not be saved: %s"
+msgstr "Reglerna kunde inte sparas: %s"
+
+msgid "Rules had an invalid format and were not saved"
+msgstr "Reglerna hade ett ogiltigt format och sparades inte"
+
+msgid "School (organisation code)"
+msgstr "Skola (organisationskod)"
+
+msgid "School type"
+msgstr "Skoltyp"
+
+msgid "School year"
+msgstr "Årskurs"
+
+msgid "Education code (programme)"
+msgstr "Utbildningskod (program)"
+
+msgid "Class"
+msgstr "Klass"
+
+msgid "Assignment role"
+msgstr "Uppdragsroll"
+
+msgid "Age"
+msgstr "Ålder"
+
+msgid "Person kind (student, staff, both)"
+msgstr "Persontyp (elev, personal, båda)"
+
+msgid "School group (parent organisation id)"
+msgstr "Skolgrupp (överordnad organisations id)"
+
+msgid "School of the duty (staff)"
+msgstr "Skola för uppdraget (personal)"
+
+msgid "is one of"
+msgstr "är något av"
+
+msgid "starts with"
+msgstr "börjar med"
+
+msgid "is empty"
+msgstr "är tom"
+
+msgid "is not empty"
+msgstr "är inte tom"
+
+msgid "is at least"
+msgstr "är minst"
+
+msgid "is at most"
+msgstr "är högst"

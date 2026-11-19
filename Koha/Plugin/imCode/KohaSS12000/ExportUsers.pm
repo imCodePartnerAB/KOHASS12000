@@ -43,6 +43,8 @@ use POSIX qw(strftime); # To format date/time
 use Encode;
 use URI::Escape qw(uri_escape);
 use Unicode::Normalize qw(NFD);
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Rules ();
+BEGIN { *SS12000Rules:: = \%Koha::Plugin::imCode::KohaSS12000::ExportUsers::Rules::; }
 
 use File::Basename;
 
@@ -58,19 +60,50 @@ our $branches_table   = 'branches'; # Koha branches table
 our $data_change_log_table    = 'imcode_data_change_log';
 our $categories_mapping_table = 'imcode_categories_mapping';
 our $branches_mapping_table   = 'imcode_branches_mapping';
+our $rules_table              = 'imcode_rules';
+our $rule_log_table           = 'imcode_rule_log';
+our @rules_ddl = (
+    qq{CREATE TABLE IF NOT EXISTS $rules_table (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        priority INT NOT NULL DEFAULT 1,
+        name VARCHAR(120) NOT NULL DEFAULT '',
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        scope VARCHAR(10) NOT NULL DEFAULT 'category',
+        conditions_json TEXT NOT NULL,
+        action_category VARCHAR(10) DEFAULT NULL,
+        action_branch VARCHAR(10) DEFAULT NULL,
+        not_import TINYINT(1) NOT NULL DEFAULT 0,
+        KEY idx_scope_priority (scope, priority)
+    );},
+    qq{CREATE TABLE IF NOT EXISTS $rule_log_table (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        person_id VARCHAR(64) NOT NULL,
+        borrowernumber INT DEFAULT NULL,
+        person_kind VARCHAR(10) DEFAULT NULL,
+        category_result VARCHAR(40) DEFAULT NULL,
+        category_explain TEXT,
+        branch_result VARCHAR(40) DEFAULT NULL,
+        branch_explain TEXT,
+        decision_hash VARCHAR(32) DEFAULT NULL,
+        changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_person (person_id),
+        KEY idx_borrowernumber (borrowernumber)
+    );},
+);
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 our $duties_forbidden = 0; # set when the duties endpoint answers 403
 our %org_code_cache;       # organisation id => organisationCode, valid for one run
 
-our $VERSION = "1.91";
+our $VERSION = "2.0";
 
 our $metadata = {
     name            => 'Export Users from SS12000',
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2026-11-17',
+    date_updated    => '2026-11-19',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -365,6 +398,8 @@ sub install {
     qq{INSERT INTO imcode_config (name,value) VALUES ('use_default_for_unmapped','No');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('dateexpiry_fallback','keep');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('dateexpiry_months','12');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('use_rules','No');},
+    @rules_ddl,
 
     );
 
@@ -507,6 +542,16 @@ sub upgrade {
     };
     if ($@) {
         warn "Error altering table: $@";
+        $success = 0;
+    }
+
+    eval {
+        $dbh->do($_) or die "Failed to create rules table: " . $dbh->errstr for @rules_ddl;
+        log_message("Yes", "Rules tables checked/created");
+    };
+    if ($@) {
+        warn "Error creating rules tables: $@";
+        log_message("Yes", "Error creating rules tables: $@");
         $success = 0;
     }
 
@@ -654,7 +699,7 @@ sub uninstall {
 
     my $dbh = C4::Context->dbh;
 
-    my @tables_to_delete = ($config_table, $logs_table, $data_change_log_table, $categories_mapping_table, $branches_mapping_table); 
+    my @tables_to_delete = ($config_table, $logs_table, $data_change_log_table, $categories_mapping_table, $branches_mapping_table, $rules_table, $rule_log_table); 
 
     eval {
         foreach my $table (@tables_to_delete) {
@@ -845,6 +890,7 @@ sub configure {
     insertConfigValue($dbh, 'email_suffix_enabled', 'No');
     insertConfigValue($dbh, 'keep_existing_category', 'No');
     insertConfigValue($dbh, 'keep_existing_contact', 'No');
+    insertConfigValue($dbh, 'use_rules', 'No');
 
     return $self->log_page($session_data) if ($op // '') eq 'log';
     return $self->log_ajax($op)           if ($op // '') =~ /^ajax-log-/;
@@ -917,6 +963,7 @@ sub configure {
 
         my $branch_mappings_json   = $cgi->param('branch_mappings_json');
         my $category_mappings_json = $cgi->param('category_mappings_json');
+        my $rules_json             = $cgi->param('rules_json');
 
         my @match_methods        = grep { /^(?:attribute|userid|cardnumber)$/ } $cgi->multi_param('match_methods');
         my $civic_attribute_code = $cgi->param('civic_attribute_code') // '';
@@ -925,6 +972,7 @@ sub configure {
         my $email_suffix_enabled = $cgi->param('email_suffix_enabled') ? 'Yes' : 'No';
         my $keep_existing_category = $cgi->param('keep_existing_category') ? 'Yes' : 'No';
         my $keep_existing_contact  = $cgi->param('keep_existing_contact')  ? 'Yes' : 'No';
+        my $use_rules              = $cgi->param('use_rules') ? 'Yes' : 'No';
         $useridPlugin     = 'civicNo' unless defined $useridPlugin     && $useridPlugin     =~ /^(?:civicNo|externalIdentifier|email_local|email|keep)$/;
         $cardnumberPlugin = 'civicNo' unless defined $cardnumberPlugin && $cardnumberPlugin =~ /^(?:civicNo|externalIdentifier|keep)$/;
 
@@ -1011,6 +1059,27 @@ sub configure {
             }
         }
 
+        # Rules are saved as one list; if any rule is invalid nothing is changed and every problem is reported
+        if (defined $rules_json && $rules_json ne '') {
+            my $raw_rules = eval { decode_json_param($rules_json) };
+            if (ref $raw_rules eq 'ARRAY') {
+                my ($rules, $rule_errors) = SS12000Rules::normalize_rules($raw_rules);
+                if (@$rule_errors) {
+                    push @save_errors, $self->t('Rules were not saved: %s', $_) for @$rule_errors;
+                } else {
+                    my $err = save_rules($dbh, $rules);
+                    if ($err) {
+                        log_message("Yes", "Error saving rules: $err");
+                        push @save_errors, $self->t('Rules could not be saved: %s', $err);
+                    } else {
+                        log_message("Yes", "Saved " . scalar(@$rules) . " rules");
+                    }
+                }
+            } else {
+                push @save_errors, $self->t('Rules had an invalid format and were not saved');
+            }
+        }
+
         # Patron matching and attribute settings (validated against Koha before saving)
         my @new_key_errors;
         push @new_key_errors, $self->t("Civic number attribute '%s' does not exist (Administration > Patron attribute types)", $civic_attribute_code)
@@ -1039,6 +1108,7 @@ sub configure {
             my $upd2 = $dbh->prepare("UPDATE $config_table SET value = ? WHERE name = ?");
             $upd2->execute($keep_existing_category, 'keep_existing_category');
             $upd2->execute($keep_existing_contact,  'keep_existing_contact');
+            $upd2->execute($use_rules,              'use_rules');
         }
         $template->param(error => join('; ', @save_errors)) if @save_errors;
 
@@ -1272,6 +1342,10 @@ sub configure {
         email_suffix_enabled => (($config_data->{email_suffix_enabled} // 'No') eq 'Yes' ? 1 : 0),
         keep_existing_category => (($config_data->{keep_existing_category} // 'No') eq 'Yes' ? 1 : 0),
         keep_existing_contact  => (($config_data->{keep_existing_contact}  // 'No') eq 'Yes' ? 1 : 0),
+        use_rules              => (($config_data->{use_rules} // 'No') eq 'Yes' ? 1 : 0),
+        rules_json             => json_for_html([ SS12000Rules::sort_rules(@{ load_rules($dbh) }) ]),
+        rule_meta_json         => json_for_html($self->rule_meta),
+        exclude_dutyrole_empty => (($config_data->{excluding_dutyRole_empty} // 'No') eq 'Yes' ? 1 : 0),
         client_id     => $config_data->{ist_client_id} || '',
         customerId    => $config_data->{ist_customer_id} || '',
         api_url       => $config_data->{ist_api_url} || '',
@@ -1312,6 +1386,75 @@ sub admin {
 
 # Decode JSON received in a form field. Koha normally hands over decoded characters
 # (CGI -utf8), but raw UTF-8 bytes are handled too.
+# Field and operator names for the rule editor (texts are translated)
+sub rule_meta {
+    my ($self) = @_;
+    my %label = (
+        school          => $self->t('School (organisation code)'),
+        school_type     => $self->t('School type'),
+        school_year     => $self->t('School year'),
+        education_code  => $self->t('Education code (programme)'),
+        class           => $self->t('Class'),
+        role            => $self->t('Role (dutyRole)'),
+        assignment_role => $self->t('Assignment role'),
+        age             => $self->t('Age'),
+        person_kind     => $self->t('Person kind (student, staff, both)'),
+        school_group    => $self->t('School group (parent organisation id)'),
+        duty_school     => $self->t('School of the duty (staff)'),
+    );
+    my %advanced = map { $_ => 1 } qw(school_group duty_school);
+    my %op_label = (
+        in          => $self->t('is one of'),
+        starts_with => $self->t('starts with'),
+        empty       => $self->t('is empty'),
+        not_empty   => $self->t('is not empty'),
+        gte         => $self->t('is at least'),
+        lte         => $self->t('is at most'),
+    );
+    my %operators;
+    foreach my $type (qw(text number any)) {
+        my @ops = SS12000Rules::operators_for($type eq 'any' ? 'custom:x' : ($type eq 'number' ? 'age' : 'class'));
+        $operators{$type} = [ map { { code => $_, label => $op_label{$_} } } @ops ];
+    }
+    return {
+        fields    => [ map { { code => $_, label => $label{$_}, type => SS12000Rules::field_type($_), advanced => ($advanced{$_} ? 1 : 0) } }
+                       qw(school school_type school_year education_code class role assignment_role age person_kind school_group duty_school) ],
+        operators => \%operators,
+    };
+}
+
+# Replaces the saved rules with the given normalised rules. Rules keep their id when they have one,
+# so rule numbers in the rule log stay valid. Returns an error text or undef.
+sub save_rules {
+    my ($dbh, $rules) = @_;
+    my $own_tx = $dbh->{AutoCommit} ? 1 : 0;
+    my $ok = eval {
+        $dbh->begin_work if $own_tx;
+        my $existing = $dbh->selectcol_arrayref("SELECT id FROM $rules_table") || [];
+        my %have = map { $_ => 1 } @$existing;
+        my %keep = map { $_->{id} => 1 } grep { defined $_->{id} && $have{ $_->{id} } } @$rules;
+        $dbh->do("DELETE FROM $rules_table WHERE id = ?", undef, $_) for grep { !$keep{$_} } @$existing;
+        my %used;
+        foreach my $r (@$rules) {
+            my @vals = ($r->{priority}, $r->{name}, $r->{enabled}, $r->{scope}, SS12000Rules::conditions_to_json($r->{conditions}),
+                        $r->{action}{category}, $r->{action}{branch}, ($r->{action}{not_import} ? 1 : 0));
+            if (defined $r->{id} && $have{ $r->{id} } && !$used{ $r->{id} }++) {
+                $dbh->do("UPDATE $rules_table SET priority = ?, name = ?, enabled = ?, scope = ?, conditions_json = ?, action_category = ?, action_branch = ?, not_import = ? WHERE id = ?",
+                         undef, @vals, $r->{id});
+            } else {
+                $dbh->do("INSERT INTO $rules_table (priority, name, enabled, scope, conditions_json, action_category, action_branch, not_import) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                         undef, @vals);
+            }
+        }
+        $dbh->commit if $own_tx;
+        1;
+    };
+    return undef if $ok;
+    my $err = $@ || 'unknown error';
+    eval { $dbh->rollback };
+    return $err;
+}
+
 sub decode_json_param {
     my ($text) = @_;
     my $json = JSON->new;
@@ -2178,6 +2321,7 @@ sub _cronjob_inner {
         WHERE created_at < DATE_SUB(CURDATE(), INTERVAL ? DAY)
     };
     $dbh->do($cleanup_query, undef, $logs_limit);
+    eval { $dbh->do("DELETE FROM $rule_log_table WHERE updated_at < DATE_SUB(CURDATE(), INTERVAL 90 DAY)") };
 
     my $archived_limit = int($config_data->{archived_limit}) || 0;
 
@@ -2916,6 +3060,20 @@ sub fetchDataFromAPI {
         keep_existing_contact  => (($config_data->{keep_existing_contact}  // 'No') eq 'Yes' ? 1 : 0),
     };
     
+    if (($config_data->{use_rules} // 'No') eq 'Yes') {
+        my $rules = load_rules($dbh);
+        my $used  = SS12000Rules::fields_used($rules);
+        $opts->{use_rules}              = 1;
+        $opts->{rules}                  = $rules;
+        $opts->{rules_need_duties}      = (grep { $used->{$_} } qw(role assignment_role duty_school person_kind)) ? 1 : 0;
+        $opts->{rules_need_duty_school} = $used->{duty_school}  ? 1 : 0;
+        $opts->{rules_need_school_group} = $used->{school_group} ? 1 : 0;
+        $opts->{custom_paths}           = [ SS12000Rules::custom_paths($rules) ];
+        $opts->{valid_categories}       = { map { $_ => 1 } @{ $dbh->selectcol_arrayref("SELECT categorycode FROM $categories_table") || [] } };
+        $opts->{valid_branches}         = { map { $_ => 1 } @{ $dbh->selectcol_arrayref("SELECT branchcode FROM $branches_table") || [] } };
+        log_message($debug_mode, 'Using ' . scalar(@$rules) . ' rule(s) for category and branch');
+    }
+
     if ($debug_mode eq "Yes") { 
         log_message($debug_mode, "Starting processing for endpoint: $data_endpoint, organisation: $current_org_code");
         log_message($debug_mode, "Filter params: " . Dumper($filter_params)) if $filter_params;
@@ -3300,6 +3458,77 @@ sub verify_categorycode_and_branchcode {
     }
 }
 
+our %org_info_cache;    # organisation id => { code, parent_id }, valid for one run
+our %rule_warned;       # rule warnings already written to the log in this run
+
+# Organisation code and parent id for an organisation id (one API call per organisation and run)
+sub org_info {
+    my ($org_id, $access_token, $api_url_base) = @_;
+    return {} unless defined $org_id && $org_id ne '';
+    return $org_info_cache{$org_id} if exists $org_info_cache{$org_id};
+    my $info = {};
+    eval {
+        my $raw = getApiResponse($api_url_base . 'organisations/' . $org_id, $access_token);
+        if (defined $raw && length($raw) > 0) {
+            my $org = decode_json($raw);
+            if (ref $org eq 'HASH') {
+                $info = { code => $org->{organisationCode}, parent_id => (ref $org->{parentOrganisation} eq 'HASH' ? $org->{parentOrganisation}{id} : undef) };
+                $org_info_cache{$org_id} = $info;
+            }
+        }
+    };
+    return $info;
+}
+
+# Rules from the database as normalised rule hashes (invalid rows are skipped and logged)
+sub load_rules {
+    my ($dbh) = @_;
+    my $rows = eval {
+        $dbh->selectall_arrayref(
+            "SELECT id, priority, name, enabled, scope, conditions_json, action_category, action_branch, not_import FROM $rules_table",
+            { Slice => {} }
+        );
+    } || [];
+    my @rules;
+    foreach my $row (@$rows) {
+        my $action = $row->{scope} eq 'branch' ? { branch => $row->{action_branch} }
+                   : $row->{not_import}        ? { not_import => 1 }
+                   :                             { category => $row->{action_category} };
+        my ($rule, $err) = SS12000Rules::normalize_rule({
+            id => $row->{id}, priority => $row->{priority}, name => $row->{name}, enabled => $row->{enabled},
+            scope => $row->{scope}, conditions => SS12000Rules::conditions_from_json($row->{conditions_json}), action => $action,
+        });
+        if ($err) {
+            log_message('Yes', "Rule #$row->{id} skipped: $err");
+            next;
+        }
+        push @rules, $rule;
+    }
+    return \@rules;
+}
+
+# One row per person with the latest rule decision; changed_at only moves when the decision changes
+sub save_rule_log {
+    my ($dbh, $person_id, %r) = @_;
+    my $hash = Digest::MD5::md5_hex(Encode::encode('UTF-8', join("\x1f", map { $_ // '' } @r{qw(person_kind category_result category_explain branch_result branch_explain)})));
+    eval {
+        $dbh->do(qq{
+            INSERT INTO $rule_log_table (person_id, person_kind, category_result, category_explain, branch_result, branch_explain, decision_hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                changed_at = IF(decision_hash <=> VALUES(decision_hash), changed_at, NOW()),
+                person_kind = VALUES(person_kind),
+                category_result = VALUES(category_result),
+                category_explain = VALUES(category_explain),
+                branch_result = VALUES(branch_result),
+                branch_explain = VALUES(branch_explain),
+                decision_hash = VALUES(decision_hash),
+                updated_at = NOW()
+        }, undef, $person_id, @r{qw(person_kind category_result category_explain branch_result branch_explain)}, $hash);
+    };
+    log_message('Yes', "Error saving rule log for person $person_id: $@") if $@;
+}
+
 sub fetchBorrowers {
     my (
             $response_data,
@@ -3439,6 +3668,8 @@ sub fetchBorrowers {
                     # for the rest of this run instead of one failing call per user.
                     if ($duties_forbidden) {
                         log_message($debug_mode, "Skipping duties lookup (API returned 403 earlier in this run)");
+                    } elsif ($opts->{use_rules} && !$opts->{rules_need_duties}) {
+                        log_message($debug_mode, "Skipping duties lookup (no rule uses roles)");
                     } else {
                         eval {
                             my ($raw_duties, $duties_err) = getApiResponse($person_api_url, $access_token);
@@ -3465,8 +3696,15 @@ sub fetchBorrowers {
                     } 
 
 
+                    my $duties_list;
+                    if ($response_data_person && ref($response_data_person) eq 'HASH' && ref($response_data_person->{data}) eq 'ARRAY') {
+                        $duties_list = $response_data_person->{data};
+                    }
+
                     log_message($debug_mode, '::duty_role BEGIN');
-                    if ($duty_role) {
+                    if ($opts->{use_rules}) {
+                        log_message($debug_mode, 'Category and branch are decided by rules (role mapping and excluding_dutyRole_empty are not used)');
+                    } elsif ($duty_role) {
                         log_message($debug_mode, 'duty_role: '.$duty_role);
                         log_message($debug_mode, "Checking categories_mapping, in categories_mapping we have: ". Dumper(@categories_mapping));
                         foreach my $category_mapping (@categories_mapping) {
@@ -3521,6 +3759,7 @@ sub fetchBorrowers {
                         }
                     }
 
+                    my $school_code;
                     if ($enroledAtId) {
                         log_message($debug_mode, 'enroledAtId: '.$enroledAtId);
                         
@@ -3570,6 +3809,7 @@ sub fetchBorrowers {
                         }
 
                         if ($organisationCode) {
+                            $school_code = $organisationCode;
                             log_message($debug_mode, 'organisationCode: '.$organisationCode);
                             log_message($debug_mode, "Checking branches_mapping, in branches_mapping we have: ". Dumper(@branches_mapping));
                             foreach my $branch_mapping (@branches_mapping) {
@@ -3606,6 +3846,66 @@ sub fetchBorrowers {
 
                     }
                     log_message($debug_mode, '::organisationCode END');
+
+                    my %rule_decision;
+                    if ($opts->{use_rules} && !$not_import) {
+                        my $duties_for_facts;
+                        if (ref $duties_list eq 'ARRAY') {
+                            $duties_for_facts = [ map { +{
+                                dutyRole       => $_->{dutyRole},
+                                assignmentRole => $_->{assignmentRole},
+                                school         => ($opts->{rules_need_duty_school} ? org_info(($_->{dutyAt} || {})->{id}, $access_token, $api_url_base)->{code} : undef),
+                                startDate      => $_->{startDate},
+                                endDate        => $_->{endDate},
+                            } } grep { ref $_ eq 'HASH' } @$duties_list ];
+                        }
+                        my @group_ids;
+                        if ($opts->{rules_need_school_group} && $enroledAtId) {
+                            my $parent_id = org_info($enroledAtId, $access_token, $api_url_base)->{parent_id};
+                            push @group_ids, $parent_id if $parent_id;
+                        }
+                        my $civic_for_facts = ref $response_page_data->{civicNo} eq 'HASH' ? $response_page_data->{civicNo}{value} : undef;
+                        my %custom = map { $_ => [ SS12000Rules::extract_values($response_page_data, $_) ] } @{ $opts->{custom_paths} || [] };
+
+                        my $facts = SS12000Rules::build_facts(
+                            today            => $today,
+                            enrolment        => $current_enrolment,
+                            school_codes     => [ grep { defined } $school_code ],
+                            school_group_ids => \@group_ids,
+                            klass            => $klass_displayName,
+                            duties           => $duties_for_facts,
+                            birthdate        => $response_page_data->{birthDate},
+                            civic_no         => $civic_for_facts,
+                            custom           => \%custom,
+                        );
+                        my %ev = (valid_categories => $opts->{valid_categories}, valid_branches => $opts->{valid_branches});
+                        my $cat_result = SS12000Rules::evaluate($opts->{rules}, $facts, scope => 'category', %ev);
+                        my $br_result  = SS12000Rules::evaluate($opts->{rules}, $facts, scope => 'branch',   %ev);
+
+                        if ($cat_result->{winner}) {
+                            if ($cat_result->{winner}{action}{not_import}) {
+                                $not_import  = 1;
+                                $skip_reason = 'rule #' . ($cat_result->{winner}{id} // '?');
+                            } else {
+                                $koha_categorycode = $cat_result->{winner}{action}{category};
+                            }
+                        }
+                        $koha_branchcode = $br_result->{winner}{action}{branch} if $br_result->{winner};
+
+                        foreach my $w (@{ $cat_result->{warnings} }, @{ $br_result->{warnings} }) {
+                            log_message('Yes', "Rules: $w") unless $rule_warned{$w}++;
+                        }
+                        %rule_decision = (
+                            person_kind      => $facts->{person_kind},
+                            category_result  => ($not_import ? 'do not import' : $koha_categorycode),
+                            category_explain => ($cat_result->{winner} ? SS12000Rules::explain($cat_result) : "no rule matched, default category " . ($koha_categorycode // '')),
+                            branch_result    => $koha_branchcode,
+                            branch_explain   => ($br_result->{winner} ? SS12000Rules::explain($br_result) : 'no rule matched, branch from organisation mapping or default'),
+                        );
+                        log_message($debug_mode, 'Rules, category: ' . $rule_decision{category_explain});
+                        log_message($debug_mode, 'Rules, branch: ' . $rule_decision{branch_explain});
+                        save_rule_log($dbh, $id, %rule_decision);
+                    }
 
                     my $givenName  = $response_page_data->{givenName};
                     my $familyName = $response_page_data->{familyName};
@@ -3764,6 +4064,7 @@ sub fetchBorrowers {
                         log_message($debug_mode, 'addOrUpdateBorrower, externalIdentifier: '.$externalIdentifier);
                         log_message($debug_mode, 'addOrUpdateBorrower, klass_displayName: '.(defined $klass_displayName ? $klass_displayName : ''));
 
+                        $opts->{borrowernumber_out} = undef;
                         addOrUpdateBorrower(
                                 $cardnumber,
                                 $familyName,
@@ -3791,6 +4092,9 @@ sub fetchBorrowers {
                                 $enrolment_cancelled,
                                 $opts,
                             );
+                        if (%rule_decision && $opts->{borrowernumber_out}) {
+                            eval { $dbh->do("UPDATE $rule_log_table SET borrowernumber = ? WHERE person_id = ?", undef, $opts->{borrowernumber_out}, $id) };
+                        }
                     } else {
                         # User is skipped - update opacnote with reason if user exists
                         my $current_version_info = $version_info;
@@ -4513,6 +4817,8 @@ sub addOrUpdateBorrower {
     }
 
     # Optionally keep the civic number in a borrower attribute (e.g. CIVICNO), used for matching
+    $opts->{borrowernumber_out} = $borrowernumber;
+
     if ($borrowernumber && $civic_attr_code ne '' && $has_value->($civic_no)) {
         set_borrower_attribute($dbh, $borrowernumber, $civic_attr_code, $civic_no);
     }

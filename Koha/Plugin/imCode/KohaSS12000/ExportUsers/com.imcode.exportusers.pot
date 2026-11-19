@@ -735,3 +735,141 @@ msgstr ""
 
 msgid "missing in Koha"
 msgstr ""
+
+msgid "Category rules"
+msgstr ""
+
+msgid "A rule has one or more conditions and an action: a Koha category, or do not import. Conditions in one rule must all be true. Several values in one condition mean any of them. Rules are tried in priority order (lowest number first) and the first rule that matches decides. When no rule matches, the default category is used."
+msgstr ""
+
+msgid "Use rules"
+msgstr ""
+
+msgid "Decide the patron category with the rules below instead of the roles mapping"
+msgstr ""
+
+msgid "When this is not ticked the rules are ignored and the roles mapping works as before. When ticked, the roles mapping and \"Exclude empty users, dutyRole\" are not used; use a rule with the condition role is empty instead."
+msgstr ""
+
+msgid "Add rule"
+msgstr ""
+
+msgid "Import roles mapping as rules"
+msgstr ""
+
+msgid "Add condition"
+msgstr ""
+
+msgid "Priority"
+msgstr ""
+
+msgid "Name (optional)"
+msgstr ""
+
+msgid "Active"
+msgstr ""
+
+msgid "Other field (advanced)"
+msgstr ""
+
+msgid "Field path, for example enrolments.educationCode"
+msgstr ""
+
+msgid "Values, separated by comma"
+msgstr ""
+
+msgid "Then"
+msgstr ""
+
+msgid "No rules yet."
+msgstr ""
+
+msgid "Rule"
+msgstr ""
+
+msgid "Every rule needs at least one condition"
+msgstr ""
+
+msgid "Every condition needs a value"
+msgstr ""
+
+msgid "Every rule needs a category or Do not import"
+msgstr ""
+
+msgid "Enter a field path"
+msgstr ""
+
+msgid "Use a number for this field"
+msgstr ""
+
+msgid "rules added from the roles mapping. Review them and press Save."
+msgstr ""
+
+msgid "The roles mapping is empty."
+msgstr ""
+
+msgid "The same priority is used by more than one rule (the lower rule number is tried first)"
+msgstr ""
+
+msgid "From roles mapping"
+msgstr ""
+
+msgid "No role (from Exclude empty users, dutyRole)"
+msgstr ""
+
+msgid "Rules were not saved: %s"
+msgstr ""
+
+msgid "Rules could not be saved: %s"
+msgstr ""
+
+msgid "Rules had an invalid format and were not saved"
+msgstr ""
+
+msgid "School (organisation code)"
+msgstr ""
+
+msgid "School type"
+msgstr ""
+
+msgid "School year"
+msgstr ""
+
+msgid "Education code (programme)"
+msgstr ""
+
+msgid "Class"
+msgstr ""
+
+msgid "Assignment role"
+msgstr ""
+
+msgid "Age"
+msgstr ""
+
+msgid "Person kind (student, staff, both)"
+msgstr ""
+
+msgid "School group (parent organisation id)"
+msgstr ""
+
+msgid "School of the duty (staff)"
+msgstr ""
+
+msgid "is one of"
+msgstr ""
+
+msgid "starts with"
+msgstr ""
+
+msgid "is empty"
+msgstr ""
+
+msgid "is not empty"
+msgstr ""
+
+msgid "is at least"
+msgstr ""
+
+msgid "is at most"
+msgstr ""

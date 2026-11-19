@@ -49,6 +49,12 @@
     .ss12000-actions { position: sticky; bottom: 0; background: #fff; border-top: 1px solid #ccc; padding: .6em 0; z-index: 5; }
     .ss12000-hidden { display: none; }
     .ss12000-code { font-family: monospace; }
+    .ss12000-rule { border: 1px solid #d5d5d5; border-radius: .4em; padding: .6em .8em; margin: .6em 0; background: #fafafa; max-width: 70em; }
+    .ss12000-rule.is-off { opacity: .6; }
+    .ss12000-rule-head, .ss12000-rule-action, .ss12000-cond { display: flex; gap: .6em; align-items: center; flex-wrap: wrap; margin: .3em 0; }
+    .ss12000-rule .ss12000-rule-title { font-weight: bold; }
+    .ss12000-rule .ss12000-cond-values { min-width: 18em; flex: 1 1 18em; }
+    .ss12000-rule .ss12000-check { display: inline-flex; gap: .3em; align-items: center; }
 </style>
 </head>
 
@@ -93,6 +99,7 @@
     <li><a href="#sec-rules">[% ss('Import rules') %]</a></li>
     <li><a href="#sec-branches">[% ss('Branches mapping') %]</a></li>
     <li><a href="#sec-categories">[% ss('Categories mapping') %]</a></li>
+    <li><a href="#sec-catrules">[% ss('Category rules') %]</a></li>
     <li><a href="#sec-advanced">[% ss('Advanced') %]</a></li>
     <li><a href="/cgi-bin/koha/plugins/run.pl?class=[% CLASS | uri %]&amp;method=[% METHOD | uri %]&amp;op=log"><i class="fa fa-list" aria-hidden="true"></i> [% ss('SS12000 log') %]</a></li>
 </ul>
@@ -104,6 +111,7 @@
     <input type="hidden" name="csrf_token" value="[% csrf_token | html %]" />
     <input type="hidden" name="branch_mappings_json" id="branch_mappings_json" value="" />
     <input type="hidden" name="category_mappings_json" id="category_mappings_json" value="" />
+    <input type="hidden" name="rules_json" id="rules_json" value="" />
 
     <div class="page-section ss12000-section" id="sec-about">
         <a class="ss12000-about-logo" href="https://imcode.com" target="_blank" rel="noopener"><img src="[% logo_data_uri | html %]" alt="imCode" /></a>
@@ -411,6 +419,28 @@
         </fieldset>
     </div>
 
+    <div class="page-section ss12000-section" id="sec-catrules">
+        <fieldset class="rows">
+            <legend>[% ss('Category rules') %]</legend>
+            <p class="ss12000-help">[% ss('A rule has one or more conditions and an action: a Koha category, or do not import. Conditions in one rule must all be true. Several values in one condition mean any of them. Rules are tried in priority order (lowest number first) and the first rule that matches decides. When no rule matches, the default category is used.') %]</p>
+            <ol>
+                <li>
+                    <label for="use_rules">[% ss('Use rules') %]:</label>
+                    <div class="ss12000-field">
+                        <label><input type="checkbox" id="use_rules" name="use_rules" value="1" [% IF use_rules %]checked="checked"[% END %] /> [% ss('Decide the patron category with the rules below instead of the roles mapping') %]</label>
+                        <span class="ss12000-help">[% ss('When this is not ticked the rules are ignored and the roles mapping works as before. When ticked, the roles mapping and "Exclude empty users, dutyRole" are not used; use a rule with the condition role is empty instead.') %]</span>
+                    </div>
+                </li>
+            </ol>
+            <div class="ss12000-inline">
+                <button type="button" class="btn btn-default" id="btn-add-rule"><i class="fa fa-plus" aria-hidden="true"></i> [% ss('Add rule') %]</button>
+                <button type="button" class="btn btn-default" id="btn-import-roles"><i class="fa fa-level-down" aria-hidden="true"></i> [% ss('Import roles mapping as rules') %]</button>
+            </div>
+            <div id="rule-messages"></div>
+            <div id="rule-list"></div>
+        </fieldset>
+    </div>
+
     <div class="page-section ss12000-section" id="sec-advanced">
         <fieldset class="rows">
             <legend>[% ss('Advanced') %]</legend>
@@ -505,7 +535,28 @@
     data-missing-in-ist="[% ss('in the mapping but not in IST') | html %]"
     data-suggestions-applied="[% ss('suggestions applied. Review them and press Save.') | html %]"
     data-no-suggestions="[% ss('No new suggestions found.') | html %]"
-    data-roles-loaded="[% ss('roles loaded from IST') | html %]"></div>
+    data-roles-loaded="[% ss('roles loaded from IST') | html %]"
+    data-add-condition="[% ss('Add condition') | html %]"
+    data-priority="[% ss('Priority') | html %]"
+    data-rule-name="[% ss('Name (optional)') | html %]"
+    data-enabled="[% ss('Active') | html %]"
+    data-other-field="[% ss('Other field (advanced)') | html %]"
+    data-path-hint="[% ss('Field path, for example enrolments.educationCode') | html %]"
+    data-values-hint="[% ss('Values, separated by comma') | html %]"
+    data-do-not-import="[% ss('Do not import') | html %]"
+    data-then="[% ss('Then') | html %]"
+    data-no-rules="[% ss('No rules yet.') | html %]"
+    data-rule-label="[% ss('Rule') | html %]"
+    data-rule-needs-condition="[% ss('Every rule needs at least one condition') | html %]"
+    data-rule-needs-value="[% ss('Every condition needs a value') | html %]"
+    data-rule-needs-action="[% ss('Every rule needs a category or Do not import') | html %]"
+    data-rule-needs-path="[% ss('Enter a field path') | html %]"
+    data-rule-needs-number="[% ss('Use a number for this field') | html %]"
+    data-rules-imported="[% ss('rules added from the roles mapping. Review them and press Save.') | html %]"
+    data-no-roles-to-import="[% ss('The roles mapping is empty.') | html %]"
+    data-duplicate-priority="[% ss('The same priority is used by more than one rule (the lower rule number is tried first)') | html %]"
+    data-import-name="[% ss('From roles mapping') | html %]"
+    data-import-empty-role="[% ss('No role (from Exclude empty users, dutyRole)') | html %]"></div>
 
 [% END %]
 
@@ -516,6 +567,9 @@
         categories: [% categories_json | $raw %],
         branchMapping: [% branches_mapping_json | $raw %],
         categoryMapping: [% categories_mapping_json | $raw %],
+        rules: [% rules_json | $raw %],
+        ruleMeta: [% rule_meta_json | $raw %],
+        excludeDutyRoleEmpty: [% IF exclude_dutyrole_empty %]true[% ELSE %]false[% END %],
         hasSecret: [% IF client_secret_set %]true[% ELSE %]false[% END %],
         initialUserid: "[% useridPlugin | html %]",
         initialCardnumber: "[% cardnumberPlugin | html %]"
@@ -761,6 +815,191 @@
         }).catch(function (e) { showMessage(categoryMsgBox, "danger", String(e)); });
     });
 
+    // ---------- Category rules ----------
+    var ruleBox = document.getElementById("rule-list");
+    var ruleMsgBox = document.getElementById("rule-messages");
+    var rules = [];
+    var otherScopeRules = [];
+    var FIELD = {};
+    cfg.ruleMeta.fields.forEach(function (f) { FIELD[f.code] = f; });
+
+    function fieldType(code) { return code.indexOf("custom:") === 0 ? "any" : ((FIELD[code] || {}).type || "text"); }
+    function opsFor(code) { return cfg.ruleMeta.operators[fieldType(code)] || []; }
+    function needsValues(op) { return op !== "empty" && op !== "not_empty"; }
+    function splitValues(text) { return text.split(",").map(function (v) { return v.trim(); }).filter(function (v) { return v !== ""; }); }
+
+    function fieldSelect(cond) {
+        var sel = el("select", {});
+        var other = el("optgroup", { label: msg.otherField });
+        cfg.ruleMeta.fields.forEach(function (f) {
+            var o = el("option", { value: f.code, text: f.label });
+            if (cond.field === f.code) { o.selected = true; }
+            (f.advanced ? other : sel).appendChild(o);
+        });
+        var custom = el("option", { value: "custom", text: msg.otherField });
+        if (cond.field.indexOf("custom:") === 0) { custom.selected = true; }
+        other.appendChild(custom);
+        sel.appendChild(other);
+        return sel;
+    }
+
+    function renderRules() {
+        ruleBox.innerHTML = "";
+        if (!rules.length) { ruleBox.appendChild(el("p", { "class": "ss12000-help", text: msg.noRules })); }
+        rules.forEach(function (rule) {
+            var card = el("div", { "class": "ss12000-rule" + (rule.enabled ? "" : " is-off") });
+
+            var prio = el("input", { type: "number", min: "1", max: "9999", value: String(rule.priority), style: "width: 5em", title: msg.priority });
+            prio.addEventListener("input", function () { rule.priority = parseInt(prio.value, 10) || 1; showDuplicates(); });
+            var name = el("input", { type: "text", size: "30", value: rule.name || "", placeholder: msg.ruleName });
+            name.addEventListener("input", function () { rule.name = name.value; });
+            var on = el("input", { type: "checkbox" });
+            on.checked = !!rule.enabled;
+            on.addEventListener("change", function () { rule.enabled = on.checked ? 1 : 0; card.classList.toggle("is-off", !rule.enabled); });
+            var del = el("button", { type: "button", "class": "btn btn-default btn-xs", title: msg.remove, text: "\u00d7" });
+            del.addEventListener("click", function () { rules.splice(rules.indexOf(rule), 1); renderRules(); });
+            card.appendChild(el("div", { "class": "ss12000-rule-head" }, [
+                el("span", { "class": "ss12000-rule-title", text: msg.ruleLabel + (rule.id ? " #" + rule.id : "") }),
+                el("span", { text: msg.priority + ":" }), prio, name,
+                el("span", { "class": "ss12000-check" }, [on, el("span", { text: msg.enabled })]), del
+            ]));
+
+            var condBox = el("div", {});
+            rule.conditions.forEach(function (cond) {
+                var row = el("div", { "class": "ss12000-cond" });
+                var fsel = fieldSelect(cond);
+                var path = el("input", { type: "text", size: "28", placeholder: msg.pathHint, value: cond.field.indexOf("custom:") === 0 ? cond.field.slice(7) : "" });
+                var osel = el("select", {});
+                var vals = el("input", { type: "text", "class": "ss12000-cond-values", placeholder: msg.valuesHint, value: (cond.values || []).join(", ") });
+                var rm = el("button", { type: "button", "class": "btn btn-default btn-xs", title: msg.remove, text: "\u00d7" });
+
+                function fillOps() {
+                    osel.innerHTML = "";
+                    var ops = opsFor(cond.field);
+                    if (!ops.some(function (o) { return o.code === cond.op; })) { cond.op = ops.length ? ops[0].code : "in"; }
+                    ops.forEach(function (o) {
+                        var opt = el("option", { value: o.code, text: o.label });
+                        if (o.code === cond.op) { opt.selected = true; }
+                        osel.appendChild(opt);
+                    });
+                    vals.style.display = needsValues(cond.op) ? "" : "none";
+                    path.style.display = cond.field.indexOf("custom:") === 0 ? "" : "none";
+                }
+                fsel.addEventListener("change", function () {
+                    cond.field = fsel.value === "custom" ? "custom:" + path.value.trim() : fsel.value;
+                    fillOps();
+                });
+                path.addEventListener("input", function () { cond.field = "custom:" + path.value.trim(); });
+                osel.addEventListener("change", function () { cond.op = osel.value; fillOps(); });
+                vals.addEventListener("input", function () { cond.values = splitValues(vals.value); });
+                rm.addEventListener("click", function () { rule.conditions.splice(rule.conditions.indexOf(cond), 1); renderRules(); });
+                fillOps();
+                [fsel, path, osel, vals, rm].forEach(function (n) { row.appendChild(n); });
+                condBox.appendChild(row);
+            });
+            card.appendChild(condBox);
+
+            var add = el("button", { type: "button", "class": "btn btn-default btn-xs" }, [el("span", { text: "+ " + msg.addCondition })]);
+            add.addEventListener("click", function () { rule.conditions.push({ field: "school", op: "in", values: [] }); renderRules(); });
+            card.appendChild(add);
+
+            var act = el("select", {});
+            act.appendChild(el("option", { value: "", text: msg.noCategory }));
+            var skip = el("option", { value: "__skip__", text: msg.doNotImport });
+            if (rule.skip) { skip.selected = true; }
+            act.appendChild(skip);
+            cfg.categories.forEach(function (o) {
+                var opt = el("option", { value: o.code, text: o.code + (o.name ? " - " + o.name : "") });
+                if (!rule.skip && rule.category === o.code) { opt.selected = true; }
+                act.appendChild(opt);
+            });
+            if (!rule.skip && rule.category && !cfg.categories.some(function (o) { return o.code === rule.category; })) {
+                var miss = el("option", { value: rule.category, text: rule.category + " (" + msg.missingInKoha + ")" });
+                miss.selected = true;
+                act.appendChild(miss);
+            }
+            act.addEventListener("change", function () {
+                rule.skip = act.value === "__skip__" ? 1 : 0;
+                rule.category = rule.skip ? "" : act.value;
+            });
+            card.appendChild(el("div", { "class": "ss12000-rule-action" }, [el("strong", { text: msg.then + ":" }), act]));
+            ruleBox.appendChild(card);
+        });
+        showDuplicates();
+    }
+
+    function showDuplicates() {
+        var count = {};
+        rules.forEach(function (r) { if (r.enabled) { count[r.priority] = (count[r.priority] || 0) + 1; } });
+        var dup = Object.keys(count).filter(function (k) { return count[k] > 1; });
+        if (dup.length) { showMessage(ruleMsgBox, "warning", msg.duplicatePriority + ": " + dup.join(", ")); } else { ruleMsgBox.innerHTML = ""; }
+    }
+
+    function nextPriority() {
+        return rules.reduce(function (m, r) { return Math.max(m, r.priority); }, 0) + 1;
+    }
+
+    function fromServerRule(r) {
+        return {
+            id: r.id, priority: r.priority, name: r.name || "", enabled: r.enabled ? 1 : 0,
+            conditions: (r.conditions || []).map(function (c) { return { field: c.field, op: c.op, values: (c.values || []).slice() }; }),
+            skip: r.action && r.action.not_import ? 1 : 0, category: (r.action && r.action.category) || ""
+        };
+    }
+
+    document.getElementById("btn-add-rule").addEventListener("click", function () {
+        rules.push({ id: null, priority: nextPriority(), name: "", enabled: 1, conditions: [{ field: "school", op: "in", values: [] }], skip: 0, category: "" });
+        renderRules();
+    });
+
+    document.getElementById("btn-import-roles").addEventListener("click", function () {
+        var groups = [], index = {}, seen = {};
+        categoryRows.forEach(function (row) {
+            if (!row.role || seen[row.role] || !(row.category || row.not_import)) { return; }
+            seen[row.role] = true;
+            var key = row.not_import ? "__skip__" : row.category;
+            if (!(key in index)) { index[key] = groups.length; groups.push({ key: key, roles: [] }); }
+            groups[index[key]].roles.push(row.role);
+        });
+        var added = groups.map(function (g) {
+            return { id: null, priority: 0, name: msg.importName, enabled: 1, skip: g.key === "__skip__" ? 1 : 0, category: g.key === "__skip__" ? "" : g.key,
+                     conditions: [{ field: "role", op: "in", values: g.roles }] };
+        });
+        if (cfg.excludeDutyRoleEmpty) {
+            added.push({ id: null, priority: 0, name: msg.importEmptyRole, enabled: 1, skip: 1, category: "", conditions: [{ field: "role", op: "empty", values: [] }] });
+        }
+        if (!added.length) { showMessage(ruleMsgBox, "warning", msg.noRolesToImport); return; }
+        added.forEach(function (r) { r.priority = nextPriority(); rules.push(r); });
+        renderRules();
+        showMessage(ruleMsgBox, "success", added.length + " " + msg.rulesImported);
+    });
+
+    function serializeRules() {
+        return otherScopeRules.concat(rules.map(function (r) {
+            return {
+                id: r.id, priority: r.priority, name: r.name, enabled: r.enabled ? 1 : 0, scope: "category",
+                conditions: r.conditions.map(function (c) { return { field: c.field, op: c.op, values: needsValues(c.op) ? c.values : [] }; }),
+                action: r.skip ? { not_import: 1 } : { category: r.category }
+            };
+        }));
+    }
+
+    function checkRules() {
+        for (var i = 0; i < rules.length; i++) {
+            var r = rules[i];
+            if (!r.conditions.length) { return msg.ruleNeedsCondition; }
+            for (var j = 0; j < r.conditions.length; j++) {
+                var c = r.conditions[j];
+                if (c.field === "custom:") { return msg.ruleNeedsPath; }
+                if (needsValues(c.op) && !(c.values && c.values.length)) { return msg.ruleNeedsValue; }
+                if (needsValues(c.op) && fieldType(c.field) === "number" && !c.values.every(function (v) { return /^-?\d+(\.\d+)?$/.test(v); })) { return msg.ruleNeedsNumber; }
+                if ((c.op === "gte" || c.op === "lte") && !/^-?\d+(\.\d+)?$/.test(c.values[0])) { return msg.ruleNeedsNumber; }
+            }
+            if (!r.skip && !r.category) { return msg.ruleNeedsAction; }
+        }
+        return "";
+    }
+
     // ---------- Misc behaviour ----------
     function toggleMonths() {
         document.getElementById("dateexpiry_months_div").classList.toggle("ss12000-hidden", document.getElementById("dateexpiry_fallback").value !== "months");
@@ -796,6 +1035,9 @@
             e.preventDefault();
             return;
         }
+        var ruleProblem = checkRules();
+        if (ruleProblem) { window.alert(ruleProblem); e.preventDefault(); return; }
+        document.getElementById("rules_json").value = JSON.stringify(serializeRules());
         document.getElementById("branch_mappings_json").value = JSON.stringify(
             branchRows.filter(function (r) { return r.org && r.branch; }).map(function (r) { return { org: r.org, branch: r.branch }; }));
         document.getElementById("category_mappings_json").value = JSON.stringify(
@@ -805,8 +1047,10 @@
     // ---------- Init ----------
     branchRows = (cfg.branchMapping || []).map(function (m) { return { org: m.org, branch: m.branch, name: "", state: "" }; });
     categoryRows = (cfg.categoryMapping || []).map(function (m) { return { role: m.role, category: m.category, not_import: m.not_import }; });
+    (cfg.rules || []).forEach(function (r) { (r.scope === "branch" ? otherScopeRules : rules).push(r.scope === "branch" ? r : fromServerRule(r)); });
     renderBranches();
     renderCategories();
+    renderRules();
     if (cfg.hasSecret) { loadOrgs(); }
 })();
 </script>

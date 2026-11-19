@@ -815,17 +815,20 @@ sub configure {
     my $dbh = C4::Context->dbh;
     my $op = $cgi->param('op') || '';
 
-    my ($trigger_version) = $dbh->selectrow_array(
-        "SELECT value FROM $config_table WHERE name = 'trigger_version'"
+    # The change log trigger is recreated only when the stored version differs from the plugin version.
+    # The table is unique on (name, value), so the old row is removed instead of updated and exactly
+    # one trigger_version row is kept (older installations may have several).
+    my ($trigger_current) = $dbh->selectrow_array(
+        "SELECT COUNT(*) FROM $config_table WHERE name = 'trigger_version' AND value = ?", undef, $VERSION
     );
-    if (!$trigger_version || $trigger_version ne $VERSION) {
-        recreate_trigger($dbh);
-        $dbh->do(
-            "INSERT INTO $config_table (name, value) VALUES ('trigger_version', ?)
-             ON DUPLICATE KEY UPDATE value = ?",
-            undef, $VERSION, $VERSION
-        );
-        log_message("Yes", "Trigger recreated for plugin version $VERSION");
+    if (!$trigger_current) {
+        if (recreate_trigger($dbh)) {
+            $dbh->do("DELETE FROM $config_table WHERE name = 'trigger_version'");
+            $dbh->do("INSERT INTO $config_table (name, value) VALUES ('trigger_version', ?)", undef, $VERSION);
+            log_message("Yes", "Trigger recreated for plugin version $VERSION");
+        }
+    } else {
+        $dbh->do("DELETE FROM $config_table WHERE name = 'trigger_version' AND value <> ?", undef, $VERSION);
     }
 
     insertConfigValue($dbh, 'excluding_dutyRole_empty', 'No');

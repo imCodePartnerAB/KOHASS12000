@@ -1,410 +1,815 @@
-[% USE gtx = Gettext('com.imcode.exportusers', language, mbf_path) %]
+[% USE raw %]
+[% USE Koha %]
+[% SET footerjs = 1 %]
 [% INCLUDE 'doc-head-open.inc' %]
-    <title>[% 'Configuration imCode SS12000' | gettext %]</title>
+    <title>[% ss('Configuration imCode SS12000') %] &rsaquo; [% ss('Plugins') %] &rsaquo; Koha</title>
 [% INCLUDE 'doc-head-close.inc' %]
-
+<style nonce="[% Koha.CSPNonce | $raw %]">
+    .ss12000-nav { margin: 0 0 1em 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: .5em; }
+    .ss12000-nav a { display: inline-block; padding: .3em .8em; border: 1px solid #c4c4c4; border-radius: 1em; background: #f5f5f5; text-decoration: none; }
+    .ss12000-nav a:hover { background: #e6eef7; }
+    .ss12000-section { margin-bottom: 1.5em; }
+    .ss12000-section fieldset.rows { float: none; width: auto; max-width: 70em; }
+    .ss12000-section fieldset.rows ol li { display: flex; gap: 1em; align-items: flex-start; padding: .45em 0; float: none; clear: both; }
+    .ss12000-section fieldset.rows ol li > label,
+    .ss12000-section fieldset.rows ol li > span.label { flex: 0 0 15em; float: none; width: 15em; margin: 0; padding-top: .3em; text-align: right; font-weight: bold; }
+    .ss12000-field { flex: 1 1 auto; min-width: 0; }
+    .ss12000-section fieldset.rows ol li .ss12000-field label { float: none; width: auto; margin: 0 1.2em .25em 0; padding: 0; text-align: left; font-weight: normal; display: inline-flex; gap: .4em; align-items: center; }
+    .ss12000-section fieldset.rows ol li .ss12000-field .ss12000-checks label { display: flex; margin: 0 0 .3em 0; }
+    .ss12000-field input[type=text], .ss12000-field input[type=password], .ss12000-field select { max-width: 100%; }
+    .ss12000-section fieldset.rows ol li .ss12000-field .ss12000-help { display: block; clear: both; margin-top: .4em; }
+    .ss12000-section fieldset.rows ol li .ss12000-field .ss12000-inline { display: inline-flex; margin-right: 1.2em; }
+    .ss12000-about-logo { display: inline-block; margin: 0 0 .4em 0; }
+    .ss12000-about-logo img { display: block; width: 180px; height: auto; max-width: 100%; }
+    .ss12000-about-body { max-width: 60em; }
+    .ss12000-about-body p { margin: .4em 0; }
+    .ss12000-about-body ul { margin: .4em 0 .6em 1.4em; padding: 0; list-style: disc; }
+    .ss12000-about-body .ss12000-about-links a { margin-right: 1.4em; }
+    @media (max-width: 800px) {
+        .ss12000-section fieldset.rows ol li { flex-direction: column; gap: .2em; }
+        .ss12000-section fieldset.rows ol li > label, .ss12000-section fieldset.rows ol li > span.label { flex: none; width: auto; text-align: left; }
+        .ss12000-about-logo img { width: 140px; }
+    }
+    .ss12000-help { display: block; color: #666; margin: .25em 0 0 0; max-width: 60em; }
+    .ss12000-inline { display: flex; gap: .5em; align-items: center; flex-wrap: wrap; }
+    .ss12000-result { margin-top: .6em; }
+    .ss12000-map { width: 100%; border-collapse: collapse; margin-top: .6em; }
+    .ss12000-map th, .ss12000-map td { padding: .3em .5em; border-bottom: 1px solid #e3e3e3; text-align: left; vertical-align: middle; }
+    .ss12000-map th { background: #f3f3f3; position: sticky; top: 0; }
+    .ss12000-map select, .ss12000-map input[type=text] { max-width: 100%; }
+    .ss12000-map tr.is-unmapped td { background: #fffbea; }
+    .ss12000-map tr.is-suggested td { background: #eaf6ea; }
+    .ss12000-map tr.is-orphan td { background: #fdecea; }
+    .ss12000-map-scroll { max-height: 34em; overflow: auto; border: 1px solid #ddd; }
+    .ss12000-badge { display: inline-block; padding: 0 .5em; border-radius: .8em; font-size: 85%; background: #ddd; }
+    .ss12000-badge.warn { background: #ffe08a; }
+    .ss12000-badge.bad { background: #f5b5ae; }
+    .ss12000-badge.good { background: #bfe5bf; }
+    .ss12000-summary { margin: .4em 0; }
+    .ss12000-actions { position: sticky; bottom: 0; background: #fff; border-top: 1px solid #ccc; padding: .6em 0; z-index: 5; }
+    .ss12000-hidden { display: none; }
+    .ss12000-code { font-family: monospace; }
+</style>
 </head>
 
-<body>
-[% INCLUDE 'header.inc' %]
-[% INCLUDE 'cat-search.inc' %]
+<body id="plugins_ss12000_config" class="plugins">
+[% WRAPPER 'header.inc' %]
+    [% INCLUDE 'prefs-admin-search.inc' %]
+[% END %]
 
-<div id="breadcrumbs">
-    <a href="/cgi-bin/koha/mainpage.pl">[% 'Home' | gettext %]</a> &rsaquo;
-    <a href="/cgi-bin/koha/plugins/plugins-home.pl">[% 'Plugins' | gettext %]</a> &rsaquo;
-    [% 'KohaSS12000 &rsaquo; Configuration' | gettext %]
-</div>
+[% WRAPPER 'sub-header.inc' %]
+    [% WRAPPER breadcrumbs %]
+        [% WRAPPER breadcrumb_item %]
+            <a href="/cgi-bin/koha/admin/admin-home.pl">[% ss('Administration') %]</a>
+        [% END %]
+        [% WRAPPER breadcrumb_item %]
+            <a href="/cgi-bin/koha/plugins/plugins-home.pl">[% ss('Plugins') %]</a>
+        [% END %]
+        [% WRAPPER breadcrumb_item bc_active= 1 %]
+            <span>[% ss('KohaSS12000 &rsaquo; Configuration') %]</span>
+        [% END %]
+    [% END %]
+[% END %]
 
-<div class="main container-fluid">
-  <div class="row">
-    <div class="col-sm-10 col-sm-push-2">
-      <main>
+[% WRAPPER 'main-container.inc' %]
 
-        <h1>[% 'Configuration Settings' | gettext %]</h1>
-        <br/>
-        <form method="post" action="" onsubmit="return validateForm();">
+<h1>[% ss('Configuration Settings') %] <small class="text-muted">SS12000 v[% plugin_version | html %]</small></h1>
 
-            <div class="form-group row">
-                <label for="client_id" class="col-sm-2 col-form-label">[% 'Client ID' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <input type="text" class="form-control" id="client_id" name="client_id" value="[% client_id %]" />
-                </div>
-            </div>
+[% IF success %]
+    <div class="alert alert-success">[% ss('Configuration successfully updated') %]</div>
+[% END %]
+[% IF error %]
+    <div class="alert alert-danger">[% error | html %]</div>
+[% END %]
+[% IF verify_config == "No" %]
+    <div class="alert alert-warning">
+        <strong>[% ss('WARNING') %]:</strong> [% ss('Branches mapping and/or Categories mapping not configured correctly') %]
+    </div>
+[% END %]
 
-            <div class="form-group row">
-                <label for="client_secret" class="col-sm-2 col-form-label">[% 'Client Secret' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <input type="text" class="form-control" id="client_secret" name="client_secret" value="" placeholder="enter a new value or leave it as is"/>
-                </div>
-            </div>
+<ul class="ss12000-nav">
+    <li><a href="#sec-connection">[% ss('Connection to IST') %]</a></li>
+    <li><a href="#sec-patrons">[% ss('Patron identity') %]</a></li>
+    <li><a href="#sec-rules">[% ss('Import rules') %]</a></li>
+    <li><a href="#sec-branches">[% ss('Branches mapping') %]</a></li>
+    <li><a href="#sec-categories">[% ss('Categories mapping') %]</a></li>
+    <li><a href="#sec-advanced">[% ss('Advanced') %]</a></li>
+    <li><a href="/cgi-bin/koha/plugins/run.pl?class=[% CLASS | uri %]&amp;method=[% METHOD | uri %]&amp;op=log"><i class="fa fa-list" aria-hidden="true"></i> [% ss('SS12000 log') %]</a></li>
+</ul>
 
-            <div class="form-group row">
-                <label for="customerId" class="col-sm-2 col-form-label">[% 'Customer ID' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <input type="text" class="form-control" id="customerId" name="customerId" value="[% customerId %]" />
-                </div>
-            </div>
+<form method="post" action="" id="ss12000-form">
+    <input type="hidden" name="class" value="[% CLASS | html %]" />
+    <input type="hidden" name="method" value="[% METHOD | html %]" />
+    <input type="hidden" name="op" value="cud-save-config" />
+    <input type="hidden" name="csrf_token" value="[% csrf_token | html %]" />
+    <input type="hidden" name="branch_mappings_json" id="branch_mappings_json" value="" />
+    <input type="hidden" name="category_mappings_json" id="category_mappings_json" value="" />
 
-            <div class="form-group row">
-                <label for="api_url" class="col-sm-2 col-form-label">[% 'API URL' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <input type="text" class="form-control" id="api_url" name="api_url" value="[% api_url %]" />
-                </div>
-            </div>
+    <div class="page-section ss12000-section" id="sec-about">
+        <a class="ss12000-about-logo" href="https://imcode.com" target="_blank" rel="noopener"><img src="[% logo_data_uri | html %]" alt="imCode" /></a>
+        <fieldset class="rows">
+            <legend>[% ss('SS12000 for Koha') %] v[% plugin_version | html %]</legend>
+        <div class="ss12000-about-body">
+            <p>[% ss('Keeps your patron register up to date automatically. The plugin reads students (and staff, if your municipality has ordered it) from the school administration system through the SS12000 standard (IST and others) and creates and updates the patrons in Koha: name, civic number, class, school, contact details and expiry date.') %]</p>
+            <ul>
+                <li>[% ss('Daily automatic import - no manual lists, no spreadsheets') %]</li>
+                <li>[% ss('Schools are mapped to library branches, classes follow the students from year to year') %]</li>
+                <li>[% ss('Existing patrons are recognised, so no duplicates and no lost loan history') %]</li>
+                <li>[% ss('Full log of every run and every change, searchable in Koha') %]</li>
+            </ul>
+            <p class="ss12000-about-links">
+                <a href="https://imcode.com" target="_blank" rel="noopener">[% ss('About imCode') %]</a>
+                <a href="mailto:info@imcode.com">[% ss('Contact us') %]: info@imcode.com</a>
+                <a href="https://github.com/imCodePartnerAB/KOHASS12000" target="_blank" rel="noopener">[% ss('Documentation and releases') %]</a>
+            </p>
+            <p class="ss12000-help">[% ss('Developed and supported by imCode.') %]</p>
+        </div>
+        </fieldset>
+    </div>
 
-            <div class="form-group row">
-                <label for="oauth_url" class="col-sm-2 col-form-label">[% 'OAUTH API URL' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <input type="text" class="form-control" id="oauth_url" name="oauth_url" value="[% oauth_url %]" />
-                </div>
-            </div>
+    <div class="page-section ss12000-section" id="sec-connection">
+        <fieldset class="rows">
+            <legend>[% ss('Connection to IST') %]</legend>
+            <ol>
+                <li>
+                    <label for="client_id">[% ss('Client ID') %]:</label>
+                    <div class="ss12000-field">
+                    <input type="text" id="client_id" name="client_id" size="45" value="[% client_id | html %]" autocomplete="off" />
+                    </div>
+                </li>
+                <li>
+                    <label for="client_secret">[% ss('Client Secret') %]:</label>
+                    <div class="ss12000-field">
+                    <input type="password" id="client_secret" name="client_secret" size="45" value="" autocomplete="new-password"
+                        placeholder="[% IF client_secret_set %][% ss('A secret is stored - enter a new value to replace it') %][% ELSE %][% ss('Enter the client secret') %][% END %]" />
+                    <span class="ss12000-help">[% ss('The secret is never shown again after saving. Leave the field empty to keep the stored secret.') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="customerId">[% ss('Customer ID') %]:</label>
+                    <div class="ss12000-field">
+                    <input type="text" id="customerId" name="customerId" size="45" value="[% customerId | html %]" autocomplete="off" />
+                    </div>
+                </li>
+                <li>
+                    <label for="api_url">[% ss('API URL') %]:</label>
+                    <div class="ss12000-field">
+                    <input type="text" id="api_url" name="api_url" size="45" value="[% api_url | html %]" />
+                    </div>
+                </li>
+                <li>
+                    <label for="oauth_url">[% ss('OAUTH API URL') %]:</label>
+                    <div class="ss12000-field">
+                    <input type="text" id="oauth_url" name="oauth_url" size="45" value="[% oauth_url | html %]" />
+                    </div>
+                </li>
+                <li>
+                    <span class="label">[% ss('Connection test') %]:</span>
+                    <div class="ss12000-field">
+                    <button type="button" class="btn btn-default" id="btn-test-connection"><i class="fa fa-plug" aria-hidden="true"></i> [% ss('Test connection (uses saved settings)') %]</button>
+                    <div id="test-connection-result" class="ss12000-result"></div>
+                    </div>
+                </li>
+            </ol>
+        </fieldset>
+    </div>
 
-            <div class="form-group row">
-                <label for="koha_default_categorycode" class="col-sm-2 col-form-label">[% 'Koha Default Categorycode' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="koha_default_categorycode" id="koha_default_categorycode">
-                        <option value="">[% 'Select a category' | gettext %]</option>
-                        [% FOREACH category IN categories %]
-                            <option value="[% category %]" [% IF category == koha_default_categorycode %]selected="selected"[% END %]>[% category %]</option>
+    <div class="page-section ss12000-section" id="sec-patrons">
+        <fieldset class="rows">
+            <legend>[% ss('Patron identity') %]</legend>
+            <ol>
+                <li>
+                    <span class="label">[% ss('Find existing patrons by') %]:</span>
+                    <div class="ss12000-field">
+                    <div class="ss12000-checks">
+                    <label><input type="checkbox" name="match_methods" value="userid" [% IF match_userid %]checked="checked"[% END %] /> [% ss('User ID') %]</label>
+                    <label><input type="checkbox" name="match_methods" value="cardnumber" [% IF match_cardnumber %]checked="checked"[% END %] /> [% ss('Card number') %]</label>
+                    <label><input type="checkbox" name="match_methods" value="attribute" id="match_attribute" [% IF match_attribute %]checked="checked"[% END %] /> [% ss('Patron attribute (civic number attribute below)') %]</label>
+                    </div>
+                    <span class="ss12000-help">[% ss('Several can be combined: a patron matching any of them is considered the same person. Combine with care, since two different patrons found for one person are merged and the extra one is archived.') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="civic_attribute_code">[% ss('Civic number attribute') %]:</label>
+                    <div class="ss12000-field">
+                    <select id="civic_attribute_code" name="civic_attribute_code">
+                        <option value="">[% ss('- not used -') %]</option>
+                        [% FOREACH t IN attribute_types %]
+                            <option value="[% t.code | html %]" [% IF t.code == civic_attribute_code %]selected="selected"[% END %]>[% t.code | html %][% IF t.name %] - [% t.name | html %][% END %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">[% 'When you change a parameter, it will be changed for all existing users in the next data update cycle' | gettext %].</p>
-                </div>
-            </div>
-
-            <div class="form-group row">
-                <label for="koha_default_branchcode" class="col-sm-2 col-form-label">[% 'Koha Default Branchcode' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="koha_default_branchcode" id="koha_default_branchcode">
-                        <option value="">[% 'Choose a branch' | gettext %]</option>
-                        [% FOREACH branch IN branches %]
-                            <option value="[% branch %]" [% IF branch == koha_default_branchcode %]selected="selected"[% END %]>[% branch %]</option>
+                    <span class="ss12000-help">[% ss('If a patron attribute type holds the civic number (for example CIVICNO), it is used for matching and kept up to date. Leave unused to not store the civic number in an attribute.') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="useridPlugin">[% ss('UserID for Koha') %]:</label>
+                    <div class="ss12000-field">
+                    <select id="useridPlugin" name="useridPlugin">
+                        <option value="civicNo" [% IF useridPlugin == 'civicNo' %]selected="selected"[% END %]>[% ss('Civic number') %] (civicNo)</option>
+                        <option value="externalIdentifier" [% IF useridPlugin == 'externalIdentifier' %]selected="selected"[% END %]>[% ss('External identifier') %] (externalIdentifier)</option>
+                        <option value="email_local" [% IF useridPlugin == 'email_local' %]selected="selected"[% END %]>[% ss('School e-mail, part before @') %]</option>
+                        <option value="email" [% IF useridPlugin == 'email' %]selected="selected"[% END %]>[% ss('School e-mail, full address') %]</option>
+                        <option value="keep" [% IF useridPlugin == 'keep' %]selected="selected"[% END %]>[% ss('Keep the existing value') %]</option>
+                    </select>
+                    <span class="ss12000-help">[% ss('New patrons that cannot get a value from the chosen source fall back to the school e-mail (part before @), then the civic number. Existing patrons keep their value.') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="cardnumberPlugin">[% ss('CardNumber for Koha') %]:</label>
+                    <div class="ss12000-field">
+                    <select id="cardnumberPlugin" name="cardnumberPlugin">
+                        <option value="civicNo" [% IF cardnumberPlugin == 'civicNo' %]selected="selected"[% END %]>[% ss('Civic number') %] (civicNo)</option>
+                        <option value="externalIdentifier" [% IF cardnumberPlugin == 'externalIdentifier' %]selected="selected"[% END %]>[% ss('External identifier') %] (externalIdentifier)</option>
+                        <option value="keep" [% IF cardnumberPlugin == 'keep' %]selected="selected"[% END %]>[% ss('Keep the existing value') %]</option>
+                    </select>
+                    <span class="ss12000-help">[% ss('With "Keep the existing value", patrons that already have a card keep it. New patrons get the civic number.') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="email_suffix_enabled">[% ss('Append to e-mail addresses') %]:</label>
+                    <div class="ss12000-field">
+                    <span class="ss12000-inline">
+                        <label><input type="checkbox" id="email_suffix_enabled" name="email_suffix_enabled" value="1" [% IF email_suffix_enabled %]checked="checked"[% END %] /> [% ss('Yes, append this text') %]</label>
+                        <input type="text" id="email_suffix" name="email_suffix" size="20" maxlength="40" value="[% email_suffix | html %]" placeholder=".NOEMAIL" autocomplete="off" />
+                    </span>
+                    <span class="ss12000-help">[% ss('When ticked, the text is added to the end of every imported e-mail address (both e-mail fields), for example .NOEMAIL, so that Koha cannot send notices before go-live. When unticked the addresses are imported as they are and the text is kept for later. Untick when the library is ready to send; the addresses are corrected in the next import.') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="class_attribute_code">[% ss('Class attribute') %]:</label>
+                    <div class="ss12000-field">
+                    <select id="class_attribute_code" name="class_attribute_code">
+                        [% SET class_found = 0 %]
+                        [% FOREACH t IN attribute_types %]
+                            [% IF t.code == class_attribute_code %][% SET class_found = 1 %][% END %]
+                        [% END %]
+                        [% IF !class_found %]
+                            <option value="[% class_attribute_code | html %]" selected="selected">[% class_attribute_code | html %] ([% ss('created automatically') %])</option>
+                        [% END %]
+                        [% FOREACH t IN attribute_types %]
+                            <option value="[% t.code | html %]" [% IF t.code == class_attribute_code %]selected="selected"[% END %]>[% t.code | html %][% IF t.name %] - [% t.name | html %][% END %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">[% 'When you change a parameter, it will be changed for all existing users in the next data update cycle' | gettext %].</p>
-                </div>
-            </div>
+                    <span class="ss12000-help">[% ss('Patron attribute type where the class (for example 9A) is stored. The type CL is created automatically if it does not exist. Any other type must already exist.') %]</span>
+                    </div>
+                </li>
+            </ol>
+        </fieldset>
+    </div>
 
-            <div class="form-group row">
-                <label for="excluding_dutyRole_empty" class="col-sm-2 col-form-label">[% 'Exclude empty users, dutyRole' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="excluding_dutyRole_empty" id="excluding_dutyRole_empty">
-                        [% FOREACH mode IN ["No", "Yes"] %]
-                            <option value="[% mode %]" [% IF excluding_dutyRole_empty == mode %]selected="selected"[% END %]>[% mode %]</option>
+    <div class="page-section ss12000-section" id="sec-rules">
+        <fieldset class="rows">
+            <legend>[% ss('Import rules') %]</legend>
+            <ol>
+                <li>
+                    <label for="koha_default_categorycode">[% ss('Koha Default Categorycode') %]:</label>
+                    <div class="ss12000-field">
+                    <select name="koha_default_categorycode" id="koha_default_categorycode">
+                        <option value="">[% ss('Select a category') %]</option>
+                        [% FOREACH c IN categories_full %]
+                            <option value="[% c.code | html %]" [% IF c.code == koha_default_categorycode %]selected="selected"[% END %]>[% c.code | html %][% IF c.name %] - [% c.name | html %][% END %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">[% 'Excluding all users that does not have dutyRole' | gettext %]</p>
-                </div>
-            </div>
-
-            <div class="form-group row">
-                <label for="excluding_enrolments_empty" class="col-sm-2 col-form-label">[% 'Exclude empty users, enrolments' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="excluding_enrolments_empty" id="excluding_enrolments_empty">
-                        [% FOREACH mode IN ["No", "Yes"] %]
-                            <option value="[% mode %]" [% IF excluding_enrolments_empty == mode %]selected="selected"[% END %]>[% mode %]</option>
+                    <span class="ss12000-help">[% ss('Used for everyone who does not get a category from the roles mapping, normally all students.') %] [% ss('When you change a parameter, it will be changed for all existing users in the next data update cycle') %].</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="koha_default_branchcode">[% ss('Koha Default Branchcode') %]:</label>
+                    <div class="ss12000-field">
+                    <select name="koha_default_branchcode" id="koha_default_branchcode">
+                        <option value="">[% ss('- none (skip schools without mapping) -') %]</option>
+                        [% FOREACH b IN branches_full %]
+                            <option value="[% b.code | html %]" [% IF b.code == koha_default_branchcode %]selected="selected"[% END %]>[% b.name | html %] ([% b.code | html %])</option>
                         [% END %]
                     </select>
-                    <p class="text-info">[% 'Excluding all users that does not have enrolments' | gettext %]</p>
-                </div>
-            </div>
-
-            <div class="form-group row">
-                <label for="ignore_cancelled_flag" class="col-sm-2 col-form-label">[% 'Ignore cancelled flag' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="ignore_cancelled_flag" id="ignore_cancelled_flag">
-                        [% FOREACH mode IN ["No", "Yes"] %]
-                            <option value="[% mode %]" [% IF ignore_cancelled_flag == mode %]selected="selected"[% END %]>[% mode %]</option>
-                        [% END %]
-                    </select>
-                    <p class="text-info">[% 'Ignore the cancelled flag on enrolments and only use start/end dates' | gettext %]</p>
-                <label for="use_default_for_unmapped" class="col-sm-2 col-form-label">[% 'Use default for unmapped schools' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="use_default_for_unmapped" id="use_default_for_unmapped">
+                    <span class="ss12000-help">[% ss('Used for schools that are not in the branches mapping when "Use default for unmapped schools" is on.') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="use_default_for_unmapped">[% ss('Use default for unmapped schools') %]:</label>
+                    <div class="ss12000-field">
+                    <select name="use_default_for_unmapped" id="use_default_for_unmapped">
                         [% FOREACH mode IN ["No", "Yes"] %]
                             <option value="[% mode %]" [% IF use_default_for_unmapped == mode %]selected="selected"[% END %]>[% mode %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">[% 'Sync users from schools not in branch mapping using default branchcode' | gettext %]</p>
-                </div>
-            </div>
-
-            <!-- dateexpiry fallback setting -->
-            <div class="form-group row">
-                <label for="dateexpiry_fallback" class="col-sm-2 col-form-label">[% 'Action on no dateexpiry' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="dateexpiry_fallback" id="dateexpiry_fallback">
-                        <option value="none" [% IF dateexpiry_fallback == 'none' %]selected="selected"[% END %]>[% 'None (leave empty)' | gettext %]</option>
-                        <option value="keep" [% IF !dateexpiry_fallback || dateexpiry_fallback == 'keep' %]selected="selected"[% END %]>[% 'Keep existing value' | gettext %]</option>
-                        <option value="months" [% IF dateexpiry_fallback == 'months' %]selected="selected"[% END %]>[% 'Set months from now' | gettext %]</option>
-                    </select>
-                    <div id="dateexpiry_months_div" style="display:none; margin-top:8px;">
-                        <input type="number" class="form-control" name="dateexpiry_months"
-                               id="dateexpiry_months" value="[% dateexpiry_months || 12 %]" min="1" max="120"/>
-                        <p class="text-info">[% 'Number of months from today' | gettext %]</p>
+                    <span class="ss12000-help">[% ss('Sync users from schools not in branch mapping using default branchcode') %]</span>
                     </div>
-                    <p class="text-info">[% 'What to set as expiry date when no valid enrolment end date is returned from the API' | gettext %]</p>
-                </div>
-            </div>
-            <!-- /dateexpiry fallback setting -->
-
-            [% IF verify_config == "No" %]
-            <div class="form-group row">
-                <div class="col-sm-6 alert alert-danger">
-                [% verify_config %]
-                <b>[% 'WARNING' | gettext %]:</b> [% 'Branches mapping and/or Categories mapping not configured correctly' | gettext %]
-                </div>
-            </div>
-            [% END %]
-            <div name="categories" class="bg-warning text-dark">
-            <div class="form-group row">
-                <label class="col-sm-2 col-form-label">[% 'Categories mapping' | gettext %]:</label>
-                <div class="col-sm-8">
-                    [% FOREACH category_mapping IN categories_mapping %]
-                        <div class="row mb-2 border-bottom">
-                            <div class="col-sm-8 col-md-3">
-                                <strong>Category Code:</strong> [% category_mapping.categorycode %]
-                            </div>
-                            <div class="col-sm-8 col-md-3">
-                                <strong>Duty Role:</strong> [% category_mapping.dutyRole %]
-
-                            </div>
-                            <div class="col-sm-2 col-md-2">
-                                <label for="category_del_[% category_mapping.id %]" class="form-check-label" title="[% 'Click to mark for deletion' | gettext %]">
-                                    <input type="checkbox" name="category_mapping_del[]" value="[% category_mapping.id %]" title="[% 'Delete' | gettext %]" id="category_del_[% category_mapping.id %]">
-                                    [% 'Delete' | gettext %]
-                                </label>
-                            </div>
-                            <div class="col-sm-4 col-md-3">
-                                <label for="category_not_import_[% category_mapping.id %]" class="form-check-label" title="[% 'Click to mark do not import' | gettext %]">
-                                    <input type="checkbox" name="category_mapping_not_import[]" value="[% category_mapping.id %]" title="[% 'Do not import' | gettext %]" id="category_not_import_[% category_mapping.id %]" [% IF category_mapping.not_import %]checked="checked"[% END %]>
-                                    [% 'Do not import' | gettext %]
-                                </label>
-                            </div>
-                            <hr>
-                        </div>
-                    [% END %]
-                    <p class="text-info">[% 'To delete an item from the list, select the checkbox of the item to be deleted, and press Save' | gettext %]</p>
-                </div>
-            </div>
-
-            <div class="form-group row" id="div_new_category_mapping">
-                <label for="new_dutyRole_mapping" class="col-sm-2 col-form-label">[% 'Add category mapping' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <p><input type="text" class="form-control" name="new_dutyRole_mapping" value="" placeholder="[% 'If need be added, enter existing dutyRole here' | gettext %]" /></p>
-                    <select class="form-control" name="new_categories_mapping" id="new_categories_mapping">
-                        <option value="">[% 'Select a category' | gettext %]</option>
-                        [% FOREACH category IN categories %]
-                            <option value="[% category %]">[% category %]</option>
+                </li>
+                <li>
+                    <label for="keep_existing_category">[% ss('Category of existing patrons') %]:</label>
+                    <div class="ss12000-field">
+                        <label><input type="checkbox" id="keep_existing_category" name="keep_existing_category" value="1" [% IF keep_existing_category %]checked="checked"[% END %] /> [% ss('Do not change the category of patrons that already exist') %]</label>
+                        <span class="ss12000-help">[% ss('When ticked, the category is only set for new patrons. Existing patrons keep the category they have, so categories that are handled in Koha are not overwritten by the default category.') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="keep_existing_contact">[% ss('Contact details') %]:</label>
+                    <div class="ss12000-field">
+                        <label><input type="checkbox" id="keep_existing_contact" name="keep_existing_contact" value="1" [% IF keep_existing_contact %]checked="checked"[% END %] /> [% ss('Keep existing contact details when IST has no value') %]</label>
+                        <span class="ss12000-help">[% ss('When ticked, an empty e-mail, phone, mobile or address from IST never replaces a value the patron already has in Koha. Patrons missing these details in IST are still imported.') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="excluding_enrolments_empty">[% ss('Exclude empty users, enrolments') %]:</label>
+                    <div class="ss12000-field">
+                    <select name="excluding_enrolments_empty" id="excluding_enrolments_empty">
+                        [% FOREACH mode IN ["No", "Yes"] %]
+                            <option value="[% mode %]" [% IF excluding_enrolments_empty == mode %]selected="selected"[% END %]>[% mode %]</option>
                         [% END %]
                     </select>
-                </div>
-            </div>
-            </div>
-
-            <div name="branches" class="bg-info text-white">
-            <div class="form-group row">
-                <label class="col-sm-2 col-form-label">[% 'Branches mapping' | gettext %]:</label>
-                <div class="col-sm-8">
-                    [% FOREACH branch_mapping IN branches_mapping %]
-                        <div class="row mb-2 border-bottom">
-                            <div class="col-sm-8 col-md-3">
-                                <strong>Branch Code:</strong> [% branch_mapping.branchcode %]
-                            </div>
-                            <div class="col-sm-8 col-md-3">
-                                <strong>Organisation Code:</strong> [% branch_mapping.organisationCode %]
-                            </div>
-                            <div class="col-sm-2 col-md-2">
-                                <label for="branch_del_[% branch_mapping.id %]" class="form-check-label" title="[% 'Click to mark for deletion' | gettext %]">
-                                    <input type="checkbox" name="branch_mapping_del[]" value="[% branch_mapping.id %]" title="Delete" id="branch_del_[% branch_mapping.id %]">
-                                    [% 'Delete' | gettext %]
-                                </label>
-                            </div>
-                            <hr>
-                        </div>
-                    [% END %]
-                    <p class="text-info">[% 'To delete an item from the list, select the checkbox of the item to be deleted, and press Save' | gettext %]</p>
-                </div>
-            </div>
-
-            <div class="form-group row" id="div_new_branch_mapping">
-                <label for="new_organisationCode_mapping" class="col-sm-2 col-form-label">[% 'Add branch mapping' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <p><input type="text" class="form-control" name="new_organisationCode_mapping" value="" placeholder="[% 'If need be added, enter existing organisationCode here' | gettext %]" /></p>
-                    <select class="form-control" name="new_branch_mapping" id="new_branch_mapping">
-                        <option value="">[% 'Choose a branch' | gettext %]</option>
-                        [% FOREACH branch IN branches %]
-                            <option value="[% branch %]">[% branch %]</option>
+                    <span class="ss12000-help">[% ss('Excluding all users that does not have enrolments') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="excluding_dutyRole_empty">[% ss('Exclude empty users, dutyRole') %]:</label>
+                    <div class="ss12000-field">
+                    <select name="excluding_dutyRole_empty" id="excluding_dutyRole_empty">
+                        [% FOREACH mode IN ["No", "Yes"] %]
+                            <option value="[% mode %]" [% IF excluding_dutyRole_empty == mode %]selected="selected"[% END %]>[% mode %]</option>
                         [% END %]
                     </select>
-                </div>
-            </div>
-            </div>
+                    <span class="ss12000-help">[% ss('Excluding all users that does not have dutyRole') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="ignore_cancelled_flag">[% ss('Ignore cancelled flag') %]:</label>
+                    <div class="ss12000-field">
+                    <select name="ignore_cancelled_flag" id="ignore_cancelled_flag">
+                        [% FOREACH mode IN ["No", "Yes"] %]
+                            <option value="[% mode %]" [% IF ignore_cancelled_flag == mode %]selected="selected"[% END %]>[% mode %]</option>
+                        [% END %]
+                    </select>
+                    <span class="ss12000-help">[% ss('Ignore the cancelled flag on enrolments and only use start/end dates') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="dateexpiry_fallback">[% ss('Action on no dateexpiry') %]:</label>
+                    <div class="ss12000-field">
+                    <select name="dateexpiry_fallback" id="dateexpiry_fallback">
+                        <option value="none" [% IF dateexpiry_fallback == 'none' %]selected="selected"[% END %]>[% ss('None (leave empty)') %]</option>
+                        <option value="keep" [% IF !dateexpiry_fallback || dateexpiry_fallback == 'keep' %]selected="selected"[% END %]>[% ss('Keep existing value') %]</option>
+                        <option value="months" [% IF dateexpiry_fallback == 'months' %]selected="selected"[% END %]>[% ss('Set months from now') %]</option>
+                    </select>
+                    <span id="dateexpiry_months_div" class="ss12000-hidden">
+                        <input type="number" name="dateexpiry_months" id="dateexpiry_months" value="[% dateexpiry_months || 12 %]" min="1" max="120" style="width: 6em" />
+                        [% ss('months from today') %]
+                    </span>
+                    <span class="ss12000-help">[% ss('What to set as expiry date when no valid enrolment end date is returned from the API') %]</span>
+                    </div>
+                </li>
+            </ol>
+        </fieldset>
+    </div>
 
-            <div class="form-group row">
-                <label for="debug_mode" class="col-sm-2 col-form-label">[% 'Debug Mode' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="debug_mode" id="debug_mode">
+    <div class="page-section ss12000-section" id="sec-branches">
+        <fieldset class="rows">
+            <legend>[% ss('Branches mapping') %]</legend>
+            <p class="ss12000-help">[% ss('Connects each school (organisation) in IST to a Koha branch. Several organisations can point to the same branch. Rows without a branch are ignored when saving.') %]</p>
+            <div class="ss12000-inline">
+                <button type="button" class="btn btn-default" id="btn-load-orgs"><i class="fa fa-cloud-download" aria-hidden="true"></i> [% ss('Load organisations from IST') %]</button>
+                <button type="button" class="btn btn-default" id="btn-suggest"><i class="fa fa-magic" aria-hidden="true"></i> [% ss('Suggest mapping from names') %]</button>
+                <button type="button" class="btn btn-default" id="btn-add-branch-row"><i class="fa fa-plus" aria-hidden="true"></i> [% ss('Add row') %]</button>
+                <input type="text" id="branch-filter" placeholder="[% ss('Filter...') %]" size="20" />
+                <label><input type="checkbox" id="branch-only-unmapped" /> [% ss('Only unmapped') %]</label>
+            </div>
+            <div class="ss12000-summary" id="branch-summary"></div>
+            <div id="branch-messages"></div>
+            <div class="ss12000-map-scroll">
+                <table class="ss12000-map" id="branch-map">
+                    <thead><tr>
+                        <th>[% ss('IST organisation') %]</th>
+                        <th>[% ss('Organisation code') %]</th>
+                        <th>[% ss('Koha branch') %]</th>
+                        <th></th>
+                    </tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </fieldset>
+    </div>
+
+    <div class="page-section ss12000-section" id="sec-categories">
+        <fieldset class="rows">
+            <legend>[% ss('Categories mapping') %]</legend>
+            <p class="ss12000-help">[% ss('Connects a role (dutyRole, for example Lärare) in IST to a Koha patron category. Only roles that are in the mapping get that category; everyone else gets the default category.') %]</p>
+            <div class="ss12000-inline">
+                <button type="button" class="btn btn-default" id="btn-load-roles"><i class="fa fa-cloud-download" aria-hidden="true"></i> [% ss('Load roles from IST') %]</button>
+                <button type="button" class="btn btn-default" id="btn-add-category-row"><i class="fa fa-plus" aria-hidden="true"></i> [% ss('Add row') %]</button>
+            </div>
+            <div id="category-messages"></div>
+            <table class="ss12000-map" id="category-map">
+                <thead><tr>
+                    <th>[% ss('Role (dutyRole)') %]</th>
+                    <th>[% ss('Koha category') %]</th>
+                    <th>[% ss('Do not import') %]</th>
+                    <th></th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+            <datalist id="roles-list"></datalist>
+        </fieldset>
+    </div>
+
+    <div class="page-section ss12000-section" id="sec-advanced">
+        <fieldset class="rows">
+            <legend>[% ss('Advanced') %]</legend>
+            <ol>
+                <li>
+                    <label for="debug_mode">[% ss('Debug Mode') %]:</label>
+                    <div class="ss12000-field">
+                    <select name="debug_mode" id="debug_mode">
                         [% FOREACH mode IN ["Yes", "No"] %]
                             <option value="[% mode %]" [% IF debug_mode == mode %]selected="selected"[% END %]>[% mode %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">[% 'If this option is enabled, then there will be more data in the Tool tab and the Response from the API will be put into the database in full' | gettext %].</p>
-                    <p class="text-info">If Yes is set here, the received data from the api will be additionally recorded in the imcode-debug.log file</p>
-                </div>
-            </div>
-            <div class="form-group row">
-                <label for="api_limit" class="col-sm-2 col-form-label">[% 'SS12000 API limit per page' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="api_limit" id="api_limit">
+                    <span class="ss12000-help">[% ss('If this option is enabled, then there will be more data in the Tool tab and the Response from the API will be put into the database in full') %]. [% ss('If Yes is set here, the received data from the api will be additionally recorded in the imcode-debug.log file') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="api_limit">[% ss('SS12000 API limit per page') %]:</label>
+                    <div class="ss12000-field">
+                    <select name="api_limit" id="api_limit">
                         [% FOREACH limit IN [10, 20, 30, 40, 50, 75, 100, 300, 500] %]
                             <option value="[% limit %]" [% IF limit == api_limit %]selected="selected"[% END %]>[% limit %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">[% '10 or 20 - fast, 30 - normal, 100 - very slowly' | gettext %]</p>
-                </div>
-            </div>
-
-            <div class="form-group row">
-                <label for="cardnumberPlugin" class="col-sm-2 col-form-label">[% 'CardNumber for Koha' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="cardnumberPlugin" id="cardnumberPlugin">
-                        [% FOREACH cardnumbers IN ["civicNo", "externalIdentifier"] %]
-                            <option value="[% cardnumbers %]" [% IF cardnumberPlugin == cardnumbers %]selected="selected"[% END %]>[% cardnumbers %]</option>
-                        [% END %]
-                    </select>
-                    <p class="text-info">[% 'CivicNo is used by default' | gettext %]</p>
-                </div>
-            </div>
-
-            <div class="form-group row">
-                <label for="useridPlugin" class="col-sm-2 col-form-label">[% 'UserID for Koha' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="useridPlugin" id="useridPlugin">
-                        [% FOREACH userids IN ["civicNo", "externalIdentifier"] %]
-                            <option value="[% userids %]" [% IF useridPlugin == userids %]selected="selected"[% END %]>[% userids %]</option>
-                        [% END %]
-                    </select>
-                    <p class="text-info">[% 'CivicNo is used by default' | gettext %]</p>
-                </div>
-            </div>
-
-            <div class="form-group row">
-                <label for="logs_limit" class="col-sm-2 col-form-label">[% 'How many days to keep plugin logs' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="logs_limit" id="logs_limit">
+                    <span class="ss12000-help">[% ss('10 or 20 - fast, 30 - normal, 100 - very slowly') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="logs_limit">[% ss('How many days to keep plugin logs') %]:</label>
+                    <div class="ss12000-field">
+                    <select name="logs_limit" id="logs_limit">
                         [% FOREACH day_limit IN [1, 2, 3, 7, 14, 30, 60, 90, 120] %]
                             <option value="[% day_limit %]" [% IF day_limit == logs_limit %]selected="selected"[% END %]>[% day_limit %]</option>
                         [% END %]
                     </select>
-                    <p class="text-info">[% 'The default value is 3 days' | gettext %]</p>
-                </div>
-            </div>
-
-            <div class="form-group row">
-                <label for="archived_limit" class="col-sm-2 col-form-label">[% 'Delete users who have been marked as ARCHIVED?' | gettext %]:</label>
-                <div class="col-sm-4">
-                    <select class="form-control" name="archived_limit" id="archived_limit">
-                        <option value="0" [% IF !archived_limit || archived_limit == 0 %]selected="selected"[% END %]>[% 'No' | gettext %]</option>
-                        <option value="3" [% IF archived_limit == 3 %]selected="selected"[% END %]>[% 'Yes, after 3 days' | gettext %]</option>
-                        <option value="7" [% IF archived_limit == 7 %]selected="selected"[% END %]>[% 'Yes, after 7 days' | gettext %]</option>
-                        <option value="14" [% IF archived_limit == 14 %]selected="selected"[% END %]>[% 'Yes, after 14 days' | gettext %]</option>
-                        <option value="30" [% IF archived_limit == 30 %]selected="selected"[% END %]>[% 'Yes, after 30 days' | gettext %]</option>
-                    </select>
-                    <p class="text-info">[% 'The default value is No' | gettext %]</p>
-                </div>
-            </div>
-
-
-            <input type="hidden" name="class" value="[% CLASS %]" />
-            <input type="hidden" name="method" value="[% METHOD %]" />
-
-            <div class="form-group row">
-                <input type="hidden" name="op" value="cud-save-config" />
-                <input type="hidden" name="csrf_token" value="[% csrf_token %]">
-                <div class="col-sm-4">
-                    <input type="submit" value="[% 'Save' | gettext %]" />
-                </div>
-            </div>
-
-        </form>
-
-        [% IF log_count %]
-        <div name="DivClearLogForm" style="display:block;">
-            <!-- Separate form for clearing logs -->
-            <form method="post" action="" id="clearLogForm">
-                <input type="hidden" name="class" value="[% CLASS %]" />
-                <input type="hidden" name="method" value="[% METHOD %]" />
-                <input type="hidden" name="op" value="cud-clearlog-config" />
-                <input type="hidden" name="csrf_token" value="[% csrf_token %]">
-                <div class="form-group row">
-                    <div class="col-sm-4">
-                        <input type="submit" value="[% 'Set API scanner from the first page' | gettext %]" />
+                    <span class="ss12000-help">[% ss('The default value is 3 days') %]</span>
                     </div>
-                </div>
-            </form>
-        </div>
-        [% END %]
-
-        [% IF success %]
-        <div class="alert alert-success">[% 'Configuration successfully updated' | gettext %]</div>
-        [% END %]
-
-      </main>
+                </li>
+                <li>
+                    <label for="archived_limit">[% ss('Delete users who have been marked as ARCHIVED?') %]:</label>
+                    <div class="ss12000-field">
+                    <select name="archived_limit" id="archived_limit">
+                        <option value="0" [% IF !archived_limit || archived_limit == 0 %]selected="selected"[% END %]>[% ss('No') %]</option>
+                        <option value="3" [% IF archived_limit == 3 %]selected="selected"[% END %]>[% ss('Yes, after 3 days') %]</option>
+                        <option value="7" [% IF archived_limit == 7 %]selected="selected"[% END %]>[% ss('Yes, after 7 days') %]</option>
+                        <option value="14" [% IF archived_limit == 14 %]selected="selected"[% END %]>[% ss('Yes, after 14 days') %]</option>
+                        <option value="30" [% IF archived_limit == 30 %]selected="selected"[% END %]>[% ss('Yes, after 30 days') %]</option>
+                    </select>
+                    <span class="ss12000-help">[% ss('The default value is No') %]</span>
+                    </div>
+                </li>
+            </ol>
+        </fieldset>
     </div>
-    <div class="col-sm-2 col-sm-pull-10">
-      <aside>
-        [% INCLUDE 'tools-menu.inc' %]
-      </aside>
-    </div> <!-- /.col-sm-2.col-sm-pull-10 -->
-  </div>
-</div>
 
-<script>
-    function validateForm() {
-        var categorycode = document.getElementById("koha_default_categorycode").value;
-        var branchcode = document.getElementById("koha_default_branchcode").value;
+    <div class="ss12000-actions">
+        <button type="submit" class="btn btn-primary" id="btn-save"><i class="fa fa-save" aria-hidden="true"></i> [% ss('Save') %]</button>
+        <span id="save-hint" class="ss12000-help" style="display:inline"></span>
+    </div>
+</form>
 
-        if (categorycode === "" || branchcode === "") {
-            alert("[% 'Please select values for both Koha Default Categorycode and Koha Default Branchcode' | gettext %].");
-            return false;
-        }
-        return true;
-    }
+[% IF log_count %]
+<form method="post" action="" id="clearLogForm" class="ss12000-section">
+    <input type="hidden" name="class" value="[% CLASS | html %]" />
+    <input type="hidden" name="method" value="[% METHOD | html %]" />
+    <input type="hidden" name="op" value="cud-clearlog-config" />
+    <input type="hidden" name="csrf_token" value="[% csrf_token | html %]" />
+    <fieldset class="action">
+        <button type="submit" class="btn btn-default" id="btn-clearlog">[% ss('Set API scanner from the first page') %]</button>
+    </fieldset>
+</form>
+[% END %]
+
+<div id="ss12000-i18n" class="ss12000-hidden"
+    data-loading="[% ss('Loading...') | html %]"
+    data-no-branch="[% ss('- choose branch -') | html %]"
+    data-no-category="[% ss('- choose category -') | html %]"
+    data-missing-in-koha="[% ss('missing in Koha') | html %]"
+    data-not-in-ist="[% ss('Not found in IST') | html %]"
+    data-unmapped="[% ss('Not mapped') | html %]"
+    data-suggested="[% ss('Suggested') | html %]"
+    data-ambiguous="[% ss('Check this one') | html %]"
+    data-remove="[% ss('Remove') | html %]"
+    data-confirm-clear="[% ss('Are you sure you want to clear the log? This action cannot be undone.') | html %]"
+    data-need-category="[% ss('Please select a default category') | html %]"
+    data-need-attribute="[% ss('Matching on a patron attribute needs a civic number attribute to be selected') | html %]"
+    data-need-match="[% ss('Select at least one way to find existing patrons') | html %]"
+    data-identity-warning="[% ss('Changing UserID or CardNumber source restarts today\'s import from the first page. Continue?') | html %]"
+    data-orgs-loaded="[% ss('organisations loaded from IST') | html %]"
+    data-orgs-total="[% ss('IST organisations') | html %]"
+    data-mapped="[% ss('mapped') | html %]"
+    data-unmapped-count="[% ss('not mapped') | html %]"
+    data-missing-in-ist="[% ss('in the mapping but not in IST') | html %]"
+    data-suggestions-applied="[% ss('suggestions applied. Review them and press Save.') | html %]"
+    data-no-suggestions="[% ss('No new suggestions found.') | html %]"
+    data-roles-loaded="[% ss('roles loaded from IST') | html %]"></div>
+
+[% END %]
+
+[% MACRO jsinclude BLOCK %]
+<script nonce="[% Koha.CSPNonce | $raw %]">
+    window.SS12000 = {
+        branches: [% branches_json | $raw %],
+        categories: [% categories_json | $raw %],
+        branchMapping: [% branches_mapping_json | $raw %],
+        categoryMapping: [% categories_mapping_json | $raw %],
+        hasSecret: [% IF client_secret_set %]true[% ELSE %]false[% END %],
+        initialUserid: "[% useridPlugin | html %]",
+        initialCardnumber: "[% cardnumberPlugin | html %]"
+    };
 </script>
+<script nonce="[% Koha.CSPNonce | $raw %]">
+(function () {
+    "use strict";
+    var cfg = window.SS12000;
+    var msg = document.getElementById("ss12000-i18n").dataset;
+    var form = document.getElementById("ss12000-form");
+    var istOrgs = null;          // [{id, code, name, type, parent}]
+    var istOrgByCode = {};
+    var branchRows = [];         // {org, branch, name, state}
+    var categoryRows = [];       // {role, category, not_import}
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script>
-    $(document).ready(function () {
-        $('select[name="debug_mode"]').on('change', function () {
-            if ($(this).val() === 'Yes') {
-                $(this).css('color', 'red');
-            } else {
-                $(this).css('color', '');
-            }
+    function el(tag, attrs, children) {
+        var e = document.createElement(tag);
+        Object.keys(attrs || {}).forEach(function (k) {
+            if (k === "text") { e.textContent = attrs[k]; }
+            else if (k === "class") { e.className = attrs[k]; }
+            else { e.setAttribute(k, attrs[k]); }
         });
-        if ($('select[name="debug_mode"]').val() === 'Yes') {
-            $('select[name="debug_mode"]').css('color', 'red');
-        }
-
-        // Show/hide months input for dateexpiry_fallback
-        function toggleDateexpiryMonths() {
-            if ($('#dateexpiry_fallback').val() === 'months') {
-                $('#dateexpiry_months_div').show();
-            } else {
-                $('#dateexpiry_months_div').hide();
-            }
-        }
-        toggleDateexpiryMonths();
-        $('#dateexpiry_fallback').on('change', toggleDateexpiryMonths);
-    });
-</script>
-<script>
-document.querySelector('input[value="[% 'Set API scanner from the first page' | gettext %]"]').addEventListener('click', function(e) {
-    if (!confirm('[% 'Are you sure you want to clear the log? This action cannot be undone.' | gettext %]')) {
-        e.preventDefault();
+        (children || []).forEach(function (c) { e.appendChild(c); });
+        return e;
     }
-});
+
+    function ajax(op) {
+        var url = window.location.pathname + "?class=" + encodeURIComponent(form.elements["class"].value)
+            + "&method=" + encodeURIComponent(form.elements["method"].value) + "&op=" + op;
+        return fetch(url, { credentials: "same-origin", headers: { "Accept": "application/json" } })
+            .then(function (r) { return r.json(); });
+    }
+
+    function showMessage(box, cls, text) {
+        box.innerHTML = "";
+        if (text) { box.appendChild(el("div", { "class": "alert alert-" + cls, text: text })); }
+    }
+
+    function selectBox(options, current, emptyLabel, labelFn, missingLabel) {
+        var s = el("select", {});
+        s.appendChild(el("option", { value: "", text: emptyLabel }));
+        options.forEach(function (o) {
+            var opt = el("option", { value: o.code, text: labelFn(o) });
+            if (o.code === current) { opt.selected = true; }
+            s.appendChild(opt);
+        });
+        // a saved value that no longer exists in Koha stays selectable so that saving the page does not drop it
+        if (missingLabel && current && !options.some(function (o) { return o.code === current; })) {
+            var keep = el("option", { value: current, text: current + " (" + missingLabel + ")" });
+            keep.selected = true;
+            s.appendChild(keep);
+        }
+        return s;
+    }
+
+    // ---------- Connection test ----------
+    document.getElementById("btn-test-connection").addEventListener("click", function () {
+        var box = document.getElementById("test-connection-result");
+        showMessage(box, "info", msg.loading);
+        ajax("ajax-test-connection").then(function (r) {
+            showMessage(box, r.ok ? (r.duties === "forbidden" ? "warning" : "success") : "danger", r.message);
+        }).catch(function (e) { showMessage(box, "danger", String(e)); });
+    });
+
+    // ---------- Branch mapping ----------
+    var branchBody = document.querySelector("#branch-map tbody");
+    var branchMsgBox = document.getElementById("branch-messages");
+
+    function branchLabel(o) { return o.name + " (" + o.code + ")"; }
+
+    function renderBranches() {
+        var filter = document.getElementById("branch-filter").value.toLowerCase();
+        var onlyUnmapped = document.getElementById("branch-only-unmapped").checked;
+        branchBody.innerHTML = "";
+        branchRows.sort(function (a, b) {
+            return (a.name || a.org).toLowerCase().localeCompare((b.name || b.org).toLowerCase());
+        });
+        branchRows.forEach(function (row) {
+            var orphan = istOrgs && row.org && !istOrgByCode[row.org];
+            if (onlyUnmapped && row.branch) { return; }
+            var text = ((row.name || "") + " " + row.org + " " + row.branch).toLowerCase();
+            if (filter && text.indexOf(filter) === -1) { return; }
+
+            var tr = el("tr", {});
+            if (!row.branch) { tr.className = "is-unmapped"; }
+            if (row.state === "suggested") { tr.className = "is-suggested"; }
+            if (orphan) { tr.className = "is-orphan"; }
+
+            var nameCell = el("td", {});
+            if (row.name) { nameCell.appendChild(document.createTextNode(row.name)); }
+            if (orphan) { nameCell.appendChild(document.createTextNode(" ")); nameCell.appendChild(el("span", { "class": "ss12000-badge bad", text: msg.notInIst })); }
+            if (!row.branch && !orphan) { nameCell.appendChild(document.createTextNode(" ")); nameCell.appendChild(el("span", { "class": "ss12000-badge warn", text: msg.unmapped })); }
+            if (row.state === "suggested") { nameCell.appendChild(document.createTextNode(" ")); nameCell.appendChild(el("span", { "class": "ss12000-badge good", text: msg.suggested })); }
+            if (row.state === "ambiguous") { nameCell.appendChild(document.createTextNode(" ")); nameCell.appendChild(el("span", { "class": "ss12000-badge warn", text: msg.ambiguous })); }
+
+            var codeCell = el("td", {});
+            if (row.name) {
+                codeCell.appendChild(el("span", { "class": "ss12000-code", text: row.org }));
+            } else {
+                var inp = el("input", { type: "text", size: "16", value: row.org });
+                inp.addEventListener("input", function () { row.org = inp.value.trim(); updateBranchSummary(); });
+                codeCell.appendChild(inp);
+            }
+
+            var sel = selectBox(cfg.branches, row.branch, msg.noBranch, branchLabel);
+            sel.addEventListener("change", function () {
+                row.branch = sel.value;
+                row.state = "";
+                updateBranchSummary();
+                tr.className = row.branch ? "" : "is-unmapped";
+            });
+
+            var del = el("button", { type: "button", "class": "btn btn-default btn-xs", title: msg.remove, text: "\u00d7" });
+            del.addEventListener("click", function () {
+                branchRows.splice(branchRows.indexOf(row), 1);
+                renderBranches();
+            });
+
+            tr.appendChild(nameCell);
+            tr.appendChild(codeCell);
+            tr.appendChild(el("td", {}, [sel]));
+            tr.appendChild(el("td", {}, [del]));
+            branchBody.appendChild(tr);
+        });
+        updateBranchSummary();
+    }
+
+    function updateBranchSummary() {
+        var mapped = branchRows.filter(function (r) { return r.org && r.branch; }).length;
+        var parts = [];
+        if (istOrgs) { parts.push(istOrgs.length + " " + msg.orgsTotal); }
+        parts.push(mapped + " " + msg.mapped);
+        var unmapped = branchRows.filter(function (r) { return !r.branch; }).length;
+        if (unmapped) { parts.push(unmapped + " " + msg.unmappedCount); }
+        if (istOrgs) {
+            var orphans = branchRows.filter(function (r) { return r.org && !istOrgByCode[r.org]; }).length;
+            if (orphans) { parts.push(orphans + " " + msg.missingInIst); }
+        }
+        document.getElementById("branch-summary").textContent = parts.join(" \u00b7 ");
+    }
+
+    function mergeIstOrgs(orgs) {
+        istOrgs = orgs.filter(function (o) { return o.code; });
+        istOrgByCode = {};
+        istOrgs.forEach(function (o) { istOrgByCode[o.code] = o; });
+        var byCode = {};
+        branchRows.forEach(function (r) { byCode[r.org] = r; });
+        istOrgs.forEach(function (o) {
+            if (byCode[o.code]) { byCode[o.code].name = o.name; }
+            else { branchRows.push({ org: o.code, branch: "", name: o.name, state: "" }); }
+        });
+        renderBranches();
+    }
+
+    function loadOrgs() {
+        showMessage(branchMsgBox, "info", msg.loading);
+        return ajax("ajax-ist-orgs").then(function (r) {
+            if (!r.ok) { showMessage(branchMsgBox, "danger", r.message); return; }
+            mergeIstOrgs(r.organisations);
+            showMessage(branchMsgBox, "success", r.organisations.length + " " + msg.orgsLoaded);
+        }).catch(function (e) { showMessage(branchMsgBox, "danger", String(e)); });
+    }
+
+    document.getElementById("btn-load-orgs").addEventListener("click", loadOrgs);
+
+    document.getElementById("btn-suggest").addEventListener("click", function () {
+        showMessage(branchMsgBox, "info", msg.loading);
+        var ready = istOrgs ? Promise.resolve() : loadOrgs();
+        ready.then(function () { return ajax("ajax-suggest-branches"); }).then(function (r) {
+            if (!r.ok) { showMessage(branchMsgBox, "danger", r.message); return; }
+            var applied = 0;
+            r.suggestions.forEach(function (s) {
+                var row = branchRows.filter(function (x) { return x.org === s.org; })[0];
+                if (!row || row.branch) { return; }
+                row.branch = s.branch;
+                row.state = s.ambiguous ? "ambiguous" : "suggested";
+                applied++;
+            });
+            renderBranches();
+            showMessage(branchMsgBox, applied ? "success" : "info", applied ? applied + " " + msg.suggestionsApplied : msg.noSuggestions);
+        }).catch(function (e) { showMessage(branchMsgBox, "danger", String(e)); });
+    });
+
+    document.getElementById("btn-add-branch-row").addEventListener("click", function () {
+        branchRows.push({ org: "", branch: "", name: "", state: "" });
+        renderBranches();
+    });
+    document.getElementById("branch-filter").addEventListener("input", renderBranches);
+    document.getElementById("branch-only-unmapped").addEventListener("change", renderBranches);
+
+    // ---------- Category mapping ----------
+    var categoryBody = document.querySelector("#category-map tbody");
+    var categoryMsgBox = document.getElementById("category-messages");
+
+    function renderCategories() {
+        categoryBody.innerHTML = "";
+        categoryRows.forEach(function (row) {
+            var tr = el("tr", {});
+            var role = el("input", { type: "text", size: "30", value: row.role, list: "roles-list" });
+            role.addEventListener("input", function () { row.role = role.value.trim(); });
+
+            var sel = selectBox(cfg.categories, row.category, msg.noCategory, function (o) { return o.code + (o.name ? " - " + o.name : ""); }, msg.missingInKoha);
+            sel.addEventListener("change", function () { row.category = sel.value; });
+
+            var noimp = el("input", { type: "checkbox" });
+            noimp.checked = !!row.not_import;
+            noimp.addEventListener("change", function () { row.not_import = noimp.checked ? 1 : 0; });
+
+            var del = el("button", { type: "button", "class": "btn btn-default btn-xs", title: msg.remove, text: "\u00d7" });
+            del.addEventListener("click", function () {
+                categoryRows.splice(categoryRows.indexOf(row), 1);
+                renderCategories();
+            });
+
+            tr.appendChild(el("td", {}, [role]));
+            tr.appendChild(el("td", {}, [sel]));
+            tr.appendChild(el("td", {}, [noimp]));
+            tr.appendChild(el("td", {}, [del]));
+            categoryBody.appendChild(tr);
+        });
+    }
+
+    document.getElementById("btn-add-category-row").addEventListener("click", function () {
+        categoryRows.push({ role: "", category: "", not_import: 0 });
+        renderCategories();
+    });
+
+    document.getElementById("btn-load-roles").addEventListener("click", function () {
+        showMessage(categoryMsgBox, "info", msg.loading);
+        ajax("ajax-ist-roles").then(function (r) {
+            if (!r.ok) { showMessage(categoryMsgBox, r.forbidden ? "warning" : "danger", r.message); return; }
+            var list = document.getElementById("roles-list");
+            list.innerHTML = "";
+            var have = {};
+            categoryRows.forEach(function (x) { have[x.role] = true; });
+            r.roles.forEach(function (x) {
+                list.appendChild(el("option", { value: x.role, label: x.role + " (" + x.count + ")" }));
+                if (!have[x.role]) { categoryRows.push({ role: x.role, category: "", not_import: 0 }); }
+            });
+            renderCategories();
+            showMessage(categoryMsgBox, "success", r.roles.length + " " + msg.rolesLoaded);
+        }).catch(function (e) { showMessage(categoryMsgBox, "danger", String(e)); });
+    });
+
+    // ---------- Misc behaviour ----------
+    function toggleMonths() {
+        document.getElementById("dateexpiry_months_div").classList.toggle("ss12000-hidden", document.getElementById("dateexpiry_fallback").value !== "months");
+    }
+    document.getElementById("dateexpiry_fallback").addEventListener("change", toggleMonths);
+    toggleMonths();
+
+    var debugSel = document.getElementById("debug_mode");
+    function markDebug() { debugSel.style.color = debugSel.value === "Yes" ? "red" : ""; }
+    debugSel.addEventListener("change", markDebug);
+    markDebug();
+
+    var clearBtn = document.getElementById("btn-clearlog");
+    if (clearBtn) {
+        clearBtn.addEventListener("click", function (e) { if (!window.confirm(msg.confirmClear)) { e.preventDefault(); } });
+    }
+
+    form.addEventListener("submit", function (e) {
+        if (!document.getElementById("koha_default_categorycode").value) {
+            window.alert(msg.needCategory);
+            e.preventDefault();
+            return;
+        }
+        var methods = form.querySelectorAll('input[name="match_methods"]:checked');
+        if (!methods.length) { window.alert(msg.needMatch); e.preventDefault(); return; }
+        if (document.getElementById("match_attribute").checked && !document.getElementById("civic_attribute_code").value) {
+            window.alert(msg.needAttribute);
+            e.preventDefault();
+            return;
+        }
+        var u = document.getElementById("useridPlugin").value, c = document.getElementById("cardnumberPlugin").value;
+        if ((u !== cfg.initialUserid || c !== cfg.initialCardnumber) && !window.confirm(msg.identityWarning)) {
+            e.preventDefault();
+            return;
+        }
+        document.getElementById("branch_mappings_json").value = JSON.stringify(
+            branchRows.filter(function (r) { return r.org && r.branch; }).map(function (r) { return { org: r.org, branch: r.branch }; }));
+        document.getElementById("category_mappings_json").value = JSON.stringify(
+            categoryRows.filter(function (r) { return r.role && (r.category || r.not_import); }).map(function (r) { return { role: r.role, category: r.category, not_import: r.not_import ? 1 : 0 }; }));
+    });
+
+    // ---------- Init ----------
+    branchRows = (cfg.branchMapping || []).map(function (m) { return { org: m.org, branch: m.branch, name: "", state: "" }; });
+    categoryRows = (cfg.categoryMapping || []).map(function (m) { return { role: m.role, category: m.category, not_import: m.not_import }; });
+    renderBranches();
+    renderCategories();
+    if (cfg.hasSecret) { loadOrgs(); }
+})();
 </script>
+[% END %]
 
 [% INCLUDE 'intranet-bottom.inc' %]

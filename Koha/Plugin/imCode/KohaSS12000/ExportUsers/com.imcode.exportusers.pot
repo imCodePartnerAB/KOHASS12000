@@ -873,3 +873,156 @@ msgstr ""
 
 msgid "is at most"
 msgstr ""
+
+msgid "A job of this kind is already waiting or running."
+msgstr ""
+
+msgid "Add time"
+msgstr ""
+
+msgid "Day"
+msgstr ""
+
+msgid "Done"
+msgstr ""
+
+msgid "Every row in the schedule needs a time"
+msgstr ""
+
+msgid "Failed"
+msgstr ""
+
+msgid "Fetch values from IST"
+msgstr ""
+
+msgid "Fetch values from IST now"
+msgstr ""
+
+msgid "Finished"
+msgstr ""
+
+msgid "Friday"
+msgstr ""
+
+msgid "Import of patrons"
+msgstr ""
+
+msgid "Job"
+msgstr ""
+
+msgid "Message"
+msgstr ""
+
+msgid "Monday"
+msgstr ""
+
+msgid "No jobs yet."
+msgstr ""
+
+msgid "No times yet."
+msgstr ""
+
+msgid "Press Save to keep changes to the schedule."
+msgstr ""
+
+msgid "Queued. It starts within a minute."
+msgstr ""
+
+msgid "Run import now"
+msgstr ""
+
+msgid "Run now"
+msgstr ""
+
+msgid "Running"
+msgstr ""
+
+msgid "Saturday"
+msgstr ""
+
+msgid "Schedule"
+msgstr ""
+
+msgid "Schedule and run now"
+msgstr ""
+
+msgid "Server time"
+msgstr ""
+
+msgid "Start the import now? It starts again from the first page and updates patrons."
+msgstr ""
+
+msgid "Started"
+msgstr ""
+
+msgid "Started by"
+msgstr ""
+
+msgid "Sunday"
+msgstr ""
+
+msgid "The cron job that runs every minute has not been seen. The schedule and Run now do not start anything until tick_ss12000.sh is in cron."
+msgstr ""
+
+msgid "The cron job that runs every minute is working, last seen"
+msgstr ""
+
+msgid "The cron job that runs every minute was last seen"
+msgstr ""
+
+msgid "The import runs on the days and times below (server time). Add one row for every run you want. Without rows nothing is started by the schedule. Run now starts at once, within a minute. Both need the cron job that runs every minute (tick_ss12000.sh)."
+msgstr ""
+
+msgid "The request could not be verified. Reload the page and try again."
+msgstr ""
+
+msgid "The schedule could not be saved: %s"
+msgstr ""
+
+msgid "The schedule had an invalid format and was not saved"
+msgstr ""
+
+msgid "The schedule was not saved: %s"
+msgstr ""
+
+msgid "Thursday"
+msgstr ""
+
+msgid "Tuesday"
+msgstr ""
+
+msgid "Unknown job type"
+msgstr ""
+
+msgid "Waiting"
+msgstr ""
+
+msgid "Wednesday"
+msgstr ""
+
+msgid "A run is in progress"
+msgstr ""
+
+msgid "No run is in progress"
+msgstr ""
+
+msgid "latest log row"
+msgstr ""
+
+msgid "lock file"
+msgstr ""
+
+msgid "job queue"
+msgstr ""
+
+msgid "cron script is running"
+msgstr ""
+
+msgid "log activity in the last 10 minutes"
+msgstr ""
+
+msgid "A run is already in progress. The new import starts when it has finished."
+msgstr ""
+
+msgid "contains"
+msgstr ""

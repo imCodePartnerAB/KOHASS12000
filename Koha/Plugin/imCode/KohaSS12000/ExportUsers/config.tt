@@ -100,6 +100,7 @@
     <li><a href="#sec-branches">[% ss('Branches mapping') %]</a></li>
     <li><a href="#sec-categories">[% ss('Categories mapping') %]</a></li>
     <li><a href="#sec-catrules">[% ss('Category rules') %]</a></li>
+    <li><a href="#sec-schedule">[% ss('Schedule and run now') %]</a></li>
     <li><a href="#sec-advanced">[% ss('Advanced') %]</a></li>
     <li><a href="/cgi-bin/koha/plugins/run.pl?class=[% CLASS | uri %]&amp;method=[% METHOD | uri %]&amp;op=log"><i class="fa fa-list" aria-hidden="true"></i> [% ss('SS12000 log') %]</a></li>
 </ul>
@@ -112,6 +113,7 @@
     <input type="hidden" name="branch_mappings_json" id="branch_mappings_json" value="" />
     <input type="hidden" name="category_mappings_json" id="category_mappings_json" value="" />
     <input type="hidden" name="rules_json" id="rules_json" value="" />
+    <input type="hidden" name="schedule_json" id="schedule_json" value="" />
 
     <div class="page-section ss12000-section" id="sec-about">
         <a class="ss12000-about-logo" href="https://imcode.com" target="_blank" rel="noopener"><img src="[% logo_data_uri | html %]" alt="imCode" /></a>
@@ -441,6 +443,37 @@
         </fieldset>
     </div>
 
+    <div class="page-section ss12000-section" id="sec-schedule">
+        <fieldset class="rows">
+            <legend>[% ss('Schedule and run now') %]</legend>
+            <p class="ss12000-help">[% ss('The import runs on the days and times below (server time). Add one row for every run you want. Without rows nothing is started by the schedule. Run now starts at once, within a minute. Both need the cron job that runs every minute (tick_ss12000.sh).') %]</p>
+            <div id="cron-status"></div>
+            <table class="ss12000-map" id="schedule-map">
+                <thead><tr>
+                    <th>[% ss('Day') %]</th>
+                    <th>[% ss('Time') %]</th>
+                    <th></th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+            <div class="ss12000-inline">
+                <button type="button" class="btn btn-default" id="btn-add-schedule-row"><i class="fa fa-plus" aria-hidden="true"></i> [% ss('Add time') %]</button>
+                <span class="ss12000-help" style="display:inline">[% ss('Press Save to keep changes to the schedule.') %]</span>
+            </div>
+            <div class="ss12000-inline" style="margin-top: .8em">
+                <button type="button" class="btn btn-default" id="btn-run-import"><i class="fa fa-play" aria-hidden="true"></i> [% ss('Run import now') %]</button>
+                <button type="button" class="btn btn-default" id="btn-run-discover"><i class="fa fa-cloud-download" aria-hidden="true"></i> [% ss('Fetch values from IST now') %]</button>
+            </div>
+            <div id="job-messages"></div>
+            <table class="ss12000-map" id="job-list">
+                <thead><tr>
+                    <th>#</th><th>[% ss('Job') %]</th><th>[% ss('Started by') %]</th><th>[% ss('State') %]</th><th>[% ss('Started') %]</th><th>[% ss('Finished') %]</th><th>[% ss('Message') %]</th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+        </fieldset>
+    </div>
+
     <div class="page-section ss12000-section" id="sec-advanced">
         <fieldset class="rows">
             <legend>[% ss('Advanced') %]</legend>
@@ -556,7 +589,25 @@
     data-no-roles-to-import="[% ss('The roles mapping is empty.') | html %]"
     data-duplicate-priority="[% ss('The same priority is used by more than one rule (the lower rule number is tried first)') | html %]"
     data-import-name="[% ss('From roles mapping') | html %]"
-    data-import-empty-role="[% ss('No role (from Exclude empty users, dutyRole)') | html %]"></div>
+    data-import-empty-role="[% ss('No role (from Exclude empty users, dutyRole)') | html %]"
+    data-cron-never="[% ss('The cron job that runs every minute has not been seen. The schedule and Run now do not start anything until tick_ss12000.sh is in cron.') | html %]"
+    data-cron-late="[% ss('The cron job that runs every minute was last seen') | html %]"
+    data-cron-ok="[% ss('The cron job that runs every minute is working, last seen') | html %]"
+    data-server-time="[% ss('Server time') | html %]"
+    data-no-schedule="[% ss('No times yet.') | html %]"
+    data-no-jobs="[% ss('No jobs yet.') | html %]"
+    data-queued-msg="[% ss('Queued. It starts within a minute.') | html %]"
+    data-already-msg="[% ss('A job of this kind is already waiting or running.') | html %]"
+    data-need-time="[% ss('Every row in the schedule needs a time') | html %]"
+    data-run-active="[% ss('A run is in progress') | html %]"
+    data-run-idle="[% ss('No run is in progress') | html %]"
+    data-run-last-log="[% ss('latest log row') | html %]"
+    data-src-lock="[% ss('lock file') | html %]"
+    data-src-job="[% ss('job queue') | html %]"
+    data-src-process="[% ss('cron script is running') | html %]"
+    data-src-log="[% ss('log activity in the last 10 minutes') | html %]"
+    data-waits-msg="[% ss('A run is already in progress. The new import starts when it has finished.') | html %]"
+    data-confirm-import="[% ss('Start the import now? It starts again from the first page and updates patrons.') | html %]"></div>
 
 [% END %]
 
@@ -570,6 +621,9 @@
         rules: [% rules_json | $raw %],
         ruleMeta: [% rule_meta_json | $raw %],
         excludeDutyRoleEmpty: [% IF exclude_dutyrole_empty %]true[% ELSE %]false[% END %],
+        schedule: [% schedule_json | $raw %],
+        scheduleMeta: [% schedule_meta_json | $raw %],
+        jobStatus: [% jobs_json | $raw %],
         hasSecret: [% IF client_secret_set %]true[% ELSE %]false[% END %],
         initialUserid: "[% useridPlugin | html %]",
         initialCardnumber: "[% cardnumberPlugin | html %]"
@@ -1000,6 +1054,113 @@
         return "";
     }
 
+    // ---------- Schedule and run now ----------
+    var scheduleBody = document.querySelector("#schedule-map tbody");
+    var scheduleRows = [];
+    var jobBody = document.querySelector("#job-list tbody");
+    var jobMsgBox = document.getElementById("job-messages");
+    var cronBox = document.getElementById("cron-status");
+    var pollTimer = null;
+
+    function renderSchedule() {
+        scheduleBody.innerHTML = "";
+        if (!scheduleRows.length) {
+            var tr0 = el("tr", {});
+            tr0.appendChild(el("td", { colspan: "3", text: msg.noSchedule }));
+            scheduleBody.appendChild(tr0);
+        }
+        scheduleRows.forEach(function (row) {
+            var tr = el("tr", {});
+            var day = el("select", {});
+            cfg.scheduleMeta.weekdays.forEach(function (d) {
+                var o = el("option", { value: String(d.code), text: d.label });
+                if (d.code === row.weekday) { o.selected = true; }
+                day.appendChild(o);
+            });
+            day.addEventListener("change", function () { row.weekday = parseInt(day.value, 10); });
+            var time = el("input", { type: "time", step: "60", value: row.time });
+            time.addEventListener("input", function () { row.time = time.value; });
+            var del = el("button", { type: "button", "class": "btn btn-default btn-xs", title: msg.remove, text: "\u00d7" });
+            del.addEventListener("click", function () { scheduleRows.splice(scheduleRows.indexOf(row), 1); renderSchedule(); });
+            tr.appendChild(el("td", {}, [day]));
+            tr.appendChild(el("td", {}, [time]));
+            tr.appendChild(el("td", {}, [del]));
+            scheduleBody.appendChild(tr);
+        });
+    }
+
+    document.getElementById("btn-add-schedule-row").addEventListener("click", function () {
+        scheduleRows.push({ weekday: 1, time: "08:00", job_type: "import" });
+        renderSchedule();
+    });
+
+    function renderJobStatus(st) {
+        var meta = cfg.scheduleMeta;
+        cronBox.innerHTML = "";
+        var when = st.tick_seen ? " " + st.tick_seen : "";
+        var cls, text;
+        if (st.tick_age === null || st.tick_age === undefined || st.tick_seen === "") { cls = "warning"; text = msg.cronNever; }
+        else if (st.tick_age > 180) { cls = "warning"; text = msg.cronLate + when; }
+        else { cls = "success"; text = msg.cronOk + when; }
+        var line = text + (st.server_time ? " (" + msg.serverTime + " " + st.server_time + ")" : "");
+        cronBox.appendChild(el("div", { "class": "alert alert-" + cls, text: line }));
+
+        var act = st.activity || { running: 0, sources: [] };
+        var srcName = function (x) { return x.indexOf("lock:") === 0 ? msg.srcLock : (x.indexOf("job:") === 0 ? msg.srcJob : (x === "process" ? msg.srcProcess : msg.srcLog)); };
+        var actText = act.running
+            ? msg.runActive + " (" + act.sources.map(srcName).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(", ") + ")"
+            : msg.runIdle;
+        if (act.last_log) { actText += ", " + msg.runLastLog + " " + act.last_log; }
+        cronBox.appendChild(el("div", { "class": "alert alert-" + (act.running ? "info" : "default"), text: actText }));
+
+        jobBody.innerHTML = "";
+        if (!st.jobs.length) {
+            var tr0 = el("tr", {});
+            tr0.appendChild(el("td", { colspan: "7", text: msg.noJobs }));
+            jobBody.appendChild(tr0);
+        }
+        st.jobs.forEach(function (j) {
+            var tr = el("tr", {});
+            var label = (meta.types[j.job_type] || j.job_type) + " (" + (meta.sources[j.source] || j.source) + ")";
+            [j.id, label, j.requested_by, meta.states[j.status] || j.status, j.started_at, j.finished_at, j.message].forEach(function (v) {
+                tr.appendChild(el("td", { text: v === undefined || v === null ? "" : String(v) }));
+            });
+            jobBody.appendChild(tr);
+        });
+        var active = st.jobs.some(function (j) { return j.status === "queued" || j.status === "running"; });
+        if (pollTimer) { window.clearTimeout(pollTimer); pollTimer = null; }
+        if (active) { pollTimer = window.setTimeout(pollJobs, 5000); }
+    }
+
+    function pollJobs() {
+        ajax("ajax-job-status").then(function (r) { if (r.ok) { renderJobStatus(r); } }).catch(function () {});
+    }
+
+    function requestJob(type) {
+        var url = window.location.pathname + "?class=" + encodeURIComponent(form.elements["class"].value)
+            + "&method=" + encodeURIComponent(form.elements["method"].value) + "&op=ajax-job-request";
+        var body = new URLSearchParams();
+        body.append("job_type", type);
+        body.append("csrf_token", form.elements["csrf_token"].value);
+        fetch(url, { method: "POST", credentials: "same-origin", headers: { "Accept": "application/json" }, body: body })
+            .then(function (r) { return r.json(); })
+            .then(function (r) {
+                if (!r.ok) { showMessage(jobMsgBox, "danger", r.message); return; }
+                var busy = type === "import" && r.activity && r.activity.running && !r.already;
+                showMessage(jobMsgBox, (r.already || busy) ? "warning" : "success", r.already ? msg.alreadyMsg : (busy ? msg.waitsMsg : msg.queuedMsg));
+                renderJobStatus(r);
+            }).catch(function (e) { showMessage(jobMsgBox, "danger", String(e)); });
+    }
+
+    document.getElementById("btn-run-import").addEventListener("click", function () {
+        if (window.confirm(msg.confirmImport)) { requestJob("import"); }
+    });
+    document.getElementById("btn-run-discover").addEventListener("click", function () { requestJob("discover"); });
+
+    function serializeSchedule() {
+        return scheduleRows.map(function (r) { return { weekday: r.weekday, time: r.time, job_type: r.job_type || "import" }; });
+    }
+
     // ---------- Misc behaviour ----------
     function toggleMonths() {
         document.getElementById("dateexpiry_months_div").classList.toggle("ss12000-hidden", document.getElementById("dateexpiry_fallback").value !== "months");
@@ -1035,6 +1196,8 @@
             e.preventDefault();
             return;
         }
+        if (scheduleRows.some(function (r) { return !r.time; })) { window.alert(msg.needTime); e.preventDefault(); return; }
+        document.getElementById("schedule_json").value = JSON.stringify(serializeSchedule());
         var ruleProblem = checkRules();
         if (ruleProblem) { window.alert(ruleProblem); e.preventDefault(); return; }
         document.getElementById("rules_json").value = JSON.stringify(serializeRules());
@@ -1051,6 +1214,9 @@
     renderBranches();
     renderCategories();
     renderRules();
+    scheduleRows = (cfg.schedule || []).map(function (r) { return { weekday: r.weekday, time: r.time, job_type: r.job_type }; });
+    renderSchedule();
+    renderJobStatus(cfg.jobStatus);
     if (cfg.hasSecret) { loadOrgs(); }
 })();
 </script>

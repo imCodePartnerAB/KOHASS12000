@@ -59,8 +59,23 @@ sudo /etc/init.d/cron restart
 - For every person the latest rule decision is kept in the table `imcode_rule_log`: which rule won and which other rules also matched but were not used (the table keeps one row per person and rows not seen for 90 days are removed). It is also written to the plugin log when debug mode is on.
 - The rule engine (`ExportUsers/Rules.pm`) has no Koha dependencies and is covered by unit tests: run `prove t/` from the repository root.
 
+**Schedule and run now (new section on the configuration page)**
+- The import can run on the days and times you enter, for example Monday 08:00, Tuesday 20:00 and Saturday 13:00 (server time). Add one row per run with *Add time* and remove rows with the cross; press *Save* to keep the schedule. Without rows nothing is started by the schedule.
+- *Run import now* and *Fetch values from IST now* start a job at once (within a minute). A run started this way, or by the schedule, begins again from the first page. Jobs and their state (waiting, running, done, failed) are listed below the buttons, together with a line that says whether a run is in progress (lock file, job queue, cron script or log activity in the last 10 minutes), also when it was started by an older cron line.
+- Both need one cron line that runs every minute. The script does nothing unless a run is due or has been requested, so existing cron lines for `run_ss12000.sh` keep working unchanged:
+```
+* * * * * root /var/lib/koha/defaultlibraryname/plugins/Koha/Plugin/imCode/KohaSS12000/ExportUsers/cron/tick_ss12000.sh >> /var/log/koha/defaultlibraryname/tick_ss12000.log 2>&1
+```
+- The page shows when the cron job was last seen and warns when it has not been seen for three minutes. A planned run is still started up to an hour late (for example after a restart) and never twice on the same day.
+- **Two runs never run at the same time:** `run_ss12000.sh` takes an atomic lock (`flock`) and exits when another wrapper holds it, whoever started it (an older cron line, the minute job or a person). A run that is requested while another one is in progress waits and starts when it has finished. Only one job is handled at a time, and the same job type cannot be queued twice. The existing lock file protects each processed page against the web *Run Tool*.
+- *Fetch values from IST* reads schools, school types, school years, programmes, classes and roles from IST (no changes in Koha, a few minutes) and stores the values, never personal data, in `imcode_seen_values` for the rule editor.
+- `run_ss12000.sh` accepts an optional instance name as its first argument and then runs only that instance.
+
+**Rules: new operator**
+- *contains* (text anywhere in the value, case-insensitive) next to *is one of* and *starts with*, for example to catch class names that have a programme code in the middle.
+
 **Upgrade**
-- Version 2.0 creates the tables `imcode_rules` and `imcode_rule_log` (also when upgrading from 1.90 or 1.91). The new setting `use_rules` defaults to `No`.
+- Version 2.0 creates the tables `imcode_rules`, `imcode_rule_log`, `imcode_schedule`, `imcode_jobs`, `imcode_state` and `imcode_seen_values` (also when upgrading from 1.90 or 1.91, and the configuration page and the cron job create any that are missing). The new setting `use_rules` defaults to `No`.
 
 # KohaSS12000 › What is new in 1.91
 

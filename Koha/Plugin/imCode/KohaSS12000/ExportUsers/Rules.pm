@@ -34,12 +34,12 @@ my %FIELDS = (
 );
 
 my %OPS_BY_TYPE = (
-    text   => [qw(in starts_with empty not_empty)],
+    text   => [qw(in starts_with contains empty not_empty)],
     number => [qw(in gte lte empty not_empty)],
-    any    => [qw(in starts_with gte lte empty not_empty)],
+    any    => [qw(in starts_with contains gte lte empty not_empty)],
 );
 
-my %NEEDS_VALUES = (in => 1, starts_with => 1, gte => 1, lte => 1);
+my %NEEDS_VALUES = (in => 1, starts_with => 1, contains => 1, gte => 1, lte => 1);
 
 sub field_names { return sort keys %FIELDS }
 
@@ -290,6 +290,13 @@ sub condition_matches {
                 next;
             }
             return 1 if $op eq 'gte' ? $v >= $limit : $v <= $limit;
+        }
+        return 0;
+    }
+    if ($op eq 'contains') {
+        foreach my $v (@vals) {
+            my $lv = lc $v;
+            return 1 if grep { index($lv, lc $_) >= 0 } @wanted;
         }
         return 0;
     }

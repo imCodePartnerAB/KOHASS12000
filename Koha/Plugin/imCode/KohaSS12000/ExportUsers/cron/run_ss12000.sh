@@ -6,7 +6,26 @@ if pgrep -f "imcode_ss12000.pl" > /dev/null; then
     exit 1
 fi
 
+# Atomic lock: a second wrapper started at the same moment (or between two iterations of the first one,
+# when no perl process is visible to pgrep) exits instead of running next to it.
+lockfile=/run/lock/imcode_ss12000_run.lock
+[ -w /run/lock ] || lockfile=/tmp/imcode_ss12000_run.lock
+exec 9>"$lockfile"
+if ! flock -n 9; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') : Script already running. Exiting."
+    exit 1
+fi
+
 script_paths=$(find /var/lib/koha -type f -name "imcode_ss12000.pl" | grep "Plugin/imCode/KohaSS12000/ExportUsers/cron")
+
+# Optional argument: only this instance (used by tick_ss12000.sh)
+if [ -n "$1" ]; then
+    script_paths=$(echo "$script_paths" | grep "^/var/lib/koha/$1/")
+    if [ -z "$script_paths" ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') : Script not found for instance $1"
+        exit 1
+    fi
+fi
 script_count=$(echo "$script_paths" | wc -l)
 
 if [ $script_count -eq 0 ]; then

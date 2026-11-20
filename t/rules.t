@@ -95,6 +95,25 @@ sub winner_cat {
     is(winner_cat([ rule(conditions => [ cond('class', 'in', 'cls25a') ], action => { category => 'C' }) ], $f), 'C', 'class equality ignores case');
 }
 
+# ---- contains
+{
+    my $f = facts(klass => 'ABIMXYZ26', enrolment => { schoolType => 'GY', schoolYear => 3 });
+    is(winner_cat([ rule(conditions => [ cond('class', 'contains', 'im') ], action => { category => 'IM' }) ], $f), 'IM', 'contains matches in the middle of a value, ignoring case');
+    is(winner_cat([ rule(conditions => [ cond('class', 'starts_with', 'IM') ], action => { category => 'IM' }) ], $f), undef, 'starts_with does not match the middle');
+    is(winner_cat([ rule(conditions => [ cond('class', 'contains', 'ZZ', 'XYZ') ], action => { category => 'ANY' }) ], $f), 'ANY', 'contains with several values matches any of them');
+    is(winner_cat([ rule(conditions => [ cond('class', 'contains', 'ZZ') ], action => { category => 'NO' }) ], $f), undef, 'contains without a hit');
+    my $none = facts(enrolment => { schoolType => 'GY', schoolYear => 3 });
+    is(winner_cat([ rule(conditions => [ cond('class', 'contains', 'IM') ], action => { category => 'NO' }) ], $none), undef, 'contains on a missing value never matches');
+    my ($r, $e) = $R->can('normalize_rule')->({ conditions => [ cond('school_year', 'contains', '1') ], action => { category => 'A' } });
+    ok(!$r && $e =~ /not allowed/, 'contains is not allowed for a number field');
+    ($r, $e) = $R->can('normalize_rule')->({ conditions => [ cond('custom:a.b', 'contains', 'x') ], action => { category => 'A' } });
+    ok($r && !$e, 'contains is allowed for other fields (by path)');
+    ($r, $e) = $R->can('normalize_rule')->({ conditions => [ cond('class', 'contains') ], action => { category => 'A' } });
+    ok(!$r && $e =~ /needs a value/, 'contains needs a value');
+    my $swe = facts(klass => 'KURSPÅ26', enrolment => { schoolType => 'GY', schoolYear => 1 });
+    is(winner_cat([ rule(conditions => [ cond('class', 'contains', 'på') ], action => { category => 'PA' }) ], $swe), 'PA', 'contains compares Swedish letters ignoring case');
+}
+
 # ---- missing fields
 {
     my $f = facts(enrolment => { schoolType => 'GR', schoolYear => 3 }, school_codes => ['SCHOOL2']);

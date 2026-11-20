@@ -1027,3 +1027,156 @@ msgstr "är minst"
 
 msgid "is at most"
 msgstr "är högst"
+
+msgid "A job of this kind is already waiting or running."
+msgstr "Ett jobb av den här typen väntar redan eller körs."
+
+msgid "Add time"
+msgstr "Lägg till tid"
+
+msgid "Day"
+msgstr "Dag"
+
+msgid "Done"
+msgstr "Klart"
+
+msgid "Every row in the schedule needs a time"
+msgstr "Varje rad i schemat behöver en tid"
+
+msgid "Failed"
+msgstr "Misslyckades"
+
+msgid "Fetch values from IST"
+msgstr "Hämta värden från IST"
+
+msgid "Fetch values from IST now"
+msgstr "Hämta värden från IST nu"
+
+msgid "Finished"
+msgstr "Slutfört"
+
+msgid "Friday"
+msgstr "Fredag"
+
+msgid "Import of patrons"
+msgstr "Import av låntagare"
+
+msgid "Job"
+msgstr "Jobb"
+
+msgid "Message"
+msgstr "Meddelande"
+
+msgid "Monday"
+msgstr "Måndag"
+
+msgid "No jobs yet."
+msgstr "Inga jobb ännu."
+
+msgid "No times yet."
+msgstr "Inga tider ännu."
+
+msgid "Press Save to keep changes to the schedule."
+msgstr "Tryck på Spara för att behålla ändringar i schemat."
+
+msgid "Queued. It starts within a minute."
+msgstr "Köat. Det startar inom en minut."
+
+msgid "Run import now"
+msgstr "Kör import nu"
+
+msgid "Run now"
+msgstr "Kör nu"
+
+msgid "Running"
+msgstr "Körs"
+
+msgid "Saturday"
+msgstr "Lördag"
+
+msgid "Schedule"
+msgstr "Schema"
+
+msgid "Schedule and run now"
+msgstr "Schema och kör nu"
+
+msgid "Server time"
+msgstr "Servertid"
+
+msgid "Start the import now? It starts again from the first page and updates patrons."
+msgstr "Starta importen nu? Den startar om från första sidan och uppdaterar låntagare."
+
+msgid "Started"
+msgstr "Startade"
+
+msgid "Started by"
+msgstr "Startad av"
+
+msgid "Sunday"
+msgstr "Söndag"
+
+msgid "The cron job that runs every minute has not been seen. The schedule and Run now do not start anything until tick_ss12000.sh is in cron."
+msgstr "Cron-jobbet som körs varje minut har inte setts. Schemat och Kör nu startar ingenting förrän tick_ss12000.sh ligger i cron."
+
+msgid "The cron job that runs every minute is working, last seen"
+msgstr "Cron-jobbet som körs varje minut fungerar, senast sett"
+
+msgid "The cron job that runs every minute was last seen"
+msgstr "Cron-jobbet som körs varje minut sågs senast"
+
+msgid "The import runs on the days and times below (server time). Add one row for every run you want. Without rows nothing is started by the schedule. Run now starts at once, within a minute. Both need the cron job that runs every minute (tick_ss12000.sh)."
+msgstr "Importen körs på dagarna och tiderna nedan (servertid). Lägg till en rad för varje körning du vill ha. Utan rader startar schemat ingenting. Kör nu startar direkt, inom en minut. Båda kräver cron-jobbet som körs varje minut (tick_ss12000.sh)."
+
+msgid "The request could not be verified. Reload the page and try again."
+msgstr "Begäran kunde inte verifieras. Ladda om sidan och försök igen."
+
+msgid "The schedule could not be saved: %s"
+msgstr "Schemat kunde inte sparas: %s"
+
+msgid "The schedule had an invalid format and was not saved"
+msgstr "Schemat hade ett ogiltigt format och sparades inte"
+
+msgid "The schedule was not saved: %s"
+msgstr "Schemat sparades inte: %s"
+
+msgid "Thursday"
+msgstr "Torsdag"
+
+msgid "Tuesday"
+msgstr "Tisdag"
+
+msgid "Unknown job type"
+msgstr "Okänd jobbtyp"
+
+msgid "Waiting"
+msgstr "Väntar"
+
+msgid "Wednesday"
+msgstr "Onsdag"
+
+msgid "A run is in progress"
+msgstr "En körning pågår"
+
+msgid "No run is in progress"
+msgstr "Ingen körning pågår"
+
+msgid "latest log row"
+msgstr "senaste loggrad"
+
+msgid "lock file"
+msgstr "låsfil"
+
+msgid "job queue"
+msgstr "jobbkön"
+
+msgid "cron script is running"
+msgstr "cron-skriptet körs"
+
+msgid "log activity in the last 10 minutes"
+msgstr "loggaktivitet de senaste 10 minuterna"
+
+msgid "A run is already in progress. The new import starts when it has finished."
+msgstr "En körning pågår redan. Den nya importen startar när den är klar."
+
+msgid "contains"
+msgstr "innehåller"

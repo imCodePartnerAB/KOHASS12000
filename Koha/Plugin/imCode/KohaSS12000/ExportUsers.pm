@@ -45,6 +45,8 @@ use URI::Escape qw(uri_escape);
 use Unicode::Normalize qw(NFD);
 use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Rules ();
 BEGIN { *SS12000Rules:: = \%Koha::Plugin::imCode::KohaSS12000::ExportUsers::Rules::; }
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Schedule ();
+BEGIN { *SS12000Schedule:: = \%Koha::Plugin::imCode::KohaSS12000::ExportUsers::Schedule::; }
 
 use File::Basename;
 
@@ -62,6 +64,10 @@ our $categories_mapping_table = 'imcode_categories_mapping';
 our $branches_mapping_table   = 'imcode_branches_mapping';
 our $rules_table              = 'imcode_rules';
 our $rule_log_table           = 'imcode_rule_log';
+our $schedule_table           = 'imcode_schedule';
+our $jobs_table               = 'imcode_jobs';
+our $state_table              = 'imcode_state';
+our $seen_values_table        = 'imcode_seen_values';
 our @rules_ddl = (
     qq{CREATE TABLE IF NOT EXISTS $rules_table (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -89,6 +95,40 @@ our @rules_ddl = (
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY unique_person (person_id),
         KEY idx_borrowernumber (borrowernumber)
+    );},
+    qq{CREATE TABLE IF NOT EXISTS $schedule_table (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        weekday TINYINT NOT NULL,
+        run_time CHAR(5) NOT NULL,
+        job_type VARCHAR(10) NOT NULL DEFAULT 'import',
+        UNIQUE KEY unique_entry (weekday, run_time, job_type)
+    );},
+    qq{CREATE TABLE IF NOT EXISTS $jobs_table (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        job_type VARCHAR(10) NOT NULL,
+        source VARCHAR(10) NOT NULL DEFAULT 'manual',
+        schedule_key VARCHAR(60) DEFAULT NULL,
+        status VARCHAR(10) NOT NULL DEFAULT 'queued',
+        requested_by VARCHAR(100) DEFAULT NULL,
+        requested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        started_at DATETIME DEFAULT NULL,
+        finished_at DATETIME DEFAULT NULL,
+        message VARCHAR(255) DEFAULT NULL,
+        UNIQUE KEY unique_schedule_key (schedule_key),
+        KEY idx_status (status)
+    );},
+    qq{CREATE TABLE IF NOT EXISTS $state_table (
+        name VARCHAR(60) NOT NULL PRIMARY KEY,
+        value VARCHAR(255) DEFAULT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    );},
+    qq{CREATE TABLE IF NOT EXISTS $seen_values_table (
+        field_name VARCHAR(40) NOT NULL,
+        value VARCHAR(190) NOT NULL,
+        label VARCHAR(255) DEFAULT NULL,
+        seen_count INT NOT NULL DEFAULT 0,
+        last_seen DATETIME NOT NULL,
+        PRIMARY KEY (field_name, value)
     );},
 );
 our $added_count      = 0; # to count added
@@ -699,7 +739,7 @@ sub uninstall {
 
     my $dbh = C4::Context->dbh;
 
-    my @tables_to_delete = ($config_table, $logs_table, $data_change_log_table, $categories_mapping_table, $branches_mapping_table, $rules_table, $rule_log_table); 
+    my @tables_to_delete = ($config_table, $logs_table, $data_change_log_table, $categories_mapping_table, $branches_mapping_table, $rules_table, $rule_log_table, $schedule_table, $jobs_table, $state_table, $seen_values_table); 
 
     eval {
         foreach my $table (@tables_to_delete) {
@@ -891,11 +931,13 @@ sub configure {
     insertConfigValue($dbh, 'keep_existing_category', 'No');
     insertConfigValue($dbh, 'keep_existing_contact', 'No');
     insertConfigValue($dbh, 'use_rules', 'No');
+    ensure_tables($dbh);
 
     return $self->log_page($session_data) if ($op // '') eq 'log';
     return $self->log_ajax($op)           if ($op // '') =~ /^ajax-log-/;
 
     if (($op // '') =~ /^ajax-/) {
+        $self->{session_data} = $session_data;
         return $self->configure_ajax($op, $cgi);
     }
 
@@ -964,6 +1006,7 @@ sub configure {
         my $branch_mappings_json   = $cgi->param('branch_mappings_json');
         my $category_mappings_json = $cgi->param('category_mappings_json');
         my $rules_json             = $cgi->param('rules_json');
+        my $schedule_json          = $cgi->param('schedule_json');
 
         my @match_methods        = grep { /^(?:attribute|userid|cardnumber)$/ } $cgi->multi_param('match_methods');
         my $civic_attribute_code = $cgi->param('civic_attribute_code') // '';
@@ -1077,6 +1120,27 @@ sub configure {
                 }
             } else {
                 push @save_errors, $self->t('Rules had an invalid format and were not saved');
+            }
+        }
+
+        # The run schedule is saved as one list; if any row is invalid nothing is changed
+        if (defined $schedule_json && $schedule_json ne '') {
+            my $raw_schedule = eval { decode_json_param($schedule_json) };
+            if (ref $raw_schedule eq 'ARRAY') {
+                my ($entries, $schedule_errors) = SS12000Schedule::normalize_entries($raw_schedule);
+                if (@$schedule_errors) {
+                    push @save_errors, $self->t('The schedule was not saved: %s', $_) for @$schedule_errors;
+                } else {
+                    my $err = save_schedule($dbh, $entries);
+                    if ($err) {
+                        log_message("Yes", "Error saving schedule: $err");
+                        push @save_errors, $self->t('The schedule could not be saved: %s', $err);
+                    } else {
+                        log_message("Yes", "Saved " . scalar(@$entries) . " schedule rows");
+                    }
+                }
+            } else {
+                push @save_errors, $self->t('The schedule had an invalid format and was not saved');
             }
         }
 
@@ -1346,6 +1410,9 @@ sub configure {
         rules_json             => json_for_html([ SS12000Rules::sort_rules(@{ load_rules($dbh) }) ]),
         rule_meta_json         => json_for_html($self->rule_meta),
         exclude_dutyrole_empty => (($config_data->{excluding_dutyRole_empty} // 'No') eq 'Yes' ? 1 : 0),
+        schedule_json          => json_for_html(load_schedule($dbh)),
+        schedule_meta_json     => json_for_html($self->schedule_meta),
+        jobs_json              => json_for_html(job_status($dbh)),
         client_id     => $config_data->{ist_client_id} || '',
         customerId    => $config_data->{ist_customer_id} || '',
         api_url       => $config_data->{ist_api_url} || '',
@@ -1406,6 +1473,7 @@ sub rule_meta {
     my %op_label = (
         in          => $self->t('is one of'),
         starts_with => $self->t('starts with'),
+        contains    => $self->t('contains'),
         empty       => $self->t('is empty'),
         not_empty   => $self->t('is not empty'),
         gte         => $self->t('is at least'),
@@ -1453,6 +1521,313 @@ sub save_rules {
     my $err = $@ || 'unknown error';
     eval { $dbh->rollback };
     return $err;
+}
+
+# POST with a valid CSRF token for the current session
+sub verify_csrf {
+    my ($self, $cgi) = @_;
+    return 0 unless ($cgi->request_method // '') eq 'POST';
+    my $token = $cgi->param('csrf_token') // '';
+    my $session_id = $cgi->cookie('CGISESSID') // '';
+    return 0 unless length $token && length $session_id;
+    return Koha::Token->new->check_csrf({ session_id => $session_id, token => $token }) ? 1 : 0;
+}
+
+sub schedule_meta {
+    my ($self) = @_;
+    my @names = ($self->t('Monday'), $self->t('Tuesday'), $self->t('Wednesday'), $self->t('Thursday'), $self->t('Friday'), $self->t('Saturday'), $self->t('Sunday'));
+    return {
+        weekdays => [ map { { code => $_ + 1, label => $names[$_] } } 0 .. 6 ],
+        types    => { import => $self->t('Import of patrons'), discover => $self->t('Fetch values from IST') },
+        sources  => { manual => $self->t('Run now'), schedule => $self->t('Schedule') },
+        states   => { queued => $self->t('Waiting'), running => $self->t('Running'), done => $self->t('Done'), failed => $self->t('Failed') },
+    };
+}
+
+sub load_schedule {
+    my ($dbh) = @_;
+    my $rows = eval { $dbh->selectall_arrayref("SELECT weekday, run_time, job_type FROM $schedule_table ORDER BY weekday, run_time, job_type", { Slice => {} }) } || [];
+    return [ map { { weekday => $_->{weekday} + 0, time => $_->{run_time}, job_type => $_->{job_type} } } @$rows ];
+}
+
+# Replaces the saved schedule with the given normalised entries. Returns an error text or undef.
+sub save_schedule {
+    my ($dbh, $entries) = @_;
+    my $own_tx = $dbh->{AutoCommit} ? 1 : 0;
+    my $ok = eval {
+        $dbh->begin_work if $own_tx;
+        $dbh->do("DELETE FROM $schedule_table");
+        $dbh->do("INSERT INTO $schedule_table (weekday, run_time, job_type) VALUES (?, ?, ?)", undef, $_->{weekday}, $_->{time}, $_->{job_type}) for @$entries;
+        $dbh->commit if $own_tx;
+        1;
+    };
+    return undef if $ok;
+    my $err = $@ || 'unknown error';
+    eval { $dbh->rollback };
+    return $err;
+}
+
+# Creates the version 2 tables when they are missing (for example when the plugin files were copied
+# over a 2.0 installation, where Koha does not run upgrade again)
+sub ensure_tables {
+    my ($dbh) = @_;
+    eval { $dbh->do($_) for @rules_ddl; 1 } or log_message('Yes', "ensure_tables failed: $@");
+}
+
+sub state_set {
+    my ($dbh, $name, $value) = @_;
+    $dbh->do("INSERT INTO $state_table (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()", undef, $name, $value);
+}
+
+# Is an import running right now, and who started it? Looks at the shared lock file (held while one page is
+# processed), the job queue, the processes of the cron wrapper and the latest activity in imcode_logs.
+sub run_activity {
+    my ($dbh) = @_;
+    my @sources;
+
+    my $lock = eval { Koha::Plugin::imCode::KohaSS12000::ExportUsers->new->get_lock_info };
+    push @sources, 'lock:' . ($lock->{source} // '?') if ref $lock eq 'HASH' && $lock->{pid} && kill(0, $lock->{pid});
+
+    my ($job) = eval { $dbh->selectrow_array("SELECT CONCAT(job_type, ':', source) FROM $jobs_table WHERE status = 'running' ORDER BY id LIMIT 1") };
+    push @sources, "job:$job" if $job;
+
+    push @sources, 'process' if system('pgrep -f "[r]un_ss12000\\.sh|[i]mcode_ss12000\\.pl" >/dev/null 2>&1') == 0;
+
+    my ($last, $age) = eval { $dbh->selectrow_array("SELECT DATE_FORMAT(MAX(created_at), '%Y-%m-%d %H:%i'), TIMESTAMPDIFF(MINUTE, MAX(created_at), NOW()) FROM $logs_table WHERE data_endpoint = 'persons'") };
+    push @sources, 'log' if defined $age && $age <= 10;
+
+    return { running => (@sources ? 1 : 0), sources => \@sources, last_log => $last // '', last_log_age => defined $age ? $age + 0 : undef };
+}
+
+# Latest jobs and the cron heartbeat for the configuration page
+sub job_status {
+    my ($dbh) = @_;
+    my $jobs = eval {
+        $dbh->selectall_arrayref(
+            "SELECT id, job_type, source, status, requested_by, requested_at, started_at, finished_at, message FROM $jobs_table ORDER BY id DESC LIMIT 8",
+            { Slice => {} });
+    } || [];
+    my ($seen, $age) = eval { $dbh->selectrow_array("SELECT value, TIMESTAMPDIFF(SECOND, updated_at, NOW()) FROM $state_table WHERE name = 'tick_last_seen'") };
+    my ($now) = eval { $dbh->selectrow_array("SELECT DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i') ") };
+    my ($values_at) = eval { $dbh->selectrow_array("SELECT DATE_FORMAT(MAX(last_seen), '%Y-%m-%d %H:%i') FROM $seen_values_table") };
+    return {
+        jobs        => [ map { my $j = $_; { map { $_ => (defined $j->{$_} ? "$j->{$_}" : '') } keys %$j } } @$jobs ],
+        tick_seen   => $seen // '',
+        tick_age    => defined $age ? $age + 0 : undef,
+        server_time => $now // '',
+        values_at   => $values_at // '',
+        activity    => run_activity($dbh),
+    };
+}
+
+# Queues a job unless one of the same type is already waiting or running
+sub request_job {
+    my ($dbh, $type, $by, $source) = @_;
+    return { ok => 0 } unless defined $type && $type =~ /^(?:import|discover)$/;
+    my ($open) = $dbh->selectrow_array("SELECT id FROM $jobs_table WHERE job_type = ? AND status IN ('queued', 'running') ORDER BY id LIMIT 1", undef, $type);
+    return { ok => 1, id => $open, already => 1 } if $open;
+    $dbh->do("INSERT INTO $jobs_table (job_type, source, status, requested_by) VALUES (?, ?, 'queued', ?)", undef, $type, ($source || 'manual'), substr($by // '', 0, 100));
+    return { ok => 1, id => $dbh->last_insert_id(undef, undef, $jobs_table, undef) };
+}
+
+sub finish_job {
+    my ($dbh, $id, $status, $message) = @_;
+    return unless defined $id && $id =~ /^\d+$/;
+    $status = 'failed' unless defined $status && $status =~ /^(?:done|failed)$/;
+    $dbh->do("UPDATE $jobs_table SET status = ?, finished_at = NOW(), message = ? WHERE id = ? AND status = 'running'", undef, $status, substr($message // '', 0, 255), $id);
+}
+
+sub release_job {
+    my ($dbh, $id) = @_;
+    return unless defined $id && $id =~ /^\d+$/;
+    $dbh->do("UPDATE $jobs_table SET status = 'queued', started_at = NULL WHERE id = ? AND status = 'running'", undef, $id);
+}
+
+# Called by cron every minute (cron/imcode_ss12000_tick.pl). Writes the heartbeat, queues the schedule rows
+# that are due and starts at most one waiting job. Prints nothing itself; returns one of
+#   IDLE | JOB:<id>:import (the shell script runs the import) | DONE:<id>:<status> (a job that ran inside this call)
+sub tick {
+    my ($self) = @_;
+    my $dbh = C4::Context->dbh;
+
+    eval { $dbh->selectrow_array("SELECT 1 FROM $jobs_table LIMIT 1"); 1 } or ensure_tables($dbh);
+    state_set($dbh, 'tick_last_seen', strftime('%Y-%m-%d %H:%M:%S', localtime));
+    $dbh->do("UPDATE $jobs_table SET status = 'failed', finished_at = NOW(), message = 'stopped without finishing (over 10 hours)' WHERE status = 'running' AND started_at < DATE_SUB(NOW(), INTERVAL 10 HOUR)");
+    my ($running) = $dbh->selectrow_array("SELECT id FROM $jobs_table WHERE status = 'running' LIMIT 1");
+    return 'IDLE' if $running;
+
+    foreach my $due (SS12000Schedule::due_entries(load_schedule($dbh), time())) {
+        $dbh->do("INSERT IGNORE INTO $jobs_table (job_type, source, schedule_key, status, requested_by) VALUES (?, 'schedule', ?, 'queued', 'schedule')",
+                 undef, $due->{entry}{job_type}, $due->{key});
+    }
+
+    my ($id, $type) = $dbh->selectrow_array("SELECT id, job_type FROM $jobs_table WHERE status = 'queued' ORDER BY id LIMIT 1");
+    return 'IDLE' unless $id;
+    my $started = $dbh->do("UPDATE $jobs_table SET status = 'running', started_at = NOW() WHERE id = ? AND status = 'queued'", undef, $id);
+    return 'IDLE' unless $started && $started > 0;
+
+    if ($type eq 'import') {
+        # An import started by an older cron line is still running: wait for it instead of resetting its progress
+        if (system('pgrep -f "[r]un_ss12000\\.sh|[i]mcode_ss12000\\.pl" >/dev/null 2>&1') == 0) {
+            release_job($dbh, $id);
+            log_message('Yes', "Job $id (import) waits: another import is running");
+            return 'IDLE';
+        }
+        $dbh->do("UPDATE $logs_table SET is_processed = 0, updated_count = 0, added_count = 0, page_token_next = 'RESET' WHERE DATE(created_at) = CURDATE()");
+        log_message('Yes', "Job $id (import) started");
+        return "JOB:$id:import";
+    }
+
+    if ($type eq 'discover') {
+        log_message('Yes', "Job $id (discover) started");
+        my ($ok, $message) = $self->discover_values($dbh);
+        finish_job($dbh, $id, ($ok ? 'done' : 'failed'), $message);
+        log_message('Yes', "Job $id (discover) finished: $message");
+        return "DONE:$id:" . ($ok ? 'done' : 'failed');
+    }
+
+    finish_job($dbh, $id, 'failed', "unknown job type $type");
+    return 'IDLE';
+}
+
+sub tick_cli {
+    my ($self, @args) = @_;
+    my $dbh = C4::Context->dbh;
+    my $cmd = $args[0] // '';
+    if ($cmd eq '--finish') {
+        finish_job($dbh, $args[1], $args[2], join(' ', @args[3 .. $#args]));
+        print "OK\n";
+        return 0;
+    }
+    if ($cmd eq '--release') {
+        release_job($dbh, $args[1]);
+        print "OK\n";
+        return 0;
+    }
+    my $result = eval { $self->tick };
+    if ($@) {
+        log_message('Yes', "tick failed: $@");
+        print "ERROR\n";
+        return 1;
+    }
+    print "$result\n";
+    return 0;
+}
+
+# Reads the values IST really contains (schools, school types, years, programmes, classes, roles) and
+# stores them for the rule editor. Only fields that are not personal data are stored.
+sub discover_values {
+    my ($self, $dbh) = @_;
+    my $config = $self->get_config_data();
+    unless ($config->{ist_client_id} && length($config->{ist_client_secret} // '') && $config->{ist_customer_id}) {
+        return (0, 'IST connection is not configured');
+    }
+    my $token = $self->get_api_token($config, LWP::UserAgent->new);
+    return (0, 'could not get an access token') unless $token;
+    my $api_base = ($config->{ist_api_url} || '') . '/ss12000v2-api/source/' . ($config->{ist_customer_id} || '') . '/v2.0/';
+    my $ignore_cancelled = (($config->{ignore_cancelled_flag} // 'No') eq 'Yes');
+    my $today = strftime('%Y-%m-%d', localtime);
+
+    my (%count, %label, %done, @notes);
+    my $add = sub { my ($field, $value, $n) = @_; return unless defined $value && !ref $value && length $value; $count{$field}{$value} += ($n // 1) };
+
+    my $each_page = sub {
+        my ($endpoint, $params, $cb) = @_;
+        my ($page_token, $pages) = (undef, 0);
+        while (1) {
+            my $url = $api_base . $endpoint . '?limit=100';
+            $url .= '&' . uri_escape($_) . '=' . uri_escape($params->{$_}) for sort keys %{ $params || {} };
+            $url .= '&pageToken=' . uri_escape($page_token) if $page_token;
+            my ($body, $code, $err) = getApiResponse($url, $token);
+            return (0, $code // 0) unless defined $body;
+            my $data = eval { decode_json($body) };
+            return (0, 0) unless ref $data eq 'HASH';
+            $cb->($_) for @{ $data->{data} || [] };
+            $page_token = $data->{pageToken};
+            last if !$page_token || ++$pages >= 2000;
+        }
+        return (1, 200);
+    };
+
+    my %org_code;
+    my (%children, %org_types);
+    my ($ok, $code) = $each_page->('organisations', {}, sub {
+        my ($o) = @_;
+        $org_code{ $o->{id} } = $o->{organisationCode} // '';
+        $add->('school', $o->{organisationCode});
+        $org_types{$_}++ for grep { defined && !ref } @{ ref $o->{schoolTypes} eq 'ARRAY' ? $o->{schoolTypes} : [] };
+        my $pid = ref $o->{parentOrganisation} eq 'HASH' ? $o->{parentOrganisation}{id} : undef;
+        if ($pid && ($o->{organisationCode} // '') ne '') { push @{ $children{$pid} }, $o->{organisationCode}; }
+    });
+    return (0, "could not read organisations (HTTP $code)") unless $ok;
+    $done{$_} = 1 for qw(school school_group);
+    foreach my $pid (keys %children) {
+        $count{school_group}{$pid} = scalar @{ $children{$pid} };
+        $label{school_group}{$pid} = join(', ', sort @{ $children{$pid} });
+    }
+
+    ($ok, $code) = $each_page->('duties', {}, sub {
+        my ($d) = @_;
+        $add->('role', $d->{dutyRole});
+        $add->('assignment_role', $d->{assignmentRole});
+    });
+    if ($ok) { $done{$_} = 1 for qw(role assignment_role) }
+    else { push @notes, ($code == 403 ? 'duties are not available (403)' : "duties could not be read (HTTP $code)") }
+
+    ($ok, $code) = $each_page->('groups', { groupType => 'Klass' }, sub { $add->('class', $_[0]{displayName}) });
+    if ($ok) { $done{class} = 1 } else { push @notes, "classes could not be read (HTTP $code)" }
+
+    my $persons = 0;
+    ($ok, $code) = $each_page->('persons', {}, sub {
+        my ($p) = @_;
+        $persons++;
+        foreach my $e (@{ ref $p->{enrolments} eq 'ARRAY' ? $p->{enrolments} : [] }) {
+            next unless ref $e eq 'HASH' && defined $e->{startDate} && defined $e->{endDate};
+            next unless $e->{startDate} le $today && $today le $e->{endDate};
+            next if $e->{cancelled} && !$ignore_cancelled;
+            $add->('school_type', $e->{schoolType});
+            $add->('school_year', $e->{schoolYear});
+            $add->('education_code', $e->{educationCode});
+        }
+    });
+    if ($ok) {
+        $done{$_} = 1 for qw(school_year education_code school_type);
+    } else {
+        push @notes, "persons could not be read (HTTP $code)";
+        if (%org_types) {
+            $count{school_type} = { %org_types };
+            $done{school_type} = 1;
+        }
+    }
+
+    return (0, 'nothing could be read: ' . join('; ', @notes)) unless %done;
+
+    my $stored = 0;
+    my $own_tx = $dbh->{AutoCommit} ? 1 : 0;
+    my $saved = eval {
+        $dbh->begin_work if $own_tx;
+        foreach my $field (sort keys %done) {
+            $dbh->do("DELETE FROM $seen_values_table WHERE field_name = ?", undef, $field);
+            my @values = sort { $count{$field}{$b} <=> $count{$field}{$a} || $a cmp $b } keys %{ $count{$field} || {} };
+            splice(@values, 1000) if @values > 1000;
+            foreach my $v (@values) {
+                # Values that the database collation treats as equal (case, trailing spaces) are added together
+                $dbh->do("INSERT INTO $seen_values_table (field_name, value, label, seen_count, last_seen) VALUES (?, ?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE seen_count = seen_count + VALUES(seen_count)",
+                         undef, $field, substr($v, 0, 190), (defined $label{$field}{$v} ? substr($label{$field}{$v}, 0, 255) : undef), $count{$field}{$v});
+                $stored++;
+            }
+        }
+        $dbh->commit if $own_tx;
+        1;
+    };
+    unless ($saved) {
+        my $err = $@ || 'unknown error';
+        eval { $dbh->rollback };
+        return (0, "could not store the values: $err");
+    }
+    my $summary = "stored $stored values, $persons persons read";
+    $summary .= '; ' . join('; ', @notes) if @notes;
+    return (1, $summary);
 }
 
 sub decode_json_param {
@@ -1704,6 +2079,19 @@ sub ajax_dispatch {
     my ($self, $op, $cgi) = @_;
 
     my $dbh    = C4::Context->dbh;
+
+    if ($op eq 'ajax-job-status') {
+        return { ok => JSON::true, %{ job_status($dbh) } };
+    }
+    if ($op eq 'ajax-job-request') {
+        return { ok => JSON::false, message => $self->t('The request could not be verified. Reload the page and try again.') }
+            unless $self->verify_csrf($cgi);
+        my $type = $cgi->param('job_type') // '';
+        my $r = request_job($dbh, $type, (($self->{session_data} || {})->{userid} // 'unknown'), 'manual');
+        return { ok => JSON::false, message => $self->t('Unknown job type') } unless $r->{ok};
+        return { ok => JSON::true, id => $r->{id}, already => ($r->{already} ? JSON::true : JSON::false), %{ job_status($dbh) } };
+    }
+
     my $config = $self->get_config_data();
 
     unless ($config->{ist_client_id} && length($config->{ist_client_secret} // '') && $config->{ist_customer_id}) {

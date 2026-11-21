@@ -1180,3 +1180,6 @@ msgstr "En körning pågår redan. Den nya importen startar när den är klar."
 
 msgid "contains"
 msgstr "innehåller"
+
+msgid "The server did not answer as expected"
+msgstr "Servern svarade inte som förväntat"

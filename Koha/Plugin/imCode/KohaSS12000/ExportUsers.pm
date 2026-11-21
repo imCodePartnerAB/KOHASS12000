@@ -936,9 +936,11 @@ sub configure {
     return $self->log_page($session_data) if ($op // '') eq 'log';
     return $self->log_ajax($op)           if ($op // '') =~ /^ajax-log-/;
 
-    if (($op // '') =~ /^ajax-/) {
+    # Koha requires every POST op to start with cud-; the name used by the handler is without it
+    if (($op // '') =~ /^(?:cud-)?ajax-/) {
         $self->{session_data} = $session_data;
-        return $self->configure_ajax($op, $cgi);
+        (my $ajax_op = $op) =~ s/^cud-//;
+        return $self->configure_ajax($ajax_op, $cgi);
     }
 
     my $select_query = qq{SELECT name, value FROM $config_table};
@@ -1611,7 +1613,7 @@ sub job_status {
     my ($now) = eval { $dbh->selectrow_array("SELECT DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i') ") };
     my ($values_at) = eval { $dbh->selectrow_array("SELECT DATE_FORMAT(MAX(last_seen), '%Y-%m-%d %H:%i') FROM $seen_values_table") };
     return {
-        jobs        => [ map { my $j = $_; { map { $_ => (defined $j->{$_} ? "$j->{$_}" : '') } keys %$j } } @$jobs ],
+        jobs        => [ map { my $j = $_; +{ map { $_ => (defined $j->{$_} ? "$j->{$_}" : '') } keys %$j } } @$jobs ],
         tick_seen   => $seen // '',
         tick_age    => defined $age ? $age + 0 : undef,
         server_time => $now // '',

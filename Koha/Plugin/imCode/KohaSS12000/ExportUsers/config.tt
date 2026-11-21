@@ -599,6 +599,7 @@
     data-queued-msg="[% ss('Queued. It starts within a minute.') | html %]"
     data-already-msg="[% ss('A job of this kind is already waiting or running.') | html %]"
     data-need-time="[% ss('Every row in the schedule needs a time') | html %]"
+    data-bad-response="[% ss('The server did not answer as expected') | html %]"
     data-run-active="[% ss('A run is in progress') | html %]"
     data-run-idle="[% ss('No run is in progress') | html %]"
     data-run-last-log="[% ss('latest log row') | html %]"
@@ -1138,12 +1139,16 @@
 
     function requestJob(type) {
         var url = window.location.pathname + "?class=" + encodeURIComponent(form.elements["class"].value)
-            + "&method=" + encodeURIComponent(form.elements["method"].value) + "&op=ajax-job-request";
+            + "&method=" + encodeURIComponent(form.elements["method"].value) + "&op=cud-ajax-job-request";
         var body = new URLSearchParams();
         body.append("job_type", type);
         body.append("csrf_token", form.elements["csrf_token"].value);
         fetch(url, { method: "POST", credentials: "same-origin", headers: { "Accept": "application/json" }, body: body })
-            .then(function (r) { return r.json(); })
+            .then(function (r) {
+                var type_ = r.headers.get("Content-Type") || "";
+                if (type_.indexOf("json") < 0) { throw new Error(msg.badResponse + " (HTTP " + r.status + ")"); }
+                return r.json();
+            })
             .then(function (r) {
                 if (!r.ok) { showMessage(jobMsgBox, "danger", r.message); return; }
                 var busy = type === "import" && r.activity && r.activity.running && !r.already;

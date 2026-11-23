@@ -1022,11 +1022,7 @@ msgstr ""
 msgid "The server did not answer as expected"
 msgstr ""
 
-msgid "A patron who is no longer in the school register (not in IST, or without a valid enrolment) is handled at the end of a complete run. With loans left the patron moves to the category for patrons who have left (below) and the account can expire, so no new loans are made. Without loans the patron is removed after the number of days below (Koha checks first that nothing is owed, and the patron is kept in the list of deleted patrons). Only patrons in the categories below are touched. Start with Report only to see what would happen in the log."
-msgstr ""
 
-msgid "A patron without loans is removed when it has been missing from the register for this many days. 0 removes at once."
-msgstr ""
 
 msgid "A safety limit. What does not fit is handled in the next run."
 msgstr ""
@@ -1037,8 +1033,6 @@ msgstr ""
 msgid "Category of the patron"
 msgstr ""
 
-msgid "Category when the patron has left"
-msgstr ""
 
 msgid "Last run"
 msgstr ""
@@ -1067,8 +1061,6 @@ msgstr ""
 msgid "Patrons who have left were not saved: %s"
 msgstr ""
 
-msgid "Remove after (days)"
-msgstr ""
 
 msgid "Report only (write to the log, change nothing)"
 msgstr ""
@@ -1098,4 +1090,28 @@ msgid "The rules are not used until \"%s\" is ticked"
 msgstr ""
 
 msgid "Import \"%s\" as rules"
+msgstr ""
+
+msgid "A patron who is no longer in the school register (not in IST, or without a valid enrolment) is handled at the end of a complete run, and nobody who has left may stay identifiable for ever. A patron without loans is removed with everything that identifies it. A patron with loans left cannot be removed, so after a time the account is anonymized: only the account and the loans are kept, until the loans are back and the account is removed. In between the patron can sit in a category of your choice. Only patrons in the categories below are touched. Start with Report only to see what would happen in the log."
+msgstr ""
+
+msgid "Remove after (days), no loans left"
+msgstr ""
+
+msgid "A patron without loans is removed, with everything that identifies it (also from Kohas logs and the list of deleted patrons), when it has been missing from the register for this many days. 0 removes at once."
+msgstr ""
+
+msgid "Anonymize after (days), loans left"
+msgstr ""
+
+msgid "A patron with loans left cannot be removed. After this many days all personal data is removed from the account (name, civic number, contact details, class and the traces in the logs) and only the account and the loans are kept. The account is removed when the loans are back. Empty means never."
+msgstr ""
+
+msgid "Category while loans are left"
+msgstr ""
+
+msgid "Category while no loans are left (empty = stays)"
+msgstr ""
+
+msgid "- stays in its category -"
 msgstr ""

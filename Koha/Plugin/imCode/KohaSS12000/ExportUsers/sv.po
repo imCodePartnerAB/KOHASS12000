@@ -1176,11 +1176,7 @@ msgstr "innehåller"
 msgid "The server did not answer as expected"
 msgstr "Servern svarade inte som förväntat"
 
-msgid "A patron who is no longer in the school register (not in IST, or without a valid enrolment) is handled at the end of a complete run. With loans left the patron moves to the category for patrons who have left (below) and the account can expire, so no new loans are made. Without loans the patron is removed after the number of days below (Koha checks first that nothing is owed, and the patron is kept in the list of deleted patrons). Only patrons in the categories below are touched. Start with Report only to see what would happen in the log."
-msgstr "En låntagare som inte längre finns i elevregistret (saknas i IST eller saknar giltig inskrivning) hanteras i slutet av en komplett körning. Med lån kvar flyttas låntagaren till kategorin för de som slutat (nedan) och kontot kan gå ut, så att inga nya lån görs. Utan lån tas låntagaren bort efter antalet dagar nedan (Koha kontrollerar först att inget är skyldigt, och låntagaren sparas i listan över borttagna låntagare). Bara låntagare i kategorierna nedan berörs. Börja med Endast rapport för att se i loggen vad som skulle hända."
 
-msgid "A patron without loans is removed when it has been missing from the register for this many days. 0 removes at once."
-msgstr "En låntagare utan lån tas bort när den saknats i registret så här många dagar. 0 tar bort direkt."
 
 msgid "A safety limit. What does not fit is handled in the next run."
 msgstr "En säkerhetsgräns. Det som inte ryms hanteras i nästa körning."
@@ -1191,8 +1187,6 @@ msgstr "Konto"
 msgid "Category of the patron"
 msgstr "Låntagarens kategori"
 
-msgid "Category when the patron has left"
-msgstr "Kategori när låntagaren har slutat"
 
 msgid "Last run"
 msgstr "Senaste körning"
@@ -1221,8 +1215,6 @@ msgstr "Låntagare som slutat hade ett ogiltigt format och sparades inte"
 msgid "Patrons who have left were not saved: %s"
 msgstr "Låntagare som slutat sparades inte: %s"
 
-msgid "Remove after (days)"
-msgstr "Ta bort efter (dagar)"
 
 msgid "Report only (write to the log, change nothing)"
 msgstr "Endast rapport (skriv till loggen, ändra inget)"
@@ -1253,3 +1245,27 @@ msgstr "Reglerna används inte förrän \"%s\" är ikryssad"
 
 msgid "Import \"%s\" as rules"
 msgstr "Importera \"%s\" som regler"
+
+msgid "A patron who is no longer in the school register (not in IST, or without a valid enrolment) is handled at the end of a complete run, and nobody who has left may stay identifiable for ever. A patron without loans is removed with everything that identifies it. A patron with loans left cannot be removed, so after a time the account is anonymized: only the account and the loans are kept, until the loans are back and the account is removed. In between the patron can sit in a category of your choice. Only patrons in the categories below are touched. Start with Report only to see what would happen in the log."
+msgstr "En låntagare som inte längre finns i elevregistret (saknas i IST eller saknar giltig inskrivning) hanteras i slutet av en komplett körning, och ingen som slutat får vara identifierbar för alltid. En låntagare utan lån tas bort med allt som identifierar den. En låntagare med lån kvar kan inte tas bort, så efter en tid anonymiseras kontot: bara kontot och lånen sparas, tills lånen är tillbaka och kontot tas bort. Däremellan kan låntagaren ligga i en kategori som ni väljer. Bara låntagare i kategorierna nedan berörs. Börja med Endast rapport för att se i loggen vad som skulle hända."
+
+msgid "Remove after (days), no loans left"
+msgstr "Ta bort efter (dagar), inga lån kvar"
+
+msgid "A patron without loans is removed, with everything that identifies it (also from Kohas logs and the list of deleted patrons), when it has been missing from the register for this many days. 0 removes at once."
+msgstr "En låntagare utan lån tas bort, med allt som identifierar den (även ur Kohas loggar och listan över borttagna låntagare), när den har saknats i registret så här många dagar. 0 tar bort direkt."
+
+msgid "Anonymize after (days), loans left"
+msgstr "Anonymisera efter (dagar), lån kvar"
+
+msgid "A patron with loans left cannot be removed. After this many days all personal data is removed from the account (name, civic number, contact details, class and the traces in the logs) and only the account and the loans are kept. The account is removed when the loans are back. Empty means never."
+msgstr "En låntagare med lån kvar kan inte tas bort. Efter så här många dagar tas alla personuppgifter bort från kontot (namn, personnummer, kontaktuppgifter, klass och spåren i loggarna) och bara kontot och lånen sparas. Kontot tas bort när lånen är tillbaka. Tomt betyder aldrig."
+
+msgid "Category while loans are left"
+msgstr "Kategori medan lån finns kvar"
+
+msgid "Category while no loans are left (empty = stays)"
+msgstr "Kategori medan inga lån finns kvar (tomt = ligger kvar)"
+
+msgid "- stays in its category -"
+msgstr "- ligger kvar i sin kategori -"

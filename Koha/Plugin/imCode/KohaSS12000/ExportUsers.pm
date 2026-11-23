@@ -139,14 +139,18 @@ our @rules_ddl = (
         id INT AUTO_INCREMENT PRIMARY KEY,
         from_category VARCHAR(10) NOT NULL,
         to_category VARCHAR(10) NOT NULL,
+        to_noloans VARCHAR(10) DEFAULT NULL,
         UNIQUE KEY unique_from (from_category)
     );},
+    qq{ALTER TABLE $leaver_mapping_table ADD COLUMN IF NOT EXISTS to_noloans VARCHAR(10) DEFAULT NULL;},
     qq{CREATE TABLE IF NOT EXISTS $leavers_table (
         borrowernumber INT NOT NULL PRIMARY KEY,
         first_seen DATETIME NOT NULL,
         reason VARCHAR(40) DEFAULT NULL,
-        previous_category VARCHAR(10) DEFAULT NULL
+        previous_category VARCHAR(10) DEFAULT NULL,
+        anonymized_at DATETIME DEFAULT NULL
     );},
+    qq{ALTER TABLE $leavers_table ADD COLUMN IF NOT EXISTS anonymized_at DATETIME DEFAULT NULL;},
 );
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
@@ -949,7 +953,8 @@ sub configure {
     insertConfigValue($dbh, 'keep_existing_contact', 'No');
     insertConfigValue($dbh, 'use_rules', 'No');
     insertConfigValue($dbh, 'leaver_mode', 'off');
-    insertConfigValue($dbh, 'leaver_delete_days', '7');
+    insertConfigValue($dbh, 'leaver_delete_days', '30');
+    insertConfigValue($dbh, 'leaver_anonymize_days_loans', '300');
     insertConfigValue($dbh, 'leaver_max_changes', '200');
     insertConfigValue($dbh, 'leaver_expire_now', 'Yes');
     ensure_tables($dbh);
@@ -1032,8 +1037,11 @@ sub configure {
         my $schedule_json          = $cgi->param('schedule_json');
         my $leaver_mapping_json    = $cgi->param('leaver_mapping_json');
         my $leaver_mode            = SS12000Leavers::normalize_mode($cgi->param('leaver_mode'));
-        my $leaver_delete_days     = int($cgi->param('leaver_delete_days') // 7);
+        my $leaver_delete_days     = int($cgi->param('leaver_delete_days') // 30);
         $leaver_delete_days = 0 if $leaver_delete_days < 0; $leaver_delete_days = 3650 if $leaver_delete_days > 3650;
+        my $leaver_anon_raw        = $cgi->param('leaver_anonymize_days_loans') // '';
+        $leaver_anon_raw =~ s/^\s+|\s+$//g;
+        my $leaver_anonymize_days_loans = $leaver_anon_raw =~ /^\d+$/ ? ($leaver_anon_raw > 3650 ? 3650 : $leaver_anon_raw + 0) : '';
         my $leaver_max_changes     = int($cgi->param('leaver_max_changes') // 200);
         $leaver_max_changes = 1 if $leaver_max_changes < 1; $leaver_max_changes = 100000 if $leaver_max_changes > 100000;
         my $leaver_expire_now      = $cgi->param('leaver_expire_now') ? 'Yes' : 'No';
@@ -1159,7 +1167,7 @@ sub configure {
             if (ref $raw_map eq 'ARRAY') {
                 my ($rows, $map_errors) = SS12000Leavers::normalize_mapping($raw_map);
                 foreach my $r (@$rows) {
-                    push @$map_errors, $self->t("Unknown Koha category '%s'", $_) for grep { !$valid_category{$_} } ($r->{from}, $r->{to});
+                    push @$map_errors, $self->t("Unknown Koha category '%s'", $_) for grep { defined && !$valid_category{$_} } ($r->{from}, $r->{to}, $r->{to_noloans});
                 }
                 if (@$map_errors) {
                     push @save_errors, $self->t('Patrons who have left were not saved: %s', $_) for @$map_errors;
@@ -1168,7 +1176,7 @@ sub configure {
                         my $own_tx = $dbh->{AutoCommit} ? 1 : 0;
                         $dbh->begin_work if $own_tx;
                         $dbh->do("DELETE FROM $leaver_mapping_table");
-                        $dbh->do("INSERT INTO $leaver_mapping_table (from_category, to_category) VALUES (?, ?)", undef, $_->{from}, $_->{to}) for @$rows;
+                        $dbh->do("INSERT INTO $leaver_mapping_table (from_category, to_category, to_noloans) VALUES (?, ?, ?)", undef, $_->{from}, $_->{to}, $_->{to_noloans}) for @$rows;
                         $dbh->commit if $own_tx;
                         1;
                     };
@@ -1231,6 +1239,7 @@ sub configure {
             $upd2->execute($use_rules,              'use_rules');
             $upd2->execute($leaver_mode,            'leaver_mode');
             $upd2->execute($leaver_delete_days,     'leaver_delete_days');
+            $upd2->execute($leaver_anonymize_days_loans, 'leaver_anonymize_days_loans');
             $upd2->execute($leaver_max_changes,     'leaver_max_changes');
             $upd2->execute($leaver_expire_now,      'leaver_expire_now');
         }
@@ -1472,7 +1481,8 @@ sub configure {
         exclude_dutyrole_empty => (($config_data->{excluding_dutyRole_empty} // 'No') eq 'Yes' ? 1 : 0),
         schedule_json          => json_for_html(load_schedule($dbh)),
         leaver_mode            => SS12000Leavers::normalize_mode($config_data->{leaver_mode}),
-        leaver_delete_days     => int($config_data->{leaver_delete_days} // 7),
+        leaver_delete_days     => int($config_data->{leaver_delete_days} // 30),
+        leaver_anonymize_days_loans => ($config_data->{leaver_anonymize_days_loans} // ''),
         leaver_max_changes     => int($config_data->{leaver_max_changes} || 200),
         leaver_expire_now      => (($config_data->{leaver_expire_now} // 'Yes') eq 'Yes' ? 1 : 0),
         leaver_mapping_json    => json_for_html(leaver_mapping_rows($dbh)),
@@ -1592,8 +1602,8 @@ sub save_rules {
 
 sub leaver_mapping_rows {
     my ($dbh) = @_;
-    my $rows = eval { $dbh->selectall_arrayref("SELECT from_category, to_category FROM $leaver_mapping_table ORDER BY id") } || [];
-    return [ map { +{ from => $_->[0], to => $_->[1] } } @$rows ];
+    my $rows = eval { $dbh->selectall_arrayref("SELECT from_category, to_category, to_noloans FROM $leaver_mapping_table ORDER BY id") } || [];
+    return [ map { +{ from => $_->[0], to => $_->[1], to_noloans => ($_->[2] // '') } } @$rows ];
 }
 
 sub state_get {
@@ -1617,9 +1627,75 @@ sub leaver_candidates {
     return (scalar(@$rows), $rows);
 }
 
-# Patrons who have left: with loans left they move to the "left" category of their category and the account
-# expires; without loans they are removed after leaver_delete_days (Koha's own safe_to_delete decides, the patron
-# is kept in deletedborrowers). Only categories in the mapping are touched. leaver_mode: off | report | apply.
+# Removes everything that identifies a patron outside the patron record itself: Koha's action log (BorrowersLog
+# keeps the whole record), the plugin's change log (the trigger writes old and new values), the rule log and
+# anything left in deletedborrowers.
+sub leaver_purge_traces {
+    my ($dbh, $bn) = @_;
+    $dbh->do("DELETE FROM action_logs WHERE module = 'MEMBERS' AND object = ?", undef, $bn);
+    $dbh->do("DELETE FROM $data_change_log_table WHERE table_name = 'borrowers' AND record_id = ?", undef, $bn);
+    $dbh->do("DELETE FROM $rule_log_table WHERE borrowernumber = ?", undef, $bn);
+    $dbh->do("DELETE FROM deletedborrowers WHERE borrowernumber = ?", undef, $bn);
+    $dbh->do("DELETE FROM message_queue WHERE borrowernumber = ?", undef, $bn);
+    $dbh->do("DELETE FROM borrower_modifications WHERE borrowernumber = ?", undef, $bn);
+}
+
+# Removes a patron through Koha (which refuses open loans, fines and guarantees). The record is NOT copied to
+# deletedborrowers, the checkout history is anonymized and every trace is purged. Returns 1 when removed.
+sub leaver_remove_patron {
+    my ($dbh, $bn, $days, $category) = @_;
+    my $removed = eval {
+        my $patron = Koha::Patrons->find($bn);
+        return 0 unless $patron && $patron->safe_to_delete;
+        $patron->old_checkouts->anonymize;
+        $patron->delete;
+        1;
+    };
+    log_message('Yes', "Leavers: removing patron $bn failed: $@") if $@;
+    return 0 unless $removed;
+    leaver_purge_traces($dbh, $bn);
+    $dbh->do("DELETE FROM $leavers_table WHERE borrowernumber = ?", undef, $bn);
+    $dbh->do("INSERT INTO $data_change_log_table (table_name, record_id, action, change_description) VALUES ('borrowers', ?, 'leaver_deleted', ?)",
+             undef, $bn, "removed after $days days as a leaver, category was $category");
+    return 1;
+}
+
+# Wipes everything personal from a patron that cannot be removed yet (open loans), but keeps the account so the
+# loans can still be followed up: name, contact details, birth date, notes, attributes (civic number, class),
+# card number and the traces in the logs. The user id becomes anon<borrowernumber>.
+sub leaver_anonymize_patron {
+    my ($dbh, $bn, $to_category, $expire) = @_;
+    my %keep = map { $_ => 1 } qw(borrowernumber categorycode branchcode surname userid cardnumber password opacnote dateenrolled dateexpiry
+        date_renewed flags lang login_attempts anonymized auth_method updated_on lastseen debarred debarredcomment checkprevcheckout
+        privacy privacy_guarantor_fines privacy_guarantor_checkouts);
+    my $cols = $dbh->selectall_arrayref("SELECT column_name, is_nullable, data_type FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'borrowers'");
+    my (@set, @vals);
+    foreach my $c (@$cols) {
+        my ($name, $nullable, $type) = @$c;
+        next if $keep{ lc $name };
+        my $null = ($nullable eq 'YES');
+        if    ($type =~ /char|text/)                { push @set, "`$name` = ?"; push @vals, ($null ? undef : '') }
+        elsif ($type =~ /int|dec|float|double/)     { push @set, "`$name` = ?"; push @vals, ($null ? undef : 0) }
+        elsif ($type =~ /date|time/ && $null)       { push @set, "`$name` = NULL" }
+        elsif ($type eq 'enum' && $null)            { push @set, "`$name` = NULL" }
+    }
+    push @set, "surname = 'Anonymiserad'", "userid = ?", "cardnumber = NULL", "password = NULL", "anonymized = 1", "opacnote = ?";
+    push @vals, "anon$bn", "Anonymized by SS12000: plugin $version_info at " . strftime('%Y-%m-%d %H:%M:%S', localtime) . " No update: user no longer in API";
+    if (defined $to_category && $to_category ne '') { push @set, "categorycode = ?"; push @vals, $to_category }
+    push @set, "dateexpiry = IF(dateexpiry IS NULL OR dateexpiry > CURDATE(), CURDATE(), dateexpiry)" if $expire;
+    $dbh->do("UPDATE $borrowers_table SET " . join(', ', @set) . " WHERE borrowernumber = ?", undef, @vals, $bn);
+    $dbh->do("DELETE FROM borrower_attributes WHERE borrowernumber = ?", undef, $bn);
+    eval { my $p = Koha::Patrons->find($bn); $p->old_checkouts->anonymize if $p; 1 } or log_message('Yes', "Leavers: anonymizing the checkout history of $bn failed: $@");
+    leaver_purge_traces($dbh, $bn);
+    $dbh->do("UPDATE $leavers_table SET anonymized_at = NOW() WHERE borrowernumber = ?", undef, $bn);
+    $dbh->do("INSERT INTO $data_change_log_table (table_name, record_id, action, change_description) VALUES ('borrowers', ?, 'leaver_anonymized', 'all personal data removed, the account is kept for the loans that are left')", undef, $bn);
+}
+
+# Patrons who have left. Per category (mapping) they move to a category while loans are left, and to another one
+# (or stay) while they have no loans; the account can expire. Without loans they are removed after
+# leaver_delete_days; with loans left the account is anonymized after leaver_anonymize_days_loans (a patron with
+# open loans cannot be removed) and removed later when the loans are back. Everything personal is removed with
+# the patron. Only categories in the mapping are touched. leaver_mode: off | report | apply.
 sub process_leavers {
     my ($self, $dbh, $config, $only) = @_;    # $only: optional list of borrowernumbers (used by tests)
     my $mode = SS12000Leavers::normalize_mode($config->{leaver_mode});
@@ -1629,12 +1705,15 @@ sub process_leavers {
     $dbh->do(qq{DELETE FROM $leavers_table WHERE borrowernumber IN (
         SELECT borrowernumber FROM $borrowers_table WHERE opacnote LIKE CONCAT('%', CURDATE(), '%') AND opacnote NOT LIKE '%No update%')});
 
-    my %mapping = map { $_->[0] => $_->[1] } @{ $dbh->selectall_arrayref("SELECT from_category, to_category FROM $leaver_mapping_table") || [] };
+    my %mapping = map { $_->[0] => { loans => $_->[1], noloans => $_->[2] } }
+        @{ $dbh->selectall_arrayref("SELECT from_category, to_category, to_noloans FROM $leaver_mapping_table") || [] };
     unless (%mapping) {
         log_message('Yes', 'Leavers: the mapping is empty, nothing to do');
         return;
     }
-    my %opts   = (delete_after_days => int($config->{leaver_delete_days} // 7));
+    my $alimit = $config->{leaver_anonymize_days_loans};
+    my %opts   = (delete_after_days => int($config->{leaver_delete_days} // 30),
+                  anonymize_after_days_loans => (defined $alimit && $alimit =~ /^\d+$/ ? $alimit + 0 : undef));
     my $max    = int($config->{leaver_max_changes} || 200);
     my $expire = (($config->{leaver_expire_now} // 'Yes') eq 'Yes');
     my (undef, $candidates) = leaver_candidates($dbh);
@@ -1645,30 +1724,25 @@ sub process_leavers {
     foreach my $bn (@$candidates) {
         my $b = $dbh->selectrow_hashref("SELECT borrowernumber, categorycode, dateexpiry FROM $borrowers_table WHERE borrowernumber = ?", undef, $bn) or next;
         $dbh->do("INSERT IGNORE INTO $leavers_table (borrowernumber, first_seen, reason, previous_category) VALUES (?, NOW(), 'not in IST', ?)", undef, $bn, $b->{categorycode});
-        my ($days)  = $dbh->selectrow_array("SELECT TIMESTAMPDIFF(DAY, first_seen, NOW()) FROM $leavers_table WHERE borrowernumber = ?", undef, $bn);
+        my ($days, $prev, $anon) = $dbh->selectrow_array("SELECT TIMESTAMPDIFF(DAY, first_seen, NOW()), previous_category, anonymized_at IS NOT NULL FROM $leavers_table WHERE borrowernumber = ?", undef, $bn);
         my ($loans) = $dbh->selectrow_array("SELECT COUNT(*) FROM issues WHERE borrowernumber = ?", undef, $bn);
-        my $d = SS12000Leavers::decide({ category => $b->{categorycode}, has_loans => ($loans ? 1 : 0), days => $days // 0 }, \%mapping, \%opts);
+        my $d = SS12000Leavers::decide({ category => $b->{categorycode}, previous_category => $prev, has_loans => ($loans ? 1 : 0), days => $days // 0, anonymized => ($anon ? 1 : 0) }, \%mapping, \%opts);
         my $action = $d->{action};
+        my $entry  = $mapping{ $prev // $b->{categorycode} } || $mapping{ $b->{categorycode} } || {};
+        my $want   = $loans ? $entry->{loans} : $entry->{noloans};
 
-        if ($mode eq 'apply' && ($action eq 'move' || $action eq 'delete')) {
+        if ($mode eq 'apply' && ($action eq 'move' || $action eq 'delete' || $action eq 'anonymize')) {
             if ($changes >= $max) { $capped = 1; $count{waiting_for_next_run}++; next }
             if ($action eq 'delete') {
-                my $removed = eval {
-                    my $patron = Koha::Patrons->find($bn);
-                    if ($patron && $patron->safe_to_delete) { $patron->move_to_deleted; $patron->delete; 1 } else { 0 }
-                };
-                log_message('Yes', "Leavers: removing patron $bn failed: $@") if $@;
-                if ($removed) {
-                    $dbh->do("DELETE FROM $leavers_table WHERE borrowernumber = ?", undef, $bn);
-                    $dbh->do("INSERT INTO $data_change_log_table (table_name, record_id, action, change_description) VALUES ('borrowers', ?, 'leaver_deleted', ?)",
-                             undef, $bn, "removed: had left the school register for $days days, category was $b->{categorycode}");
-                    $changes++; $count{deleted}++;
-                    next;
-                }
-                # not safe to remove (loans, fines or guarantees): treat it like a leaver with loans
-                my $to = $mapping{ $b->{categorycode} };
-                $action = defined $to ? 'move' : 'keep';
-                $d = { action => $action, to => $to };
+                if (leaver_remove_patron($dbh, $bn, $days, $b->{categorycode})) { $changes++; $count{deleted}++; next }
+                $count{blocked_by_fines_or_guarantees}++;
+                $action = (defined $want && $want ne $b->{categorycode}) ? 'move' : 'keep';
+                $d = { action => $action, to => $want };
+            }
+            if ($action eq 'anonymize') {
+                leaver_anonymize_patron($dbh, $bn, $want, $expire);
+                $changes++; $count{anonymized}++;
+                next;
             }
             if ($action eq 'move') {
                 $dbh->do("UPDATE $borrowers_table SET categorycode = ?" . ($expire ? ", dateexpiry = IF(dateexpiry IS NULL OR dateexpiry > CURDATE(), CURDATE(), dateexpiry)" : '') . " WHERE borrowernumber = ?",
@@ -1679,7 +1753,7 @@ sub process_leavers {
                 next;
             }
         }
-        $count{ $mode eq 'report' && ($action eq 'move' || $action eq 'delete') ? "would_$action" : $action }++;
+        $count{ $mode eq 'report' && $action =~ /^(?:move|delete|anonymize)$/ ? "would_$action" : $action }++;
     }
 
     my $summary = join(', ', map { "$_ $count{$_}" } sort keys %count) || 'no patrons';
@@ -3516,7 +3590,7 @@ sub mark_missing_users_from_api {
                 };
                 $dbh->do($insert_log_query, undef, 
                     $user->{borrowernumber}, 
-                    "User no longer in API (verified) - cardnumber: $user->{cardnumber}"
+                    "User no longer in API (verified)"
                 );
                 
                 # Update opacnote for this user

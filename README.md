@@ -72,13 +72,15 @@ sudo /etc/init.d/cron restart
 - `run_ss12000.sh` accepts an optional instance name as its first argument and then runs only that instance.
 
 **Patrons who have left (new section on the configuration page)**
-- A patron who is no longer in the school register, that is not in IST or without a valid enrolment (the import already marks them with *No update* in the OPAC note), is handled at the end of a complete run:
-  - **With loans left** the patron moves to the category for patrons who have left (a mapping from category to "left" category, for example one per school) and, if ticked, the account expires today, so no new loans can be made.
-  - **Without loans** the patron is removed once it has been missing for the number of days you set (0 removes at once). Koha's own check `safe_to_delete` decides, so a patron with loans, fines or guarantees is never removed, and a removed patron stays in Koha's list of deleted patrons. When the loans have been returned the patron is removed on a later run.
+- A patron who is no longer in the school register, that is not in IST or without a valid enrolment (the import already marks them with *No update* in the OPAC note), is handled at the end of a complete run. Nobody who has left stays identifiable for ever:
+  - **Without loans** the patron is removed after *Remove after (days), no loans left* (default 30; 0 removes at once). Koha's own check `safe_to_delete` decides, so a patron with fines or guarantees is not removed. The record is **not** copied to the list of deleted patrons, the checkout history is anonymized, and everything else that identifies the person is removed: Koha's action log (`BorrowersLog` keeps the whole record), the plugin's change log (its trigger writes old and new values), the rule log, messages in the queue and patron attributes (civic number, class).
+  - **With loans left** the patron cannot be removed (Koha refuses). After *Anonymize after (days), loans left* (default 300; empty means never) all personal data is wiped from the account (name, civic number, contact details, birth date, notes, attributes, card number, and the traces in the logs). Only the account and the loans are kept, with the user id `anon<borrowernumber>`. When the loans are back the account is removed as above.
+  - In between, while the patron is a leaver, it can sit in a category of your choice. The mapping has one row per category with two choices: the category while loans are left, and the category while no loans are left (empty = stays in its category).
   - A patron that is back in IST is handled by the normal import again and stops being a leaver.
-- Only patrons in the categories of the mapping (or in one of the "left" categories) are ever touched, so staff and system accounts are safe, and only patrons the import manages (OPAC note *by SS12000*).
+- Only patrons in the categories of the mapping are ever touched, so staff and system accounts are safe, and only patrons the import manages (OPAC note *by SS12000*).
 - *What to do*: **Nothing (off)** is the default, **Report only** writes what would happen to the plugin log and the line "Last run" without changing anything, **Move and remove** does it. A limit on the number of changes per run keeps a mistake small; what does not fit waits for the next run.
-- Changes are written to the change log with the actions `leaver_moved` and `leaver_deleted`.
+- Changes are written to the change log with the actions `leaver_moved`, `leaver_anonymized` and `leaver_deleted` (without personal data). The change log no longer contains the civic number of a patron who is no longer in IST.
+- Not covered: the plugin log file and the API responses in `imcode_logs` (kept for `logs_limit` days) contain personal data while debug mode is on.
 
 **Rules: new operator**
 - *contains* (text anywhere in the value, case-insensitive) next to *is one of* and *starts with*, for example to catch class names that have a programme code in the middle.

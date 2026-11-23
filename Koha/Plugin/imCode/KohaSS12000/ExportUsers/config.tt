@@ -486,7 +486,7 @@
     <div class="page-section ss12000-section" id="sec-leavers">
         <fieldset class="rows">
             <legend>[% ss('Patrons who have left') %]</legend>
-            <p class="ss12000-help">[% ss('A patron who is no longer in the school register (not in IST, or without a valid enrolment) is handled at the end of a complete run. With loans left the patron moves to the category for patrons who have left (below) and the account can expire, so no new loans are made. Without loans the patron is removed after the number of days below (Koha checks first that nothing is owed, and the patron is kept in the list of deleted patrons). Only patrons in the categories below are touched. Start with Report only to see what would happen in the log.') %]</p>
+            <p class="ss12000-help">[% ss('A patron who is no longer in the school register (not in IST, or without a valid enrolment) is handled at the end of a complete run, and nobody who has left may stay identifiable for ever. A patron without loans is removed with everything that identifies it. A patron with loans left cannot be removed, so after a time the account is anonymized: only the account and the loans are kept, until the loans are back and the account is removed. In between the patron can sit in a category of your choice. Only patrons in the categories below are touched. Start with Report only to see what would happen in the log.') %]</p>
             <ol>
                 <li>
                     <label for="leaver_mode">[% ss('What to do') %]:</label>
@@ -499,10 +499,17 @@
                     </div>
                 </li>
                 <li>
-                    <label for="leaver_delete_days">[% ss('Remove after (days)') %]:</label>
+                    <label for="leaver_delete_days">[% ss('Remove after (days), no loans left') %]:</label>
                     <div class="ss12000-field">
                         <input type="number" name="leaver_delete_days" id="leaver_delete_days" value="[% leaver_delete_days | html %]" min="0" max="3650" style="width: 7em" />
-                        <span class="ss12000-help">[% ss('A patron without loans is removed when it has been missing from the register for this many days. 0 removes at once.') %]</span>
+                        <span class="ss12000-help">[% ss('A patron without loans is removed, with everything that identifies it (also from Kohas logs and the list of deleted patrons), when it has been missing from the register for this many days. 0 removes at once.') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="leaver_anonymize_days_loans">[% ss('Anonymize after (days), loans left') %]:</label>
+                    <div class="ss12000-field">
+                        <input type="number" name="leaver_anonymize_days_loans" id="leaver_anonymize_days_loans" value="[% leaver_anonymize_days_loans | html %]" min="0" max="3650" style="width: 7em" />
+                        <span class="ss12000-help">[% ss('A patron with loans left cannot be removed. After this many days all personal data is removed from the account (name, civic number, contact details, class and the traces in the logs) and only the account and the loans are kept. The account is removed when the loans are back. Empty means never.') %]</span>
                     </div>
                 </li>
                 <li>
@@ -526,7 +533,8 @@
             <table class="ss12000-map" id="leaver-map">
                 <thead><tr>
                     <th>[% ss('Category of the patron') %]</th>
-                    <th>[% ss('Category when the patron has left') %]</th>
+                    <th>[% ss('Category while loans are left') %]</th>
+                    <th>[% ss('Category while no loans are left (empty = stays)') %]</th>
                     <th></th>
                 </tr></thead>
                 <tbody></tbody>
@@ -659,6 +667,7 @@
     data-queued-msg="[% ss('Queued. It starts within a minute.') | html %]"
     data-already-msg="[% ss('A job of this kind is already waiting or running.') | html %]"
     data-need-time="[% ss('Every row in the schedule needs a time') | html %]"
+    data-stays-label="[% ss('- stays in its category -') | html %]"
     data-bad-response="[% ss('The server did not answer as expected') | html %]"
     data-run-active="[% ss('A run is in progress') | html %]"
     data-run-idle="[% ss('No run is in progress') | html %]"
@@ -1240,16 +1249,19 @@
             from.addEventListener("change", function () { row.from = from.value; });
             var to = selectBox(cfg.categories, row.to, msg.noCategory, label, msg.missingInKoha);
             to.addEventListener("change", function () { row.to = to.value; });
+            var toNo = selectBox(cfg.categories, row.to_noloans || "", msg.staysLabel, label, msg.missingInKoha);
+            toNo.addEventListener("change", function () { row.to_noloans = toNo.value; });
             var del = el("button", { type: "button", "class": "btn btn-default btn-xs", title: msg.remove, text: "\u00d7" });
             del.addEventListener("click", function () { leaverRows.splice(leaverRows.indexOf(row), 1); renderLeavers(); });
             tr.appendChild(el("td", {}, [from]));
             tr.appendChild(el("td", {}, [to]));
+            tr.appendChild(el("td", {}, [toNo]));
             tr.appendChild(el("td", {}, [del]));
             leaverBody.appendChild(tr);
         });
     }
     document.getElementById("btn-add-leaver-row").addEventListener("click", function () {
-        leaverRows.push({ from: "", to: "" });
+        leaverRows.push({ from: "", to: "", to_noloans: "" });
         renderLeavers();
     });
 
@@ -1306,7 +1318,7 @@
         if (scheduleRows.some(function (r) { return !r.time; })) { window.alert(msg.needTime); e.preventDefault(); return; }
         document.getElementById("schedule_json").value = JSON.stringify(serializeSchedule());
         document.getElementById("leaver_mapping_json").value = JSON.stringify(
-            leaverRows.filter(function (r) { return r.from || r.to; }).map(function (r) { return { from: r.from, to: r.to }; }));
+            leaverRows.filter(function (r) { return r.from || r.to; }).map(function (r) { return { from: r.from, to: r.to, to_noloans: r.to_noloans || "" }; }));
         var ruleProblem = checkRules();
         if (ruleProblem) { window.alert(ruleProblem); e.preventDefault(); return; }
         document.getElementById("rules_json").value = JSON.stringify(serializeRules());
@@ -1327,7 +1339,7 @@
     scheduleRows = (cfg.schedule || []).map(function (r) { return { weekday: r.weekday, time: r.time, job_type: r.job_type }; });
     renderSchedule();
     renderJobStatus(cfg.jobStatus);
-    leaverRows = (cfg.leaverMapping || []).map(function (r) { return { from: r.from, to: r.to }; });
+    leaverRows = (cfg.leaverMapping || []).map(function (r) { return { from: r.from, to: r.to, to_noloans: r.to_noloans || "" }; });
     renderLeavers();
     if (cfg.hasSecret) { loadOrgs(); }
 })();

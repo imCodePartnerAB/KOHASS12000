@@ -198,7 +198,7 @@ msgstr "Standardvärdet är 3 dagar"
 
 
 msgid "Save"
-msgstr "Spar"
+msgstr "Spara"
 
 
 msgid "Please select values for both Koha Default Categorycode and Koha Default Branchcode"

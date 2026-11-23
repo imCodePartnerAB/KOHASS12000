@@ -46,7 +46,8 @@
     .ss12000-badge.bad { background: #f5b5ae; }
     .ss12000-badge.good { background: #bfe5bf; }
     .ss12000-summary { margin: .4em 0; }
-    .ss12000-actions { position: sticky; bottom: 0; background: #fff; border-top: 1px solid #ccc; padding: .6em 0; z-index: 5; }
+    .ss12000-actions { position: sticky; bottom: 0; background: #fff; border-top: 1px solid #ccc; padding: .6em 0; z-index: 5; display: flex; align-items: center; gap: .8em; }
+    .ss12000-actions .ss12000-actions-right { margin-left: auto; }
     .ss12000-hidden { display: none; }
     .ss12000-code { font-family: monospace; }
     .ss12000-off { opacity: .45; }
@@ -599,18 +600,16 @@
     <div class="ss12000-actions">
         <button type="submit" class="btn btn-primary" id="btn-save"><i class="fa fa-save" aria-hidden="true"></i> [% ss('Save') %]</button>
         <span id="save-hint" class="ss12000-help" style="display:inline"></span>
+        [% IF log_count %]<button type="submit" form="clearLogForm" class="btn btn-default ss12000-actions-right" id="btn-clearlog">[% ss('Set API scanner from the first page') %]</button>[% END %]
     </div>
 </form>
 
 [% IF log_count %]
-<form method="post" action="" id="clearLogForm" class="ss12000-section">
+<form method="post" action="" id="clearLogForm">
     <input type="hidden" name="class" value="[% CLASS | html %]" />
     <input type="hidden" name="method" value="[% METHOD | html %]" />
     <input type="hidden" name="op" value="cud-clearlog-config" />
     <input type="hidden" name="csrf_token" value="[% csrf_token | html %]" />
-    <fieldset class="action">
-        <button type="submit" class="btn btn-default" id="btn-clearlog">[% ss('Set API scanner from the first page') %]</button>
-    </fieldset>
 </form>
 [% END %]
 
@@ -1296,6 +1295,16 @@
     function markDebug() { debugSel.style.color = debugSel.value === "Yes" ? "red" : ""; }
     debugSel.addEventListener("change", markDebug);
     markDebug();
+
+    // The save bar sticks to the bottom of the window, above Koha's fixed language bar
+    var actionsBar = document.querySelector(".ss12000-actions");
+    function placeActions() {
+        var lang = document.getElementById("changelanguage") || document.querySelector(".fixed-bottom");
+        var h = (lang && window.getComputedStyle(lang).position === "fixed") ? lang.offsetHeight : 0;
+        actionsBar.style.bottom = h + "px";
+    }
+    placeActions();
+    window.addEventListener("resize", placeActions);
 
     var clearBtn = document.getElementById("btn-clearlog");
     if (clearBtn) {

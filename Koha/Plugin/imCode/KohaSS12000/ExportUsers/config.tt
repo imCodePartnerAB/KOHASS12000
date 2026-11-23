@@ -455,7 +455,7 @@
     <div class="page-section ss12000-section" id="sec-schedule">
         <fieldset class="rows">
             <legend>[% ss('Schedule and run now') %]</legend>
-            <p class="ss12000-help">[% ss('The import runs on the days and times below (server time). Add one row for every run you want. Without rows nothing is started by the schedule. Run now starts at once, within a minute. Both need the cron job that runs every minute (tick_ss12000.sh).') %]</p>
+            <p class="ss12000-help">[% ss('The import runs on the days and times below (server time). Add one row for every run you want. Without rows nothing is started by the schedule. Run now starts within a minute. Both need that the system administrator has put the minute check (tick_ss12000.sh) in cron. It does not start an import every minute, it only looks if something is due.') %]</p>
             <div id="cron-status"></div>
             <table class="ss12000-map" id="schedule-map">
                 <thead><tr>
@@ -658,9 +658,9 @@
     data-duplicate-priority="[% ss('The same priority is used by more than one rule (the lower rule number is tried first)') | html %]"
     data-import-name="[% ss('From roles mapping') | html %]"
     data-import-empty-role="[% ss('No role (from Exclude empty users, dutyRole)') | html %]"
-    data-cron-never="[% ss('The cron job that runs every minute has not been seen. The schedule and Run now do not start anything until tick_ss12000.sh is in cron.') | html %]"
-    data-cron-late="[% ss('The cron job that runs every minute was last seen') | html %]"
-    data-cron-ok="[% ss('The cron job that runs every minute is working, last seen') | html %]"
+    data-cron-never="[% ss('The schedule is not active. The times and buttons below start nothing until the system administrator has put the minute check (tick_ss12000.sh) in cron.') | html %]"
+    data-cron-late="[% ss('The schedule may not be active right now: the minute check was last seen') | html %]"
+    data-cron-ok="[% ss('The schedule is active: the times below and the buttons Run import now and Fetch values from IST now start runs by themselves. The minute check was last seen') | html %]"
     data-server-time="[% ss('Server time') | html %]"
     data-no-schedule="[% ss('No times yet.') | html %]"
     data-no-jobs="[% ss('No jobs yet.') | html %]"

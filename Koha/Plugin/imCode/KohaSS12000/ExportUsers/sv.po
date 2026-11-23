@@ -1107,17 +1107,9 @@ msgstr "Startad av"
 msgid "Sunday"
 msgstr "Söndag"
 
-msgid "The cron job that runs every minute has not been seen. The schedule and Run now do not start anything until tick_ss12000.sh is in cron."
-msgstr "Cron-jobbet som körs varje minut har inte setts. Schemat och Kör nu startar ingenting förrän tick_ss12000.sh ligger i cron."
 
-msgid "The cron job that runs every minute is working, last seen"
-msgstr "Cron-jobbet som körs varje minut fungerar, senast sett"
 
-msgid "The cron job that runs every minute was last seen"
-msgstr "Cron-jobbet som körs varje minut sågs senast"
 
-msgid "The import runs on the days and times below (server time). Add one row for every run you want. Without rows nothing is started by the schedule. Run now starts at once, within a minute. Both need the cron job that runs every minute (tick_ss12000.sh)."
-msgstr "Importen körs på dagarna och tiderna nedan (servertid). Lägg till en rad för varje körning du vill ha. Utan rader startar schemat ingenting. Kör nu startar direkt, inom en minut. Båda kräver cron-jobbet som körs varje minut (tick_ss12000.sh)."
 
 msgid "The request could not be verified. Reload the page and try again."
 msgstr "Begäran kunde inte verifieras. Ladda om sidan och försök igen."
@@ -1287,3 +1279,15 @@ msgstr "Avbrutet före sista sidan, se loggen"
 
 msgid "stored %s values, %s persons read"
 msgstr "sparade %s värden, %s personer lästa"
+
+msgid "The import runs on the days and times below (server time). Add one row for every run you want. Without rows nothing is started by the schedule. Run now starts within a minute. Both need that the system administrator has put the minute check (tick_ss12000.sh) in cron. It does not start an import every minute, it only looks if something is due."
+msgstr "Importen körs på dagarna och tiderna nedan (servertid). Lägg till en rad för varje körning du vill ha. Utan rader startar schemat ingenting. Kör nu startar inom en minut. Båda kräver att systemadministratören har lagt in minutkontrollen (tick_ss12000.sh) i cron. Den startar ingen import varje minut, den tittar bara om något ska startas."
+
+msgid "The schedule is not active. The times and buttons below start nothing until the system administrator has put the minute check (tick_ss12000.sh) in cron."
+msgstr "Schemaläggningen är inte aktiv. Tiderna och knapparna nedan startar ingenting förrän systemadministratören har lagt in minutkontrollen (tick_ss12000.sh) i cron."
+
+msgid "The schedule may not be active right now: the minute check was last seen"
+msgstr "Schemaläggningen verkar inte vara aktiv just nu: minutkontrollen sågs senast"
+
+msgid "The schedule is active: the times below and the buttons Run import now and Fetch values from IST now start runs by themselves. The minute check was last seen"
+msgstr "Schemaläggningen är aktiv: tiderna nedan och knapparna Kör import nu och Hämta värden från IST nu startar körningar av sig själva. Minutkontrollen sågs senast"

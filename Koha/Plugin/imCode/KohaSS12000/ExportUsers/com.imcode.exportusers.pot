@@ -1115,3 +1115,21 @@ msgstr ""
 
 msgid "- stays in its category -"
 msgstr ""
+
+msgid "Started by hand"
+msgstr ""
+
+msgid "Source"
+msgstr ""
+
+msgid "Stopped: the time limit of 8 hours was reached"
+msgstr ""
+
+msgid "Stopped: configuration error, see the log"
+msgstr ""
+
+msgid "Stopped before the last page, see the log"
+msgstr ""
+
+msgid "stored %s values, %s persons read"
+msgstr ""

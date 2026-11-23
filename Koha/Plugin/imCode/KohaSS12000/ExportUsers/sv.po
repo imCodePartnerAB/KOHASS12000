@@ -1269,3 +1269,21 @@ msgstr "Kategori medan inga lån finns kvar (tomt = ligger kvar)"
 
 msgid "- stays in its category -"
 msgstr "- ligger kvar i sin kategori -"
+
+msgid "Started by hand"
+msgstr "Startat manuellt"
+
+msgid "Source"
+msgstr "Källa"
+
+msgid "Stopped: the time limit of 8 hours was reached"
+msgstr "Avbrutet: tidsgränsen på 8 timmar nåddes"
+
+msgid "Stopped: configuration error, see the log"
+msgstr "Avbrutet: konfigurationsfel, se loggen"
+
+msgid "Stopped before the last page, see the log"
+msgstr "Avbrutet före sista sidan, se loggen"
+
+msgid "stored %s values, %s persons read"
+msgstr "sparade %s värden, %s personer lästa"

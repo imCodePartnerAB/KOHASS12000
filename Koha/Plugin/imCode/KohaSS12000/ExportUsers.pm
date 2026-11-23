@@ -1779,7 +1779,9 @@ sub schedule_meta {
     return {
         weekdays => [ map { { code => $_ + 1, label => $names[$_] } } 0 .. 6 ],
         types    => { import => $self->t('Import of patrons'), discover => $self->t('Fetch values from IST') },
-        sources  => { manual => $self->t('Run now'), schedule => $self->t('Schedule') },
+        sources  => { manual => $self->t('Started by hand'), schedule => $self->t('Schedule') },
+        messages => { 'time-limit-8h' => $self->t('Stopped: the time limit of 8 hours was reached'), 'configuration-error-see-log' => $self->t('Stopped: configuration error, see the log'), 'stopped-before-the-last-page' => $self->t('Stopped before the last page, see the log') },
+        storedFormat => $self->t('stored %s values, %s persons read'),
         states   => { queued => $self->t('Waiting'), running => $self->t('Running'), done => $self->t('Done'), failed => $self->t('Failed') },
     };
 }

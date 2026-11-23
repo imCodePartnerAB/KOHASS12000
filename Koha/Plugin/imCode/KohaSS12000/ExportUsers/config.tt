@@ -476,7 +476,7 @@
             <div id="job-messages"></div>
             <table class="ss12000-map" id="job-list">
                 <thead><tr>
-                    <th>#</th><th>[% ss('Job') %]</th><th>[% ss('Started by') %]</th><th>[% ss('State') %]</th><th>[% ss('Started') %]</th><th>[% ss('Finished') %]</th><th>[% ss('Message') %]</th>
+                    <th>#</th><th>[% ss('Job') %]</th><th>[% ss('Source') %]</th><th>[% ss('Started by') %]</th><th>[% ss('State') %]</th><th>[% ss('Started') %]</th><th>[% ss('Finished') %]</th><th>[% ss('Message') %]</th>
                 </tr></thead>
                 <tbody></tbody>
             </table>
@@ -1187,13 +1187,16 @@
         jobBody.innerHTML = "";
         if (!st.jobs.length) {
             var tr0 = el("tr", {});
-            tr0.appendChild(el("td", { colspan: "7", text: msg.noJobs }));
+            tr0.appendChild(el("td", { colspan: "8", text: msg.noJobs }));
             jobBody.appendChild(tr0);
         }
         st.jobs.forEach(function (j) {
             var tr = el("tr", {});
-            var label = (meta.types[j.job_type] || j.job_type) + " (" + (meta.sources[j.source] || j.source) + ")";
-            [j.id, label, j.requested_by, meta.states[j.status] || j.status, j.started_at, j.finished_at, j.message].forEach(function (v) {
+            var text = j.message || "";
+            var stored = /^stored (\d+) values, (\d+) persons read$/.exec(text);
+            if (stored) { text = meta.storedFormat.replace("%s", stored[1]).replace("%s", stored[2]); }
+            else if (meta.messages[text]) { text = meta.messages[text]; }
+            [j.id, meta.types[j.job_type] || j.job_type, meta.sources[j.source] || j.source, j.requested_by, meta.states[j.status] || j.status, j.started_at, j.finished_at, text].forEach(function (v) {
                 tr.appendChild(el("td", { text: v === undefined || v === null ? "" : String(v) }));
             });
             jobBody.appendChild(tr);
@@ -1208,9 +1211,11 @@
     }
 
     function requestJob(type) {
-        var url = window.location.pathname + "?class=" + encodeURIComponent(form.elements["class"].value)
-            + "&method=" + encodeURIComponent(form.elements["method"].value) + "&op=cud-ajax-job-request";
+        var url = window.location.pathname;
         var body = new URLSearchParams();
+        body.append("class", form.elements["class"].value);
+        body.append("method", form.elements["method"].value);
+        body.append("op", "cud-ajax-job-request");
         body.append("job_type", type);
         body.append("csrf_token", form.elements["csrf_token"].value);
         fetch(url, { method: "POST", credentials: "same-origin", headers: { "Accept": "application/json" }, body: body })

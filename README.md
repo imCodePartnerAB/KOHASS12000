@@ -71,11 +71,20 @@ sudo /etc/init.d/cron restart
 - *Fetch values from IST* reads schools, school types, school years, programmes, classes and roles from IST (no changes in Koha, a few minutes) and stores the values, never personal data, in `imcode_seen_values` for the rule editor.
 - `run_ss12000.sh` accepts an optional instance name as its first argument and then runs only that instance.
 
+**Patrons who have left (new section on the configuration page)**
+- A patron who is no longer in the school register, that is not in IST or without a valid enrolment (the import already marks them with *No update* in the OPAC note), is handled at the end of a complete run:
+  - **With loans left** the patron moves to the category for patrons who have left (a mapping from category to "left" category, for example one per school) and, if ticked, the account expires today, so no new loans can be made.
+  - **Without loans** the patron is removed once it has been missing for the number of days you set (0 removes at once). Koha's own check `safe_to_delete` decides, so a patron with loans, fines or guarantees is never removed, and a removed patron stays in Koha's list of deleted patrons. When the loans have been returned the patron is removed on a later run.
+  - A patron that is back in IST is handled by the normal import again and stops being a leaver.
+- Only patrons in the categories of the mapping (or in one of the "left" categories) are ever touched, so staff and system accounts are safe, and only patrons the import manages (OPAC note *by SS12000*).
+- *What to do*: **Nothing (off)** is the default, **Report only** writes what would happen to the plugin log and the line "Last run" without changing anything, **Move and remove** does it. A limit on the number of changes per run keeps a mistake small; what does not fit waits for the next run.
+- Changes are written to the change log with the actions `leaver_moved` and `leaver_deleted`.
+
 **Rules: new operator**
 - *contains* (text anywhere in the value, case-insensitive) next to *is one of* and *starts with*, for example to catch class names that have a programme code in the middle.
 
 **Upgrade**
-- Version 2.0 creates the tables `imcode_rules`, `imcode_rule_log`, `imcode_schedule`, `imcode_jobs`, `imcode_state` and `imcode_seen_values` (also when upgrading from 1.90 or 1.91, and the configuration page and the cron job create any that are missing). The new setting `use_rules` defaults to `No`.
+- Version 2.0 creates the tables `imcode_rules`, `imcode_rule_log`, `imcode_schedule`, `imcode_jobs`, `imcode_state`, `imcode_seen_values`, `imcode_leaver_mapping` and `imcode_leavers` (also when upgrading from 1.90 or 1.91, and the configuration page and the cron job create any that are missing). The new setting `use_rules` defaults to `No`.
 
 # KohaSS12000 › What is new in 1.91
 

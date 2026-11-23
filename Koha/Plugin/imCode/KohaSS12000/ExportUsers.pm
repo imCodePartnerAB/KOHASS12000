@@ -47,6 +47,9 @@ use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Rules ();
 BEGIN { *SS12000Rules:: = \%Koha::Plugin::imCode::KohaSS12000::ExportUsers::Rules::; }
 use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Schedule ();
 BEGIN { *SS12000Schedule:: = \%Koha::Plugin::imCode::KohaSS12000::ExportUsers::Schedule::; }
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Leavers ();
+BEGIN { *SS12000Leavers:: = \%Koha::Plugin::imCode::KohaSS12000::ExportUsers::Leavers::; }
+use Koha::Patrons;
 
 use File::Basename;
 
@@ -68,6 +71,8 @@ our $schedule_table           = 'imcode_schedule';
 our $jobs_table               = 'imcode_jobs';
 our $state_table              = 'imcode_state';
 our $seen_values_table        = 'imcode_seen_values';
+our $leaver_mapping_table     = 'imcode_leaver_mapping';
+our $leavers_table            = 'imcode_leavers';
 our @rules_ddl = (
     qq{CREATE TABLE IF NOT EXISTS $rules_table (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -129,6 +134,18 @@ our @rules_ddl = (
         seen_count INT NOT NULL DEFAULT 0,
         last_seen DATETIME NOT NULL,
         PRIMARY KEY (field_name, value)
+    );},
+    qq{CREATE TABLE IF NOT EXISTS $leaver_mapping_table (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        from_category VARCHAR(10) NOT NULL,
+        to_category VARCHAR(10) NOT NULL,
+        UNIQUE KEY unique_from (from_category)
+    );},
+    qq{CREATE TABLE IF NOT EXISTS $leavers_table (
+        borrowernumber INT NOT NULL PRIMARY KEY,
+        first_seen DATETIME NOT NULL,
+        reason VARCHAR(40) DEFAULT NULL,
+        previous_category VARCHAR(10) DEFAULT NULL
     );},
 );
 our $added_count      = 0; # to count added
@@ -739,7 +756,7 @@ sub uninstall {
 
     my $dbh = C4::Context->dbh;
 
-    my @tables_to_delete = ($config_table, $logs_table, $data_change_log_table, $categories_mapping_table, $branches_mapping_table, $rules_table, $rule_log_table, $schedule_table, $jobs_table, $state_table, $seen_values_table); 
+    my @tables_to_delete = ($config_table, $logs_table, $data_change_log_table, $categories_mapping_table, $branches_mapping_table, $rules_table, $rule_log_table, $schedule_table, $jobs_table, $state_table, $seen_values_table, $leaver_mapping_table, $leavers_table); 
 
     eval {
         foreach my $table (@tables_to_delete) {
@@ -931,6 +948,10 @@ sub configure {
     insertConfigValue($dbh, 'keep_existing_category', 'No');
     insertConfigValue($dbh, 'keep_existing_contact', 'No');
     insertConfigValue($dbh, 'use_rules', 'No');
+    insertConfigValue($dbh, 'leaver_mode', 'off');
+    insertConfigValue($dbh, 'leaver_delete_days', '7');
+    insertConfigValue($dbh, 'leaver_max_changes', '200');
+    insertConfigValue($dbh, 'leaver_expire_now', 'Yes');
     ensure_tables($dbh);
 
     return $self->log_page($session_data) if ($op // '') eq 'log';
@@ -1009,6 +1030,13 @@ sub configure {
         my $category_mappings_json = $cgi->param('category_mappings_json');
         my $rules_json             = $cgi->param('rules_json');
         my $schedule_json          = $cgi->param('schedule_json');
+        my $leaver_mapping_json    = $cgi->param('leaver_mapping_json');
+        my $leaver_mode            = SS12000Leavers::normalize_mode($cgi->param('leaver_mode'));
+        my $leaver_delete_days     = int($cgi->param('leaver_delete_days') // 7);
+        $leaver_delete_days = 0 if $leaver_delete_days < 0; $leaver_delete_days = 3650 if $leaver_delete_days > 3650;
+        my $leaver_max_changes     = int($cgi->param('leaver_max_changes') // 200);
+        $leaver_max_changes = 1 if $leaver_max_changes < 1; $leaver_max_changes = 100000 if $leaver_max_changes > 100000;
+        my $leaver_expire_now      = $cgi->param('leaver_expire_now') ? 'Yes' : 'No';
 
         my @match_methods        = grep { /^(?:attribute|userid|cardnumber)$/ } $cgi->multi_param('match_methods');
         my $civic_attribute_code = $cgi->param('civic_attribute_code') // '';
@@ -1125,6 +1153,32 @@ sub configure {
             }
         }
 
+        # Which category a patron who has left moves to; saved as one list, all or nothing
+        if (defined $leaver_mapping_json && $leaver_mapping_json ne '') {
+            my $raw_map = eval { decode_json_param($leaver_mapping_json) };
+            if (ref $raw_map eq 'ARRAY') {
+                my ($rows, $map_errors) = SS12000Leavers::normalize_mapping($raw_map);
+                foreach my $r (@$rows) {
+                    push @$map_errors, $self->t("Unknown Koha category '%s'", $_) for grep { !$valid_category{$_} } ($r->{from}, $r->{to});
+                }
+                if (@$map_errors) {
+                    push @save_errors, $self->t('Patrons who have left were not saved: %s', $_) for @$map_errors;
+                } else {
+                    my $ok = eval {
+                        my $own_tx = $dbh->{AutoCommit} ? 1 : 0;
+                        $dbh->begin_work if $own_tx;
+                        $dbh->do("DELETE FROM $leaver_mapping_table");
+                        $dbh->do("INSERT INTO $leaver_mapping_table (from_category, to_category) VALUES (?, ?)", undef, $_->{from}, $_->{to}) for @$rows;
+                        $dbh->commit if $own_tx;
+                        1;
+                    };
+                    unless ($ok) { my $e = $@; eval { $dbh->rollback }; push @save_errors, $self->t('Patrons who have left could not be saved: %s', $e) }
+                }
+            } else {
+                push @save_errors, $self->t('Patrons who have left had an invalid format and were not saved');
+            }
+        }
+
         # The run schedule is saved as one list; if any row is invalid nothing is changed
         if (defined $schedule_json && $schedule_json ne '') {
             my $raw_schedule = eval { decode_json_param($schedule_json) };
@@ -1175,6 +1229,10 @@ sub configure {
             $upd2->execute($keep_existing_category, 'keep_existing_category');
             $upd2->execute($keep_existing_contact,  'keep_existing_contact');
             $upd2->execute($use_rules,              'use_rules');
+            $upd2->execute($leaver_mode,            'leaver_mode');
+            $upd2->execute($leaver_delete_days,     'leaver_delete_days');
+            $upd2->execute($leaver_max_changes,     'leaver_max_changes');
+            $upd2->execute($leaver_expire_now,      'leaver_expire_now');
         }
         $template->param(error => join('; ', @save_errors)) if @save_errors;
 
@@ -1413,6 +1471,13 @@ sub configure {
         rule_meta_json         => json_for_html($self->rule_meta),
         exclude_dutyrole_empty => (($config_data->{excluding_dutyRole_empty} // 'No') eq 'Yes' ? 1 : 0),
         schedule_json          => json_for_html(load_schedule($dbh)),
+        leaver_mode            => SS12000Leavers::normalize_mode($config_data->{leaver_mode}),
+        leaver_delete_days     => int($config_data->{leaver_delete_days} // 7),
+        leaver_max_changes     => int($config_data->{leaver_max_changes} || 200),
+        leaver_expire_now      => (($config_data->{leaver_expire_now} // 'Yes') eq 'Yes' ? 1 : 0),
+        leaver_mapping_json    => json_for_html(leaver_mapping_rows($dbh)),
+        leaver_last            => (eval { (state_get($dbh, 'leavers_last'))[0] } // ''),
+        leaver_waiting         => scalar(eval { (leaver_candidates($dbh))[0] } // 0),
         schedule_meta_json     => json_for_html($self->schedule_meta),
         jobs_json              => json_for_html(job_status($dbh)),
         client_id     => $config_data->{ist_client_id} || '',
@@ -1523,6 +1588,105 @@ sub save_rules {
     my $err = $@ || 'unknown error';
     eval { $dbh->rollback };
     return $err;
+}
+
+sub leaver_mapping_rows {
+    my ($dbh) = @_;
+    my $rows = eval { $dbh->selectall_arrayref("SELECT from_category, to_category FROM $leaver_mapping_table ORDER BY id") } || [];
+    return [ map { +{ from => $_->[0], to => $_->[1] } } @$rows ];
+}
+
+sub state_get {
+    my ($dbh, $name) = @_;
+    return $dbh->selectrow_array("SELECT value, updated_at FROM $state_table WHERE name = ?", undef, $name);
+}
+
+# Patrons that the import has marked as no longer in the school register: not in IST, or without a valid
+# enrolment (the notes are written by the import and by mark_missing_users_from_api)
+my $LEAVER_NOTE_SQL = q{b.opacnote LIKE '%by SS12000:%' AND (
+        b.opacnote LIKE '%No update: user no longer in API%'
+     OR b.opacnote LIKE '%No update: enrolment cancelled%'
+     OR b.opacnote LIKE '%No update: dateexpiry exceeded%'
+     OR b.opacnote LIKE '%No update: no valid enrolment%'
+     OR b.opacnote LIKE '%No update: no enrolments in API%')};
+
+# Returns (count, \@borrowernumbers) of patrons waiting to be handled
+sub leaver_candidates {
+    my ($dbh) = @_;
+    my $rows = $dbh->selectcol_arrayref("SELECT b.borrowernumber FROM $borrowers_table b WHERE $LEAVER_NOTE_SQL ORDER BY b.borrowernumber") || [];
+    return (scalar(@$rows), $rows);
+}
+
+# Patrons who have left: with loans left they move to the "left" category of their category and the account
+# expires; without loans they are removed after leaver_delete_days (Koha's own safe_to_delete decides, the patron
+# is kept in deletedborrowers). Only categories in the mapping are touched. leaver_mode: off | report | apply.
+sub process_leavers {
+    my ($self, $dbh, $config, $only) = @_;    # $only: optional list of borrowernumbers (used by tests)
+    my $mode = SS12000Leavers::normalize_mode($config->{leaver_mode});
+    return if $mode eq 'off';
+
+    # Patrons who are back in the register (touched by today's import without "No update") are no longer leavers
+    $dbh->do(qq{DELETE FROM $leavers_table WHERE borrowernumber IN (
+        SELECT borrowernumber FROM $borrowers_table WHERE opacnote LIKE CONCAT('%', CURDATE(), '%') AND opacnote NOT LIKE '%No update%')});
+
+    my %mapping = map { $_->[0] => $_->[1] } @{ $dbh->selectall_arrayref("SELECT from_category, to_category FROM $leaver_mapping_table") || [] };
+    unless (%mapping) {
+        log_message('Yes', 'Leavers: the mapping is empty, nothing to do');
+        return;
+    }
+    my %opts   = (delete_after_days => int($config->{leaver_delete_days} // 7));
+    my $max    = int($config->{leaver_max_changes} || 200);
+    my $expire = (($config->{leaver_expire_now} // 'Yes') eq 'Yes');
+    my (undef, $candidates) = leaver_candidates($dbh);
+    if ($only) { my %want = map { $_ => 1 } @$only; $candidates = [ grep { $want{$_} } @$candidates ]; }
+
+    my (%count, $changes, $capped);
+    $changes = 0;
+    foreach my $bn (@$candidates) {
+        my $b = $dbh->selectrow_hashref("SELECT borrowernumber, categorycode, dateexpiry FROM $borrowers_table WHERE borrowernumber = ?", undef, $bn) or next;
+        $dbh->do("INSERT IGNORE INTO $leavers_table (borrowernumber, first_seen, reason, previous_category) VALUES (?, NOW(), 'not in IST', ?)", undef, $bn, $b->{categorycode});
+        my ($days)  = $dbh->selectrow_array("SELECT TIMESTAMPDIFF(DAY, first_seen, NOW()) FROM $leavers_table WHERE borrowernumber = ?", undef, $bn);
+        my ($loans) = $dbh->selectrow_array("SELECT COUNT(*) FROM issues WHERE borrowernumber = ?", undef, $bn);
+        my $d = SS12000Leavers::decide({ category => $b->{categorycode}, has_loans => ($loans ? 1 : 0), days => $days // 0 }, \%mapping, \%opts);
+        my $action = $d->{action};
+
+        if ($mode eq 'apply' && ($action eq 'move' || $action eq 'delete')) {
+            if ($changes >= $max) { $capped = 1; $count{waiting_for_next_run}++; next }
+            if ($action eq 'delete') {
+                my $removed = eval {
+                    my $patron = Koha::Patrons->find($bn);
+                    if ($patron && $patron->safe_to_delete) { $patron->move_to_deleted; $patron->delete; 1 } else { 0 }
+                };
+                log_message('Yes', "Leavers: removing patron $bn failed: $@") if $@;
+                if ($removed) {
+                    $dbh->do("DELETE FROM $leavers_table WHERE borrowernumber = ?", undef, $bn);
+                    $dbh->do("INSERT INTO $data_change_log_table (table_name, record_id, action, change_description) VALUES ('borrowers', ?, 'leaver_deleted', ?)",
+                             undef, $bn, "removed: had left the school register for $days days, category was $b->{categorycode}");
+                    $changes++; $count{deleted}++;
+                    next;
+                }
+                # not safe to remove (loans, fines or guarantees): treat it like a leaver with loans
+                my $to = $mapping{ $b->{categorycode} };
+                $action = defined $to ? 'move' : 'keep';
+                $d = { action => $action, to => $to };
+            }
+            if ($action eq 'move') {
+                $dbh->do("UPDATE $borrowers_table SET categorycode = ?" . ($expire ? ", dateexpiry = IF(dateexpiry IS NULL OR dateexpiry > CURDATE(), CURDATE(), dateexpiry)" : '') . " WHERE borrowernumber = ?",
+                         undef, $d->{to}, $bn);
+                $dbh->do("INSERT INTO $data_change_log_table (table_name, record_id, action, change_description) VALUES ('borrowers', ?, 'leaver_moved', ?)",
+                         undef, $bn, "left the school register: category $b->{categorycode} to $d->{to}" . ($loans ? ", $loans loan(s) left" : '') . ($expire ? ', account expires' : ''));
+                $changes++; $count{moved}++;
+                next;
+            }
+        }
+        $count{ $mode eq 'report' && ($action eq 'move' || $action eq 'delete') ? "would_$action" : $action }++;
+    }
+
+    my $summary = join(', ', map { "$_ $count{$_}" } sort keys %count) || 'no patrons';
+    $summary .= ' (limit per run reached)' if $capped;
+    my $line = strftime('%Y-%m-%d %H:%M', localtime) . " $mode: $summary";
+    state_set($dbh, 'leavers_last', substr($line, 0, 255));
+    log_message('Yes', "Leavers ($mode): $summary");
 }
 
 # POST with a valid CSRF token for the current session
@@ -3382,6 +3546,8 @@ sub mark_missing_users_from_api {
     if ($@) {
         log_message('Yes', "Error marking missing users: $@");
     }
+
+    eval { $self->process_leavers($dbh, $config_data); 1 } or log_message('Yes', "Error handling patrons who have left: $@");
 }
 
 sub fetchDataFromAPI {

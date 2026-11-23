@@ -492,8 +492,6 @@ msgstr "skapas automatiskt"
 msgid "Patron attribute type where the class (for example 9A) is stored. The type CL is created automatically if it does not exist. Any other type must already exist."
 msgstr "Låntagarattributtyp där klassen (till exempel 9A) sparas. Typen CL skapas automatiskt om den saknas. Alla andra typer måste redan finnas."
 
-msgid "Used for everyone who does not get a category from the roles mapping, normally all students."
-msgstr "Används för alla som inte får en kategori från rollmappningen, normalt alla elever."
 
 msgid "- none (skip schools without mapping) -"
 msgstr "- ingen (hoppa över skolor utan mappning) -"
@@ -899,17 +897,11 @@ msgstr "En regel har ett eller flera villkor och en åtgärd: en Koha-kategori, 
 msgid "Use rules"
 msgstr "Använd regler"
 
-msgid "Decide the patron category with the rules below instead of the roles mapping"
-msgstr "Avgör låntagarens kategori med reglerna nedan i stället för rollmappningen"
 
-msgid "When this is not ticked the rules are ignored and the roles mapping works as before. When ticked, the roles mapping and \"Exclude empty users, dutyRole\" are not used; use a rule with the condition role is empty instead."
-msgstr "När rutan inte är ikryssad ignoreras reglerna och rollmappningen fungerar som tidigare. När den är ikryssad används varken rollmappningen eller \"Exclude empty users, dutyRole\"; använd i stället en regel med villkoret roll är tom."
 
 msgid "Add rule"
 msgstr "Lägg till regel"
 
-msgid "Import roles mapping as rules"
-msgstr "Importera rollmappningen som regler"
 
 msgid "Add condition"
 msgstr "Lägg till villkor"
@@ -1183,3 +1175,81 @@ msgstr "innehåller"
 
 msgid "The server did not answer as expected"
 msgstr "Servern svarade inte som förväntat"
+
+msgid "A patron who is no longer in the school register (not in IST, or without a valid enrolment) is handled at the end of a complete run. With loans left the patron moves to the category for patrons who have left (below) and the account can expire, so no new loans are made. Without loans the patron is removed after the number of days below (Koha checks first that nothing is owed, and the patron is kept in the list of deleted patrons). Only patrons in the categories below are touched. Start with Report only to see what would happen in the log."
+msgstr "En låntagare som inte längre finns i elevregistret (saknas i IST eller saknar giltig inskrivning) hanteras i slutet av en komplett körning. Med lån kvar flyttas låntagaren till kategorin för de som slutat (nedan) och kontot kan gå ut, så att inga nya lån görs. Utan lån tas låntagaren bort efter antalet dagar nedan (Koha kontrollerar först att inget är skyldigt, och låntagaren sparas i listan över borttagna låntagare). Bara låntagare i kategorierna nedan berörs. Börja med Endast rapport för att se i loggen vad som skulle hända."
+
+msgid "A patron without loans is removed when it has been missing from the register for this many days. 0 removes at once."
+msgstr "En låntagare utan lån tas bort när den saknats i registret så här många dagar. 0 tar bort direkt."
+
+msgid "A safety limit. What does not fit is handled in the next run."
+msgstr "En säkerhetsgräns. Det som inte ryms hanteras i nästa körning."
+
+msgid "Account"
+msgstr "Konto"
+
+msgid "Category of the patron"
+msgstr "Låntagarens kategori"
+
+msgid "Category when the patron has left"
+msgstr "Kategori när låntagaren har slutat"
+
+msgid "Last run"
+msgstr "Senaste körning"
+
+msgid "Let the account expire today when the patron is moved"
+msgstr "Låt kontot gå ut idag när låntagaren flyttas"
+
+msgid "Most changes per run"
+msgstr "Flest ändringar per körning"
+
+msgid "Move and remove"
+msgstr "Flytta och ta bort"
+
+msgid "Nothing (off)"
+msgstr "Ingenting (av)"
+
+msgid "Patrons who have left"
+msgstr "Låntagare som slutat"
+
+msgid "Patrons who have left could not be saved: %s"
+msgstr "Låntagare som slutat kunde inte sparas: %s"
+
+msgid "Patrons who have left had an invalid format and were not saved"
+msgstr "Låntagare som slutat hade ett ogiltigt format och sparades inte"
+
+msgid "Patrons who have left were not saved: %s"
+msgstr "Låntagare som slutat sparades inte: %s"
+
+msgid "Remove after (days)"
+msgstr "Ta bort efter (dagar)"
+
+msgid "Report only (write to the log, change nothing)"
+msgstr "Endast rapport (skriv till loggen, ändra inget)"
+
+msgid "Unknown Koha category '%s'"
+msgstr "Okänd Koha-kategori '%s'"
+
+msgid "Waiting to be handled"
+msgstr "Väntar på att hanteras"
+
+msgid "What to do"
+msgstr "Vad ska göras"
+
+msgid "Used for everyone who does not get a category from the rules or from the mapping \"%s\"."
+msgstr "Används för alla som inte får en kategori av reglerna eller av \"%s\"."
+
+msgid "Not used while \"%s\" is ticked"
+msgstr "Används inte när \"%s\" är ikryssad"
+
+msgid "Decide the patron category with the rules below instead of the mapping \"%s\""
+msgstr "Avgör låntagarens kategori med reglerna nedan i stället för \"%s\""
+
+msgid "When this is not ticked the rules are ignored and \"%s\" works as before. When ticked, \"%s\" and the setting \"%s\" are not used (they are greyed out); use a rule with the condition role is empty instead."
+msgstr "När rutan inte är ikryssad ignoreras reglerna och \"%s\" fungerar som tidigare. När den är ikryssad används varken \"%s\" eller inställningen \"%s\" (de är utgråade); använd i stället en regel med villkoret roll är tom."
+
+msgid "The rules are not used until \"%s\" is ticked"
+msgstr "Reglerna används inte förrän \"%s\" är ikryssad"
+
+msgid "Import \"%s\" as rules"
+msgstr "Importera \"%s\" som regler"

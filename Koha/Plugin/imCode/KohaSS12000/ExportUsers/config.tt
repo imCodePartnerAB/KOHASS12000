@@ -49,6 +49,10 @@
     .ss12000-actions { position: sticky; bottom: 0; background: #fff; border-top: 1px solid #ccc; padding: .6em 0; z-index: 5; }
     .ss12000-hidden { display: none; }
     .ss12000-code { font-family: monospace; }
+    .ss12000-off { opacity: .45; }
+    .ss12000-off-note { display: none; font-weight: bold; color: #8a6d3b; margin: .3em 0; }
+    .ss12000-off > .ss12000-off-note, .ss12000-off .ss12000-off-note { display: block; }
+    .ss12000-dim { opacity: .6; }
     .ss12000-rule { border: 1px solid #d5d5d5; border-radius: .4em; padding: .6em .8em; margin: .6em 0; background: #fafafa; max-width: 70em; }
     .ss12000-rule.is-off { opacity: .6; }
     .ss12000-rule-head, .ss12000-rule-action, .ss12000-cond { display: flex; gap: .6em; align-items: center; flex-wrap: wrap; margin: .3em 0; }
@@ -101,6 +105,7 @@
     <li><a href="#sec-categories">[% ss('Categories mapping') %]</a></li>
     <li><a href="#sec-catrules">[% ss('Category rules') %]</a></li>
     <li><a href="#sec-schedule">[% ss('Schedule and run now') %]</a></li>
+    <li><a href="#sec-leavers">[% ss('Patrons who have left') %]</a></li>
     <li><a href="#sec-advanced">[% ss('Advanced') %]</a></li>
     <li><a href="/cgi-bin/koha/plugins/run.pl?class=[% CLASS | uri %]&amp;method=[% METHOD | uri %]&amp;op=log"><i class="fa fa-list" aria-hidden="true"></i> [% ss('SS12000 log') %]</a></li>
 </ul>
@@ -114,6 +119,7 @@
     <input type="hidden" name="category_mappings_json" id="category_mappings_json" value="" />
     <input type="hidden" name="rules_json" id="rules_json" value="" />
     <input type="hidden" name="schedule_json" id="schedule_json" value="" />
+    <input type="hidden" name="leaver_mapping_json" id="leaver_mapping_json" value="" />
 
     <div class="page-section ss12000-section" id="sec-about">
         <a class="ss12000-about-logo" href="https://imcode.com" target="_blank" rel="noopener"><img src="[% logo_data_uri | html %]" alt="imCode" /></a>
@@ -280,7 +286,7 @@
                             <option value="[% c.code | html %]" [% IF c.code == koha_default_categorycode %]selected="selected"[% END %]>[% c.code | html %][% IF c.name %] - [% c.name | html %][% END %]</option>
                         [% END %]
                     </select>
-                    <span class="ss12000-help">[% ss('Used for everyone who does not get a category from the roles mapping, normally all students.') %] [% ss('When you change a parameter, it will be changed for all existing users in the next data update cycle') %].</span>
+                    <span class="ss12000-help">[% ss('Used for everyone who does not get a category from the rules or from the mapping "%s".', ss('Categories mapping')) %] [% ss('When you change a parameter, it will be changed for all existing users in the next data update cycle') %].</span>
                     </div>
                 </li>
                 <li>
@@ -331,7 +337,7 @@
                     <span class="ss12000-help">[% ss('Excluding all users that does not have enrolments') %]</span>
                     </div>
                 </li>
-                <li>
+                <li id="li-excl-dutyrole">
                     <label for="excluding_dutyRole_empty">[% ss('Exclude empty users, dutyRole') %]:</label>
                     <div class="ss12000-field">
                     <select name="excluding_dutyRole_empty" id="excluding_dutyRole_empty">
@@ -340,6 +346,7 @@
                         [% END %]
                     </select>
                     <span class="ss12000-help">[% ss('Excluding all users that does not have dutyRole') %]</span>
+                    <span class="ss12000-off-note">[% ss('Not used while "%s" is ticked', ss('Use rules')) %]</span>
                     </div>
                 </li>
                 <li>
@@ -402,6 +409,7 @@
     <div class="page-section ss12000-section" id="sec-categories">
         <fieldset class="rows">
             <legend>[% ss('Categories mapping') %]</legend>
+            <p class="ss12000-off-note">[% ss('Not used while "%s" is ticked', ss('Use rules')) %]</p>
             <p class="ss12000-help">[% ss('Connects a role (dutyRole, for example Lärare) in IST to a Koha patron category. Only roles that are in the mapping get that category; everyone else gets the default category.') %]</p>
             <div class="ss12000-inline">
                 <button type="button" class="btn btn-default" id="btn-load-roles"><i class="fa fa-cloud-download" aria-hidden="true"></i> [% ss('Load roles from IST') %]</button>
@@ -429,15 +437,16 @@
                 <li>
                     <label for="use_rules">[% ss('Use rules') %]:</label>
                     <div class="ss12000-field">
-                        <label><input type="checkbox" id="use_rules" name="use_rules" value="1" [% IF use_rules %]checked="checked"[% END %] /> [% ss('Decide the patron category with the rules below instead of the roles mapping') %]</label>
-                        <span class="ss12000-help">[% ss('When this is not ticked the rules are ignored and the roles mapping works as before. When ticked, the roles mapping and "Exclude empty users, dutyRole" are not used; use a rule with the condition role is empty instead.') %]</span>
+                        <label><input type="checkbox" id="use_rules" name="use_rules" value="1" [% IF use_rules %]checked="checked"[% END %] /> [% ss('Decide the patron category with the rules below instead of the mapping "%s"', ss('Categories mapping')) %]</label>
+                        <span class="ss12000-help">[% ss('When this is not ticked the rules are ignored and "%s" works as before. When ticked, "%s" and the setting "%s" are not used (they are greyed out); use a rule with the condition role is empty instead.', ss('Categories mapping'), ss('Categories mapping'), ss('Exclude empty users, dutyRole')) %]</span>
                     </div>
                 </li>
             </ol>
-            <div class="ss12000-inline">
+            <div class="ss12000-inline" id="rule-buttons">
                 <button type="button" class="btn btn-default" id="btn-add-rule"><i class="fa fa-plus" aria-hidden="true"></i> [% ss('Add rule') %]</button>
-                <button type="button" class="btn btn-default" id="btn-import-roles"><i class="fa fa-level-down" aria-hidden="true"></i> [% ss('Import roles mapping as rules') %]</button>
+                <button type="button" class="btn btn-default" id="btn-import-roles"><i class="fa fa-level-down" aria-hidden="true"></i> [% ss('Import "%s" as rules', ss('Categories mapping')) %]</button>
             </div>
+            <p class="ss12000-off-note" id="rules-off-note">[% ss('The rules are not used until "%s" is ticked', ss('Use rules')) %]</p>
             <div id="rule-messages"></div>
             <div id="rule-list"></div>
         </fieldset>
@@ -468,6 +477,57 @@
             <table class="ss12000-map" id="job-list">
                 <thead><tr>
                     <th>#</th><th>[% ss('Job') %]</th><th>[% ss('Started by') %]</th><th>[% ss('State') %]</th><th>[% ss('Started') %]</th><th>[% ss('Finished') %]</th><th>[% ss('Message') %]</th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+        </fieldset>
+    </div>
+
+    <div class="page-section ss12000-section" id="sec-leavers">
+        <fieldset class="rows">
+            <legend>[% ss('Patrons who have left') %]</legend>
+            <p class="ss12000-help">[% ss('A patron who is no longer in the school register (not in IST, or without a valid enrolment) is handled at the end of a complete run. With loans left the patron moves to the category for patrons who have left (below) and the account can expire, so no new loans are made. Without loans the patron is removed after the number of days below (Koha checks first that nothing is owed, and the patron is kept in the list of deleted patrons). Only patrons in the categories below are touched. Start with Report only to see what would happen in the log.') %]</p>
+            <ol>
+                <li>
+                    <label for="leaver_mode">[% ss('What to do') %]:</label>
+                    <div class="ss12000-field">
+                        <select name="leaver_mode" id="leaver_mode">
+                            <option value="off" [% IF leaver_mode == 'off' %]selected="selected"[% END %]>[% ss('Nothing (off)') %]</option>
+                            <option value="report" [% IF leaver_mode == 'report' %]selected="selected"[% END %]>[% ss('Report only (write to the log, change nothing)') %]</option>
+                            <option value="apply" [% IF leaver_mode == 'apply' %]selected="selected"[% END %]>[% ss('Move and remove') %]</option>
+                        </select>
+                    </div>
+                </li>
+                <li>
+                    <label for="leaver_delete_days">[% ss('Remove after (days)') %]:</label>
+                    <div class="ss12000-field">
+                        <input type="number" name="leaver_delete_days" id="leaver_delete_days" value="[% leaver_delete_days | html %]" min="0" max="3650" style="width: 7em" />
+                        <span class="ss12000-help">[% ss('A patron without loans is removed when it has been missing from the register for this many days. 0 removes at once.') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="leaver_max_changes">[% ss('Most changes per run') %]:</label>
+                    <div class="ss12000-field">
+                        <input type="number" name="leaver_max_changes" id="leaver_max_changes" value="[% leaver_max_changes | html %]" min="1" max="100000" style="width: 7em" />
+                        <span class="ss12000-help">[% ss('A safety limit. What does not fit is handled in the next run.') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="leaver_expire_now">[% ss('Account') %]:</label>
+                    <div class="ss12000-field">
+                        <label><input type="checkbox" id="leaver_expire_now" name="leaver_expire_now" value="1" [% IF leaver_expire_now %]checked="checked"[% END %] /> [% ss('Let the account expire today when the patron is moved') %]</label>
+                    </div>
+                </li>
+            </ol>
+            <p class="ss12000-help">[% ss('Waiting to be handled') %]: [% leaver_waiting | html %][% IF leaver_last %]. [% ss('Last run') %]: [% leaver_last | html %][% END %]</p>
+            <div class="ss12000-inline">
+                <button type="button" class="btn btn-default" id="btn-add-leaver-row"><i class="fa fa-plus" aria-hidden="true"></i> [% ss('Add row') %]</button>
+            </div>
+            <table class="ss12000-map" id="leaver-map">
+                <thead><tr>
+                    <th>[% ss('Category of the patron') %]</th>
+                    <th>[% ss('Category when the patron has left') %]</th>
+                    <th></th>
                 </tr></thead>
                 <tbody></tbody>
             </table>
@@ -624,6 +684,7 @@
         excludeDutyRoleEmpty: [% IF exclude_dutyrole_empty %]true[% ELSE %]false[% END %],
         schedule: [% schedule_json | $raw %],
         scheduleMeta: [% schedule_meta_json | $raw %],
+        leaverMapping: [% leaver_mapping_json | $raw %],
         jobStatus: [% jobs_json | $raw %],
         hasSecret: [% IF client_secret_set %]true[% ELSE %]false[% END %],
         initialUserid: "[% useridPlugin | html %]",
@@ -1166,6 +1227,47 @@
         return scheduleRows.map(function (r) { return { weekday: r.weekday, time: r.time, job_type: r.job_type || "import" }; });
     }
 
+    // ---------- Patrons who have left ----------
+    var leaverBody = document.querySelector("#leaver-map tbody");
+    var leaverRows = [];
+
+    function renderLeavers() {
+        leaverBody.innerHTML = "";
+        leaverRows.forEach(function (row) {
+            var tr = el("tr", {});
+            var label = function (o) { return o.code + (o.name ? " - " + o.name : ""); };
+            var from = selectBox(cfg.categories, row.from, msg.noCategory, label, msg.missingInKoha);
+            from.addEventListener("change", function () { row.from = from.value; });
+            var to = selectBox(cfg.categories, row.to, msg.noCategory, label, msg.missingInKoha);
+            to.addEventListener("change", function () { row.to = to.value; });
+            var del = el("button", { type: "button", "class": "btn btn-default btn-xs", title: msg.remove, text: "\u00d7" });
+            del.addEventListener("click", function () { leaverRows.splice(leaverRows.indexOf(row), 1); renderLeavers(); });
+            tr.appendChild(el("td", {}, [from]));
+            tr.appendChild(el("td", {}, [to]));
+            tr.appendChild(el("td", {}, [del]));
+            leaverBody.appendChild(tr);
+        });
+    }
+    document.getElementById("btn-add-leaver-row").addEventListener("click", function () {
+        leaverRows.push({ from: "", to: "" });
+        renderLeavers();
+    });
+
+    // ---------- "Use rules" switches what is used ----------
+    var useRulesBox = document.getElementById("use_rules");
+    function applyRulesMode() {
+        var on = useRulesBox.checked;
+        ["sec-categories", "li-excl-dutyrole"].forEach(function (id) {
+            var node = document.getElementById(id);
+            node.classList.toggle("ss12000-off", on);
+            if (on) { node.setAttribute("inert", ""); node.setAttribute("aria-disabled", "true"); }
+            else { node.removeAttribute("inert"); node.removeAttribute("aria-disabled"); }
+        });
+        ["rule-list", "rule-buttons"].forEach(function (id) { document.getElementById(id).classList.toggle("ss12000-dim", !on); });
+        document.getElementById("rules-off-note").style.display = on ? "none" : "block";
+    }
+    useRulesBox.addEventListener("change", applyRulesMode);
+
     // ---------- Misc behaviour ----------
     function toggleMonths() {
         document.getElementById("dateexpiry_months_div").classList.toggle("ss12000-hidden", document.getElementById("dateexpiry_fallback").value !== "months");
@@ -1203,6 +1305,8 @@
         }
         if (scheduleRows.some(function (r) { return !r.time; })) { window.alert(msg.needTime); e.preventDefault(); return; }
         document.getElementById("schedule_json").value = JSON.stringify(serializeSchedule());
+        document.getElementById("leaver_mapping_json").value = JSON.stringify(
+            leaverRows.filter(function (r) { return r.from || r.to; }).map(function (r) { return { from: r.from, to: r.to }; }));
         var ruleProblem = checkRules();
         if (ruleProblem) { window.alert(ruleProblem); e.preventDefault(); return; }
         document.getElementById("rules_json").value = JSON.stringify(serializeRules());
@@ -1219,9 +1323,12 @@
     renderBranches();
     renderCategories();
     renderRules();
+    applyRulesMode();
     scheduleRows = (cfg.schedule || []).map(function (r) { return { weekday: r.weekday, time: r.time, job_type: r.job_type }; });
     renderSchedule();
     renderJobStatus(cfg.jobStatus);
+    leaverRows = (cfg.leaverMapping || []).map(function (r) { return { from: r.from, to: r.to }; });
+    renderLeavers();
     if (cfg.hasSecret) { loadOrgs(); }
 })();
 </script>

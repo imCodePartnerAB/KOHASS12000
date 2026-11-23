@@ -160,8 +160,6 @@ msgstr ""
 msgid "Select a category"
 msgstr ""
 
-msgid "Used for everyone who does not get a category from the roles mapping, normally all students."
-msgstr ""
 
 msgid "When you change a parameter, it will be changed for all existing users in the next data update cycle"
 msgstr ""
@@ -745,17 +743,11 @@ msgstr ""
 msgid "Use rules"
 msgstr ""
 
-msgid "Decide the patron category with the rules below instead of the roles mapping"
-msgstr ""
 
-msgid "When this is not ticked the rules are ignored and the roles mapping works as before. When ticked, the roles mapping and \"Exclude empty users, dutyRole\" are not used; use a rule with the condition role is empty instead."
-msgstr ""
 
 msgid "Add rule"
 msgstr ""
 
-msgid "Import roles mapping as rules"
-msgstr ""
 
 msgid "Add condition"
 msgstr ""
@@ -1028,4 +1020,82 @@ msgid "contains"
 msgstr ""
 
 msgid "The server did not answer as expected"
+msgstr ""
+
+msgid "A patron who is no longer in the school register (not in IST, or without a valid enrolment) is handled at the end of a complete run. With loans left the patron moves to the category for patrons who have left (below) and the account can expire, so no new loans are made. Without loans the patron is removed after the number of days below (Koha checks first that nothing is owed, and the patron is kept in the list of deleted patrons). Only patrons in the categories below are touched. Start with Report only to see what would happen in the log."
+msgstr ""
+
+msgid "A patron without loans is removed when it has been missing from the register for this many days. 0 removes at once."
+msgstr ""
+
+msgid "A safety limit. What does not fit is handled in the next run."
+msgstr ""
+
+msgid "Account"
+msgstr ""
+
+msgid "Category of the patron"
+msgstr ""
+
+msgid "Category when the patron has left"
+msgstr ""
+
+msgid "Last run"
+msgstr ""
+
+msgid "Let the account expire today when the patron is moved"
+msgstr ""
+
+msgid "Most changes per run"
+msgstr ""
+
+msgid "Move and remove"
+msgstr ""
+
+msgid "Nothing (off)"
+msgstr ""
+
+msgid "Patrons who have left"
+msgstr ""
+
+msgid "Patrons who have left could not be saved: %s"
+msgstr ""
+
+msgid "Patrons who have left had an invalid format and were not saved"
+msgstr ""
+
+msgid "Patrons who have left were not saved: %s"
+msgstr ""
+
+msgid "Remove after (days)"
+msgstr ""
+
+msgid "Report only (write to the log, change nothing)"
+msgstr ""
+
+msgid "Unknown Koha category '%s'"
+msgstr ""
+
+msgid "Waiting to be handled"
+msgstr ""
+
+msgid "What to do"
+msgstr ""
+
+msgid "Used for everyone who does not get a category from the rules or from the mapping \"%s\"."
+msgstr ""
+
+msgid "Not used while \"%s\" is ticked"
+msgstr ""
+
+msgid "Decide the patron category with the rules below instead of the mapping \"%s\""
+msgstr ""
+
+msgid "When this is not ticked the rules are ignored and \"%s\" works as before. When ticked, \"%s\" and the setting \"%s\" are not used (they are greyed out); use a rule with the condition role is empty instead."
+msgstr ""
+
+msgid "The rules are not used until \"%s\" is ticked"
+msgstr ""
+
+msgid "Import \"%s\" as rules"
 msgstr ""

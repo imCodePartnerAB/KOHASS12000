@@ -600,18 +600,16 @@
     <div class="ss12000-actions">
         <button type="submit" class="btn btn-primary" id="btn-save"><i class="fa fa-save" aria-hidden="true"></i> [% ss('Save') %]</button>
         <span id="save-hint" class="ss12000-help" style="display:inline"></span>
-        [% IF log_count %]<button type="submit" form="clearLogForm" class="btn btn-default ss12000-actions-right" id="btn-clearlog">[% ss('Set API scanner from the first page') %]</button>[% END %]
+        <button type="submit" form="clearLogForm" class="btn btn-default ss12000-actions-right" id="btn-clearlog"[% UNLESS log_count %] disabled="disabled" title="[% ss('Nothing to restart: no pages have been processed today') | html %]"[% END %]>[% ss('Set API scanner from the first page') %]</button>
     </div>
 </form>
 
-[% IF log_count %]
 <form method="post" action="" id="clearLogForm">
     <input type="hidden" name="class" value="[% CLASS | html %]" />
     <input type="hidden" name="method" value="[% METHOD | html %]" />
     <input type="hidden" name="op" value="cud-clearlog-config" />
     <input type="hidden" name="csrf_token" value="[% csrf_token | html %]" />
 </form>
-[% END %]
 
 <div id="ss12000-i18n" class="ss12000-hidden"
     data-loading="[% ss('Loading...') | html %]"
@@ -623,7 +621,7 @@
     data-suggested="[% ss('Suggested') | html %]"
     data-ambiguous="[% ss('Check this one') | html %]"
     data-remove="[% ss('Remove') | html %]"
-    data-confirm-clear="[% ss('Are you sure you want to clear the log? This action cannot be undone.') | html %]"
+    data-confirm-clear="[% ss('Start the import over from the first page? Pages that were already processed today are processed again.') | html %]"
     data-need-category="[% ss('Please select a default category') | html %]"
     data-need-attribute="[% ss('Matching on a patron attribute needs a civic number attribute to be selected') | html %]"
     data-need-match="[% ss('Select at least one way to find existing patrons') | html %]"

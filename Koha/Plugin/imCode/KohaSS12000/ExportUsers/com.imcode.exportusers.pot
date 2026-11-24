@@ -329,8 +329,6 @@ msgstr ""
 msgid "Remove"
 msgstr ""
 
-msgid "Are you sure you want to clear the log? This action cannot be undone."
-msgstr ""
 
 msgid "Please select a default category"
 msgstr ""
@@ -1136,4 +1134,10 @@ msgid "The schedule may not be active right now: the minute check was last seen"
 msgstr ""
 
 msgid "The schedule is active: the times below and the buttons Run import now and Fetch values from IST now start runs by themselves. The minute check was last seen"
+msgstr ""
+
+msgid "Nothing to restart: no pages have been processed today"
+msgstr ""
+
+msgid "Start the import over from the first page? Pages that were already processed today are processed again."
 msgstr ""

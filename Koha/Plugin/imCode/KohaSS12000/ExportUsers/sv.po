@@ -595,8 +595,6 @@ msgstr "Kontrollera denna"
 msgid "Remove"
 msgstr "Ta bort"
 
-msgid "Are you sure you want to clear the log? This action cannot be undone."
-msgstr "Är du säker på att du vill rensa loggen? Detta kan inte ångras."
 
 msgid "Please select a default category"
 msgstr "Välj en standardkategori"
@@ -1291,3 +1289,9 @@ msgstr "Schemaläggningen verkar inte vara aktiv just nu: minutkontrollen sågs 
 
 msgid "The schedule is active: the times below and the buttons Run import now and Fetch values from IST now start runs by themselves. The minute check was last seen"
 msgstr "Schemaläggningen är aktiv: tiderna nedan och knapparna Kör import nu och Hämta värden från IST nu startar körningar av sig själva. Minutkontrollen sågs senast"
+
+msgid "Nothing to restart: no pages have been processed today"
+msgstr "Inget att starta om: inga sidor har behandlats idag"
+
+msgid "Start the import over from the first page? Pages that were already processed today are processed again."
+msgstr "Starta om dagens import från första sidan? Sidor som redan behandlats idag behandlas igen."

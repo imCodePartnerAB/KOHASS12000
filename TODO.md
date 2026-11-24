@@ -17,7 +17,6 @@ Size: S = hours, M = a day or two, L = several days or needs a decision from the
 
 Read only, counts only. The numbers are from the last full runs (about 21 000 and 9 000 persons).
 
-- **Debug mode is on in both** production installations. The API pages with civic numbers are kept in `imcode_logs.response` (the whole page, up to 65 kB) and in the text log (several GB).
 - **One installation gets `eduPersonPrincipalNames` for practically every person** (20 981 of 20 990) and a secondary external identifier for all of them. It uses the civic number as user id and card number. The other gets neither.
 - **Expiry dates look wrong on one installation:** 2 614 of 18 703 imported patrons have no expiry date and 327 have a year between 2105 and 2109. To investigate (setting `dateexpiry_fallback`, the enrolment period of the category, the first run).
 - **No person has `securityMarking`, `Utvandrad` or `Avliden`** in either installation today.
@@ -26,16 +25,17 @@ Read only, counts only. The numbers are from the last full runs (about 21 000 an
 - **Guardians** (`responsibles`) are delivered for most persons in both. Only one installation wants staff imported; the other excludes every staff role.
 - **Patrons who have left:** only a handful are marked today (the plugin has run for a short time), but it will be thousands after the end of a school year.
 
-Order for the existing installations: debug log hygiene, the expiry dates, the federation identifier as user id, then the leaver function (done in 2.0, needs a mapping per installation), then staff import.
+Order for the existing installations (code only; what an administrator switches on or off is their own configuration): find out why the expiry dates look wrong, the federation identifier as user id and the choice of external identifier, staff import, teaching and mentor groups. The leaver function is done in 2.0 and only needs a mapping per installation.
 
 ## 1. Safety and data protection (all installations)
+
+Whether debug logging is on, how long logs are kept and which cron lines run are the customer's configuration and are not listed here.
+
 
 | Item | API field | What is missing today | Size |
 |---|---|---|---|
 | Persons with protected identity | `Person.securityMarking` (`Sekretessmarkering`, `Skyddad folkbokföring`) | Not read. It can be stopped with a rule on the advanced field `securityMarking`, but there is no setting and no default rule. | S |
 | Persons who have emigrated or died | `Person.personStatus` (`Utvandrad`, `Avliden`) | Not read. A deceased person should be handled at once like a patron who has left (removed or anonymized). | S |
-| Personal data in the plugin log | none | With debug mode on, whole API responses are written to `imcode_logs.response` and to the text log. Add a warning on the page and a shorter default retention, or log only the fields that are needed. | S |
-| Old copies of removed patrons | none | `deletedborrowers` from removals made before the leaver handling stays. Document a cron line for `cleanup_database.pl --deleted-patrons DAYS`, or offer to purge them from the plugin. | S |
 
 ## 2. Data quality for what is already imported
 

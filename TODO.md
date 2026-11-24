@@ -66,7 +66,7 @@ Whether debug logging is on, how long logs are kept and which cron lines run are
 
 | Item | Why it needs a decision | Size |
 |---|---|---|
-| Staff import | Written in the plan, not built: duty filter, one run without school filter, branch for staff with several schools, people who are both students and staff. | L |
+| Staff import | Not built: duty filter, one run without school filter, one read of all duties per run (instead of one request per student), a setting for on or off and for which roles, a category per role through the rules, branch for staff with several schools (newest active duty, rules can override), people who are both students and staff. A setting to leave staff that already exist in Koha untouched (default on): a patron without the plugin's note in the OPAC note is never changed, and the leaver function never touches it either. Off by default, so installations that do not want staff are not affected. | L |
 | Teaching groups and mentor groups | Only `Klass` groups are read. `Undervisning` and `Mentor` groups as a patron attribute (Skolfederation attributes 27 and 28). | L |
 | Guardians | `Person.responsibles` (`Vårdnadshavare`, `Annan ansvarig`, `God man`) as Koha guarantors. Sensitive; each customer must decide. | L |
 | Photo | `Person.photo` to the patron image. | M |

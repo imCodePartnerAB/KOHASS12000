@@ -1295,3 +1295,24 @@ msgstr "Inget att starta om: inga sidor har behandlats idag"
 
 msgid "Start the import over from the first page? Pages that were already processed today are processed again."
 msgstr "Starta om dagens import från första sidan? Sidor som redan behandlats idag behandlas igen."
+
+msgid "Staff"
+msgstr "Personal"
+
+msgid "Staff are read from their duties, in one extra pass after the schools. The category is decided by the rules above: a rule with the condition role (and the action category or do not import) for every role you want to import. A role without a rule is not imported. The branch is the school of the newest active duty. Needs Use rules to be ticked."
+msgstr "Personal läses från sina uppdrag, i en extra omgång efter skolorna. Kategorin avgörs av reglerna ovan: en regel med villkoret roll (och åtgärden kategori eller importera inte) för varje roll som ska läggas in. En roll utan regel läggs inte in. Filialen är skolan för det senaste aktiva uppdraget. Kräver att Använd regler är ikryssad."
+
+msgid "Import staff"
+msgstr "Importera personal"
+
+msgid "Import staff with a duty"
+msgstr "Importera personal med uppdrag"
+
+msgid "Staff already in Koha"
+msgstr "Personal som redan finns i Koha"
+
+msgid "Do not change staff that already exist in Koha (only new staff are added)"
+msgstr "Ändra inte personal som redan finns i Koha (bara ny personal läggs till)"
+
+msgid "A patron that the plugin has never handled is left exactly as it is, and the function for patrons who have left never touches it."
+msgstr "En låntagare som pluginet aldrig har hanterat lämnas precis som den är, och funktionen för låntagare som slutat rör den aldrig."

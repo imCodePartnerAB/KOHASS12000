@@ -71,6 +71,12 @@ sudo /etc/init.d/cron restart
 - *Fetch values from IST* reads schools, school types, school years, programmes, classes and roles from IST (no changes in Koha, a few minutes) and stores the values, never personal data, in `imcode_seen_values` for the rule editor.
 - `run_ss12000.sh` accepts an optional instance name as its first argument and then runs only that instance.
 
+**Staff (new section on the configuration page)**
+- Off by default. When *Import staff* is ticked (and *Use rules* is on) an extra pass runs after the schools: persons with an active duty are read in one unfiltered pass, one page per round like the schools.
+- The category is decided by the rules: one rule with the condition *role* for the roles you want and the action category (or do not import). A role without a rule is not imported. All active duties are seen by the rules (role, assignment role, school of the duty), and the duties are read once per round instead of one request per person.
+- The branch is the school of the newest active duty that is in the branch mapping. People who are also students are left to the student pass.
+- *Staff already in Koha*: a patron the plugin has never handled (no plugin note in the OPAC note) is matched by civic number (card number, user id or the civic number attribute) and is left exactly as it is, also by the function for patrons who have left. Default on.
+
 **Patrons who have left (new section on the configuration page)**
 - A patron who is no longer in the school register, that is not in IST or without a valid enrolment (the import already marks them with *No update* in the OPAC note), is handled at the end of a complete run. Nobody who has left stays identifiable for ever:
   - **Without loans** the patron is removed after *Remove after (days), no loans left* (default 30; 0 removes at once). Koha's own check `safe_to_delete` decides, so a patron with fines or guarantees is not removed. The record is **not** copied to the list of deleted patrons, the checkout history is anonymized, and everything else that identifies the person is removed: Koha's action log (`BorrowersLog` keeps the whole record), the plugin's change log (its trigger writes old and new values), the rule log, messages in the queue and patron attributes (civic number, class).

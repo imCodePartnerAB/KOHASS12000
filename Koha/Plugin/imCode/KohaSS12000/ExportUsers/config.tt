@@ -106,6 +106,7 @@
     <li><a href="#sec-categories">[% ss('Categories mapping') %]</a></li>
     <li><a href="#sec-catrules">[% ss('Category rules') %]</a></li>
     <li><a href="#sec-schedule">[% ss('Schedule and run now') %]</a></li>
+    <li><a href="#sec-staff">[% ss('Staff') %]</a></li>
     <li><a href="#sec-leavers">[% ss('Patrons who have left') %]</a></li>
     <li><a href="#sec-advanced">[% ss('Advanced') %]</a></li>
     <li><a href="/cgi-bin/koha/plugins/run.pl?class=[% CLASS | uri %]&amp;method=[% METHOD | uri %]&amp;op=log"><i class="fa fa-list" aria-hidden="true"></i> [% ss('SS12000 log') %]</a></li>
@@ -481,6 +482,28 @@
                 </tr></thead>
                 <tbody></tbody>
             </table>
+        </fieldset>
+    </div>
+
+    <div class="page-section ss12000-section" id="sec-staff">
+        <fieldset class="rows">
+            <legend>[% ss('Staff') %]</legend>
+            <p class="ss12000-help">[% ss('Staff are read from their duties, in one extra pass after the schools. The category is decided by the rules above: a rule with the condition role (and the action category or do not import) for every role you want to import. A role without a rule is not imported. The branch is the school of the newest active duty. Needs Use rules to be ticked.') %]</p>
+            <ol>
+                <li>
+                    <label for="staff_import">[% ss('Import staff') %]:</label>
+                    <div class="ss12000-field">
+                        <label><input type="checkbox" id="staff_import" name="staff_import" value="1" [% IF staff_import %]checked="checked"[% END %] /> [% ss('Import staff with a duty') %]</label>
+                    </div>
+                </li>
+                <li>
+                    <label for="staff_keep_existing">[% ss('Staff already in Koha') %]:</label>
+                    <div class="ss12000-field">
+                        <label><input type="checkbox" id="staff_keep_existing" name="staff_keep_existing" value="1" [% IF staff_keep_existing %]checked="checked"[% END %] /> [% ss('Do not change staff that already exist in Koha (only new staff are added)') %]</label>
+                        <span class="ss12000-help">[% ss('A patron that the plugin has never handled is left exactly as it is, and the function for patrons who have left never touches it.') %]</span>
+                    </div>
+                </li>
+            </ol>
         </fieldset>
     </div>
 

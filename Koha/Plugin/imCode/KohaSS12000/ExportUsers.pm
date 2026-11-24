@@ -957,6 +957,8 @@ sub configure {
     insertConfigValue($dbh, 'keep_existing_contact', 'No');
     insertConfigValue($dbh, 'use_rules', 'No');
     insertConfigValue($dbh, 'leaver_mode', 'off');
+    insertConfigValue($dbh, 'staff_import', 'No');
+    insertConfigValue($dbh, 'staff_keep_existing', 'Yes');
     insertConfigValue($dbh, 'leaver_delete_days', '30');
     insertConfigValue($dbh, 'leaver_anonymize_days_loans', '300');
     insertConfigValue($dbh, 'leaver_max_changes', '200');
@@ -1040,6 +1042,8 @@ sub configure {
         my $rules_json             = $cgi->param('rules_json');
         my $schedule_json          = $cgi->param('schedule_json');
         my $leaver_mapping_json    = $cgi->param('leaver_mapping_json');
+        my $staff_import           = $cgi->param('staff_import') ? 'Yes' : 'No';
+        my $staff_keep_existing    = $cgi->param('staff_keep_existing') ? 'Yes' : 'No';
         my $leaver_mode            = SS12000Leavers::normalize_mode($cgi->param('leaver_mode'));
         my $leaver_delete_days     = int($cgi->param('leaver_delete_days') // 30);
         $leaver_delete_days = 0 if $leaver_delete_days < 0; $leaver_delete_days = 3650 if $leaver_delete_days > 3650;
@@ -1242,6 +1246,8 @@ sub configure {
             $upd2->execute($keep_existing_contact,  'keep_existing_contact');
             $upd2->execute($use_rules,              'use_rules');
             $upd2->execute($leaver_mode,            'leaver_mode');
+            $upd2->execute($staff_import,           'staff_import');
+            $upd2->execute($staff_keep_existing,    'staff_keep_existing');
             $upd2->execute($leaver_delete_days,     'leaver_delete_days');
             $upd2->execute($leaver_anonymize_days_loans, 'leaver_anonymize_days_loans');
             $upd2->execute($leaver_max_changes,     'leaver_max_changes');
@@ -1485,6 +1491,8 @@ sub configure {
         exclude_dutyrole_empty => (($config_data->{excluding_dutyRole_empty} // 'No') eq 'Yes' ? 1 : 0),
         schedule_json          => json_for_html(load_schedule($dbh)),
         leaver_mode            => SS12000Leavers::normalize_mode($config_data->{leaver_mode}),
+        staff_import           => (($config_data->{staff_import} // 'No') eq 'Yes' ? 1 : 0),
+        staff_keep_existing    => (($config_data->{staff_keep_existing} // 'Yes') eq 'Yes' ? 1 : 0),
         leaver_delete_days     => int($config_data->{leaver_delete_days} // 30),
         leaver_anonymize_days_loans => ($config_data->{leaver_anonymize_days_loans} // ''),
         leaver_max_changes     => int($config_data->{leaver_max_changes} || 200),
@@ -2996,6 +3004,8 @@ sub _cronjob_inner {
             push @organisation_codes, $org_code;
         }
         
+        push @organisation_codes, 'STAFF' if $self->staff_pass_pending($dbh, $config_data, $data_endpoint);
+
         if (@organisation_codes) {
             log_message('Yes', 'Found ' . scalar(@organisation_codes) . ' unprocessed organisation codes');
             
@@ -3017,12 +3027,18 @@ sub _cronjob_inner {
                 
                 log_message('Yes', "Processing organisation code: $org_code");
                 
-                my $org_id = $self->get_organisation_id($org_code, $config_data);
+                my $org_id = $org_code eq 'STAFF' ? 'STAFF' : $self->get_organisation_id($org_code, $config_data);
                 
                 if ($org_id) {
                     log_message('Yes', "Got organisation ID: $org_id for code: $org_code");
                     
-                    my $filter_params = {
+                    my $filter_params = $org_code eq 'STAFF'
+                        ? {
+                            'relationship.startDate.onOrBefore'  => $today,
+                            'relationship.endDate.onOrAfter'     => $today,
+                            'relationship.entity.type'           => 'duty'
+                        }
+                        : {
                         'relationship.organisation'           => $org_id,
                         'relationship.startDate.onOrBefore'  => $today,
                         'relationship.endDate.onOrAfter'     => $today,
@@ -3079,6 +3095,7 @@ sub _cronjob_inner {
             };
             
             my ($remaining_count) = $dbh->selectrow_array($check_all_completed, undef, $data_endpoint);
+            $remaining_count += $self->staff_pass_pending($dbh, $config_data, $data_endpoint);
             if ($remaining_count == 0) {
                 log_message('Yes', "All organisations processed successfully");
 
@@ -3710,6 +3727,14 @@ sub fetchDataFromAPI {
         log_message($debug_mode, 'Using ' . scalar(@$rules) . ' rule(s) for category and branch');
     }
 
+    # The staff pass (pseudo organisation STAFF) reads persons with a duty instead of an enrolment
+    if (($current_org_code // '') eq 'STAFF') {
+        $opts->{staff_mode}          = 1;
+        $opts->{staff_keep_existing} = (($config_data->{staff_keep_existing} // 'Yes') eq 'Yes') ? 1 : 0;
+        $opts->{rules_need_duties}      = 1;
+        $opts->{rules_need_duty_school} = 1;
+    }
+
     if ($debug_mode eq "Yes") { 
         log_message($debug_mode, "Starting processing for endpoint: $data_endpoint, organisation: $current_org_code");
         log_message($debug_mode, "Filter params: " . Dumper($filter_params)) if $filter_params;
@@ -4018,6 +4043,32 @@ sub fetchDataFromAPI {
 # Callers that only need the body can still call in scalar context — they just
 # get undef on error, same as before. Callers that need the status code should
 # call in list context: my ($body, $err_code, $err_body) = getApiResponse(...).
+# True when a patron with this civic number exists in Koha that the plugin has never handled (no plugin note)
+sub staff_exists_unmanaged {
+    my ($dbh, $civic, $attr_code) = @_;
+    return 0 unless defined $civic && $civic ne '';
+    (my $digits = $civic) =~ s/\D//g;
+    return 0 unless length $digits;
+    my @conds = ("REPLACE(b.cardnumber, '-', '') = ?", "REPLACE(b.userid, '-', '') = ?");
+    my @binds = ($digits, $digits);
+    if (defined $attr_code && $attr_code ne '') {
+        push @conds, q{b.borrowernumber IN (SELECT ba.borrowernumber FROM borrower_attributes ba WHERE ba.code = ? AND REPLACE(REPLACE(TRIM(ba.attribute), '-', ''), ' ', '') = ?)};
+        push @binds, $attr_code, $digits;
+    }
+    my ($n) = $dbh->selectrow_array("SELECT COUNT(*) FROM borrowers b WHERE (" . join(' OR ', @conds) . ") AND (b.opacnote IS NULL OR b.opacnote NOT LIKE '%by SS12000:%')", undef, @binds);
+    return $n ? 1 : 0;
+}
+
+# The staff pass is an extra "organisation" called STAFF that runs with the others, one page per round
+sub staff_pass_pending {
+    my ($self, $dbh, $config, $endpoint) = @_;
+    return 0 unless ($config->{staff_import} // 'No') eq 'Yes' && ($config->{use_rules} // 'No') eq 'Yes';
+    my ($done) = $dbh->selectrow_array(
+        "SELECT 1 FROM $logs_table WHERE DATE(created_at) = CURDATE() AND organisation_code = 'STAFF' AND page_token_next IS NULL AND data_endpoint = ? AND is_processed = 1 LIMIT 1",
+        undef, $endpoint);
+    return $done ? 0 : 1;
+}
+
 # Reads every duty once and groups them by person; used when the rules need roles. Falls back to one request
 # per person when the read fails, and notes the 403 of customers that have not ordered duties.
 sub load_all_duties_once {
@@ -4236,6 +4287,7 @@ sub fetchBorrowers {
                 my $koha_branchcode   = $koha_default_branchcode;
                 my $not_import        = 0;
                 my $skip_reason       = '';
+                my $silent_skip       = 0;
 
                 my $response_page_data = $response_data->{data}[$i-1];
                 if ($response_page_data) {
@@ -4252,7 +4304,7 @@ sub fetchBorrowers {
                     log_message($debug_mode, 'person_groupMemberships_api_url: '.$person_groupMemberships_api_url);
                     my $response_data_groupMemberships;
                     eval {
-                        my $raw_groupMemberships = getApiResponse($person_groupMemberships_api_url, $access_token);
+                        my $raw_groupMemberships = $opts->{staff_mode} ? undef : getApiResponse($person_groupMemberships_api_url, $access_token);
                         if (defined $raw_groupMemberships && length($raw_groupMemberships) > 0) {
                             $response_data_groupMemberships = decode_json($raw_groupMemberships);
                             log_message($debug_mode, 'response_data_groupMemberships: '.Dumper($response_data_groupMemberships));
@@ -4494,7 +4546,7 @@ sub fetchBorrowers {
                         }
                     } else {
 
-                        if ($excluding_enrolments_empty eq "Yes") {
+                        if (!$opts->{staff_mode} && $excluding_enrolments_empty eq "Yes") {
                                 $not_import = 1;
                                 # Check why no valid enrolment was found
                                 my $ignore_cancelled = ($ignore_cancelled_flag eq 'Yes');
@@ -4517,6 +4569,41 @@ sub fetchBorrowers {
 
                     }
                     log_message($debug_mode, '::organisationCode END');
+
+                    if ($opts->{staff_mode}) {
+                        if (defined $current_enrolment) {
+                            $not_import  = 1;
+                            $skip_reason = 'student, handled with the students';
+                        } else {
+                            my @active = sort {
+                                ($b->{startDate} // '') cmp ($a->{startDate} // '')
+                                || ((($a->{dutyAt} || {})->{id}) // '') cmp ((($b->{dutyAt} || {})->{id}) // '')
+                            } grep { ref $_ eq 'HASH' && SS12000Rules::duty_is_active($_, $today) } @{ $duties_list || [] };
+                            if (!@active) {
+                                $not_import  = 1;
+                                $skip_reason = 'no active duty';
+                            } else {
+                                my $mapped = 0;
+                                foreach my $d (@active) {
+                                    my $code = org_info((($d->{dutyAt} || {})->{id}), $access_token, $api_url_base)->{code} or next;
+                                    $school_code //= $code;
+                                    foreach my $bm (@branches_mapping) {
+                                        if ($bm->{organisationCode} && $bm->{organisationCode} eq $code) {
+                                            $koha_branchcode = $bm->{branchcode};
+                                            $school_code     = $code;
+                                            $mapped          = 1;
+                                            last;
+                                        }
+                                    }
+                                    last if $mapped;
+                                }
+                                if (!$mapped && !$koha_branchcode) {
+                                    $not_import  = 1;
+                                    $skip_reason = 'school of the duty is not in the branch mapping';
+                                }
+                            }
+                        }
+                    }
 
                     my %rule_decision;
                     if ($opts->{use_rules} && !$not_import) {
@@ -4560,6 +4647,9 @@ sub fetchBorrowers {
                             } else {
                                 $koha_categorycode = $cat_result->{winner}{action}{category};
                             }
+                        } elsif ($opts->{staff_mode}) {
+                            $not_import  = 1;
+                            $skip_reason = 'no rule for the roles';
                         }
                         $koha_branchcode = $br_result->{winner}{action}{branch} if $br_result->{winner};
 
@@ -4576,6 +4666,15 @@ sub fetchBorrowers {
                         log_message($debug_mode, 'Rules, category: ' . $rule_decision{category_explain});
                         log_message($debug_mode, 'Rules, branch: ' . $rule_decision{branch_explain});
                         save_rule_log($dbh, $id, %rule_decision);
+                    }
+
+                    if ($opts->{staff_mode} && $opts->{staff_keep_existing} && !$not_import) {
+                        my $civic_staff = ref $response_page_data->{civicNo} eq 'HASH' ? $response_page_data->{civicNo}{value} : $response_page_data->{civicNo};
+                        if (staff_exists_unmanaged($dbh, $civic_staff, $opts->{civic_attribute_code})) {
+                            $not_import  = 1;
+                            $skip_reason = 'existing staff left as is';
+                            $silent_skip = 1;
+                        }
                     }
 
                     my $givenName  = $response_page_data->{givenName};
@@ -4797,6 +4896,7 @@ sub fetchBorrowers {
                             push @skip_binds, $opts->{civic_attribute_code}, $cardnumber;
                         }
                         eval {
+                            return if $silent_skip;
                             my $skip_sth = $dbh->prepare($skip_note_query);
                             $skip_sth->execute(
                                 $current_version_info, $skip_reason,

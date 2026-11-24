@@ -18,14 +18,14 @@ Size: S = hours, M = a day or two, L = several days or needs a decision from the
 Read only, counts only. The numbers are from the last full runs (about 21 000 and 9 000 persons).
 
 - **One installation gets `eduPersonPrincipalNames` for practically every person** (20 981 of 20 990) and a secondary external identifier for all of them. It uses the civic number as user id and card number. The other gets neither.
-- **Expiry dates look wrong on one installation:** 2 614 of 18 703 imported patrons have no expiry date and 327 have a year between 2105 and 2109. To investigate (setting `dateexpiry_fallback`, the enrolment period of the category, the first run).
+- **Odd expiry dates on one installation, but not from the current code:** 2 614 of 18 703 imported patrons have no expiry date and 327 have a year between 2105 and 2109. All of them were last touched by older plugin versions (1.61 to 1.76); the 14 421 patrons touched this month all have normal dates, and the expiry code is the same in 1.90 and 2.0. They are most likely no longer in the register, so the leaver function (2.0, needs the fix for organisations that are missing in the register) is what deals with them.
 - **No person has `securityMarking`, `Utvandrad` or `Avliden`** in either installation today.
 - **E-mail:** every person has an address of the type `Skola elev`, about a quarter also `Privat`. Today this works as intended (school address as main, private as alternate).
 - **Addresses of the type `Postadress`** exist for 3 to 4 percent of the persons and are ignored.
 - **Guardians** (`responsibles`) are delivered for most persons in both. Only one installation wants staff imported; the other excludes every staff role.
 - **Patrons who have left:** only a handful are marked today (the plugin has run for a short time), but it will be thousands after the end of a school year.
 
-Order for the existing installations (code only; what an administrator switches on or off is their own configuration): find out why the expiry dates look wrong, the federation identifier as user id and the choice of external identifier, staff import, teaching and mentor groups. The leaver function is done in 2.0 and only needs a mapping per installation.
+Order for the existing installations (code only; what an administrator switches on or off is their own configuration): the federation identifier as user id and the choice of external identifier, `securityMarking` and `personStatus` as ordinary rule fields, staff import, teaching and mentor groups. The leaver function is done in 2.0 and only needs a mapping per installation.
 
 ## 1. Safety and data protection (all installations)
 
@@ -34,8 +34,8 @@ Whether debug logging is on, how long logs are kept and which cron lines run are
 
 | Item | API field | What is missing today | Size |
 |---|---|---|---|
-| Persons with protected identity | `Person.securityMarking` (`Sekretessmarkering`, `Skyddad folkbokföring`) | Not read. It can be stopped with a rule on the advanced field `securityMarking`, but there is no setting and no default rule. | S |
-| Persons who have emigrated or died | `Person.personStatus` (`Utvandrad`, `Avliden`) | Not read. A deceased person should be handled at once like a patron who has left (removed or anonymized). | S |
+| Persons with protected identity | `Person.securityMarking` (`Sekretessmarkering`, `Skyddad folkbokföring`) | Works today for installations that use the rules (advanced field `securityMarking`, action do not import; shown by a test). Missing: an ordinary rule field with the discovered values, and a plain setting for installations that do not use rules. | S |
+| Persons who have emigrated or died | `Person.personStatus` (`Utvandrad`, `Avliden`) | Same as above for rules. A deceased person who is already a patron should be handled at once like a patron who has left (removed or anonymized). | S |
 
 ## 2. Data quality for what is already imported
 

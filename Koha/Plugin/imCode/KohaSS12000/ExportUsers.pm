@@ -156,6 +156,10 @@ our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 our $duties_forbidden = 0; # set when the duties endpoint answers 403
+our %duties_by_person;     # all duties of the run grouped by person id (one read instead of one request per person)
+our $duties_loaded       = 0;
+our $duties_cache_failed = 0;
+our $use_duties_cache    = 1;
 our %org_code_cache;       # organisation id => organisationCode, valid for one run
 
 our $VERSION = "2.0";
@@ -4014,6 +4018,31 @@ sub fetchDataFromAPI {
 # Callers that only need the body can still call in scalar context — they just
 # get undef on error, same as before. Callers that need the status code should
 # call in list context: my ($body, $err_code, $err_body) = getApiResponse(...).
+# Reads every duty once and groups them by person; used when the rules need roles. Falls back to one request
+# per person when the read fails, and notes the 403 of customers that have not ordered duties.
+sub load_all_duties_once {
+    my ($api_url_base, $token) = @_;
+    my ($rows, $code) = ist_fetch_all($api_url_base, $token, 'duties', {}, 100);
+    unless ($rows) {
+        if (($code // 0) == 403) {
+            $duties_forbidden = 1;
+            log_message('Yes', "Duties endpoint is not available for this customer (403 Forbidden): dutyRole will not be used");
+        } else {
+            $duties_cache_failed = 1;
+            log_message('Yes', "Could not read all duties (HTTP " . ($code // '?') . "), using one request per person");
+        }
+        return 0;
+    }
+    %duties_by_person = ();
+    foreach my $d (@$rows) {
+        my $pid = ref $d->{person} eq 'HASH' ? $d->{person}{id} : undef;
+        push @{ $duties_by_person{$pid} }, $d if defined $pid;
+    }
+    $duties_loaded = 1;
+    log_message('Yes', 'Duties read once for this run: ' . scalar(@$rows) . ' duties for ' . scalar(keys %duties_by_person) . ' persons');
+    return 1;
+}
+
 sub getApiResponse {
     my ($api_url, $access_token) = @_;
 
@@ -4303,6 +4332,15 @@ sub fetchBorrowers {
                     } elsif ($opts->{use_rules} && !$opts->{rules_need_duties}) {
                         log_message($debug_mode, "Skipping duties lookup (no rule uses roles)");
                     } else {
+                        # With rules the duties of everybody are read once, otherwise there is one request per person
+                        if ($opts->{use_rules} && $use_duties_cache && !$duties_loaded && !$duties_cache_failed) {
+                            load_all_duties_once($api_url_base, $access_token);
+                        }
+                        if ($duties_forbidden) {
+                            log_message($debug_mode, "Skipping duties lookup (API returned 403 earlier in this run)");
+                        } elsif ($duties_loaded) {
+                            $response_data_person = { data => ($duties_by_person{$id} || []) };
+                        } else {
                         eval {
                             my ($raw_duties, $duties_err) = getApiResponse($person_api_url, $access_token);
                             if (defined $raw_duties && length($raw_duties) > 0) {
@@ -4315,6 +4353,7 @@ sub fetchBorrowers {
                                 log_message($debug_mode, "Empty/undef response for duties, person id: $id");
                             }
                         };
+                        }
                     }
 
                     if (

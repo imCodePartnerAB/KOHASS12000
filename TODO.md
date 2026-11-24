@@ -13,6 +13,21 @@ Rules for anything on this list:
 
 Size: S = hours, M = a day or two, L = several days or needs a decision from the customers first.
 
+## 0. Measured on the two installations that run the plugin today (2026-11-24)
+
+Read only, counts only. The numbers are from the last full runs (about 21 000 and 9 000 persons).
+
+- **Debug mode is on in both** production installations. The API pages with civic numbers are kept in `imcode_logs.response` (the whole page, up to 65 kB) and in the text log (several GB).
+- **One installation gets `eduPersonPrincipalNames` for practically every person** (20 981 of 20 990) and a secondary external identifier for all of them. It uses the civic number as user id and card number. The other gets neither.
+- **Expiry dates look wrong on one installation:** 2 614 of 18 703 imported patrons have no expiry date and 327 have a year between 2105 and 2109. To investigate (setting `dateexpiry_fallback`, the enrolment period of the category, the first run).
+- **No person has `securityMarking`, `Utvandrad` or `Avliden`** in either installation today.
+- **E-mail:** every person has an address of the type `Skola elev`, about a quarter also `Privat`. Today this works as intended (school address as main, private as alternate).
+- **Addresses of the type `Postadress`** exist for 3 to 4 percent of the persons and are ignored.
+- **Guardians** (`responsibles`) are delivered for most persons in both. Only one installation wants staff imported; the other excludes every staff role.
+- **Patrons who have left:** only a handful are marked today (the plugin has run for a short time), but it will be thousands after the end of a school year.
+
+Order for the existing installations: debug log hygiene, the expiry dates, the federation identifier as user id, then the leaver function (done in 2.0, needs a mapping per installation), then staff import.
+
 ## 1. Safety and data protection (all installations)
 
 | Item | API field | What is missing today | Size |

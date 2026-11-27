@@ -6,7 +6,7 @@
 
 **Allt som anges som Ja ingår. Allt som inte finns på den här listan är vidareutveckling och offereras separat.**
 
-Pluginet läser elever (och personal, om ni har beställt det) från skolans elevregister via IST/SS12000 och skapar och uppdaterar låntagare i Koha. Hur man ställer in det beskrivs i [manualen](Manual_sv.md). English version: [Feature_list_en.md](Feature_list_en.md).
+Pluginet läser elever (och personal, om ni har beställt det) från skolans elevregister via IST/SS12000 och skapar och uppdaterar låntagare i Koha. Hur man ställer in det beskrivs i [manualen](Manual_sv.md). English version: [Feature_list_en.md](Feature_list_en.md). Som PDF: [Funktionslista.pdf](Funktionslista.pdf).
 
 Kolumnen *Ingår* har tre värden: **Ja** (funktionen finns som raden beskriver), **Delvis** (funktionen finns, men med den begränsning som står i raden) och **Nej** (finns inte, se "Ingår inte"). Texter inom citattecken är rubriker och knappar som de står på sidan i Koha.
 
@@ -23,7 +23,7 @@ Kolumnen *Ingår* har tre värden: **Ja** (funktionen finns som raden beskriver)
 | ID | Funktion | Vad den gör | Förutsättning eller begränsning | Ingår |
 |---|---|---|---|---|
 | F-04 | Importera elever | Skapar nya låntagare och uppdaterar befintliga för elever med giltig inskrivning idag. Går en sida i taget (standard 30 personer per sida). | Kräver skolmappning och en standardkategori. | Ja |
-| F-05 | Uppgifter som förs över | Namn, personnummer, födelsedatum, kön, e-post, telefon, mobil, adress, bibliotek, klass och utgångsdatum. Saknas födelsedatum i IST räknas det ut ur personnumret. | Adress: bara folkbokföringsadressen. Kön: Man och Kvinna omvandlas till M och F. Skolans e-post blir huvudadress, privat e-post blir alternativ adress. | Ja |
+| F-05 | Uppgifter som förs över | Namn, personnummer, födelsedatum, kön, e-post, telefon, mobil, adress, bibliotek, klass och utgångsdatum. Saknas födelsedatum i IST räknas det ut ur personnumret. | Adress: bara folkbokföringsadressen. Kön: Man och Kvinna omvandlas till M och F. Den första e-postadressen som inte är privat blir huvudadress, privat e-post blir alternativ adress. | Ja |
 | F-06 | Klass | Klassen sparas som låntagarattribut och följer eleven när eleven byter klass. | Bara klassgrupper. Attributtypen CL skapas automatiskt, andra typer måste redan finnas. | Ja |
 | F-07 | Utgångsdatum | Sätts till inskrivningens slutdatum. Saknas slutdatum väljer ni: behåll befintligt, lämna tomt eller X månader framåt. | Har eleven flera giltiga inskrivningar används den som började senast. | Ja |
 | F-08 | Uteslut personer utan inskrivning | Val: personer utan giltig inskrivning importeras inte. | Av som standard. | Ja |
@@ -59,7 +59,7 @@ Kolumnen *Ingår* har tre värden: **Ja** (funktionen finns som raden beskriver)
 | F-23 | Text efter e-postadresser | Val: en text (till exempel .NOEMAIL) läggs sist på alla importerade e-postadresser så att Koha inte skickar meddelanden före driftstart. | Av som standard. | Ja |
 | F-24 | Behåll befintlig kategori | Val: kategorin sätts bara för nya låntagare. | Av som standard. | Ja |
 | F-25 | Behåll befintliga kontaktuppgifter | Val: en tom uppgift från IST ersätter aldrig ett värde som redan finns i Koha. | Av som standard. | Ja |
-| F-26 | Ta bort arkiverade dubbletter | Val: arkiverade dubbletter tas bort efter 3, 7, 14 eller 30 dagar. | Av som standard. Borttagningen sker i samband med en import. | Ja |
+| F-26 | Ta bort arkiverade dubbletter | Val: arkiverade dubbletter tas bort efter 3, 7, 14 eller 30 dagar. | Av som standard. Borttagningen sker i samband med en import, direkt i databasen utan Kohas kontroller. | Ja |
 
 ## Personal
 

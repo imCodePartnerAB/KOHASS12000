@@ -23,7 +23,7 @@ The column *Included* has three values: **Yes**, **Partly** (the limitation is w
 | ID | Function | What it does | Prerequisite or limitation | Included |
 |---|---|---|---|---|
 | F-04 | Import students | Creates new patrons and updates existing ones for students with a valid enrolment today. One page at a time (default 30 persons). | Needs the school mapping and a default category. | Yes |
-| F-05 | Data transferred | Name, civic number, date of birth, sex, e-mail, phone, mobile, address, library, class and expiry date. If IST has no date of birth it is calculated from the civic number. | Address: only the registered address. Sex: Man and Kvinna become M and F. School e-mail becomes the main address, private e-mail the alternate address. | Yes |
+| F-05 | Data transferred | Name, civic number, date of birth, sex, e-mail, phone, mobile, address, library, class and expiry date. If IST has no date of birth it is calculated from the civic number. | Address: only the registered address. Sex: Man and Kvinna become M and F. The first e-mail address that is not private becomes the main address, private e-mail the alternate address. | Yes |
 | F-06 | Class | The class is stored as a patron attribute and follows the student between classes. | Class groups only. The attribute type CL is created automatically, other types must already exist. | Yes |
 | F-07 | Expiry date | Set to the end date of the enrolment. If there is none you choose: keep, leave empty or X months ahead. | With several valid enrolments the one that started last is used. | Yes |
 | F-08 | Leave out persons without enrolment | Option: persons without a valid enrolment are not imported. | Off by default. | Yes |
@@ -59,7 +59,7 @@ The column *Included* has three values: **Yes**, **Partly** (the limitation is w
 | F-23 | Text after e-mail addresses | Option: a text (for example .NOEMAIL) is added to the end of every imported e-mail address so Koha cannot send notices before go-live. | Off by default. | Yes |
 | F-24 | Keep existing category | Option: the category is only set for new patrons. | Off by default. | Yes |
 | F-25 | Keep existing contact details | Option: an empty value from IST never replaces a value that already exists in Koha. | Off by default. | Yes |
-| F-26 | Remove archived duplicates | Option: archived duplicates are removed after 3, 7, 14 or 30 days. | Off by default. The removal happens during an import. | Yes |
+| F-26 | Remove archived duplicates | Option: archived duplicates are removed after 3, 7, 14 or 30 days. | Off by default. The removal happens during an import, directly in the database without Koha's checks. | Yes |
 
 ## Staff
 

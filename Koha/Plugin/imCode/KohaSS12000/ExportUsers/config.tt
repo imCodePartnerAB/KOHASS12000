@@ -46,9 +46,20 @@
     .ss12000-badge.bad { background: #f5b5ae; }
     .ss12000-badge.good { background: #bfe5bf; }
     .ss12000-summary { margin: .4em 0; }
-    .ss12000-actions { position: sticky; bottom: 0; background: #fff; border-top: 1px solid #ccc; padding: .6em 0; z-index: 5; }
+    .ss12000-actions { position: sticky; bottom: 0; background: #fff; border-top: 1px solid #ccc; padding: .6em 0; z-index: 5; display: flex; align-items: center; gap: .8em; }
+    .ss12000-actions .ss12000-actions-right { margin-left: auto; }
     .ss12000-hidden { display: none; }
     .ss12000-code { font-family: monospace; }
+    .ss12000-off { opacity: .45; }
+    .ss12000-off-note { display: none; font-weight: bold; color: #8a6d3b; margin: .3em 0; }
+    .ss12000-off > .ss12000-off-note, .ss12000-off .ss12000-off-note { display: block; }
+    .ss12000-dim { opacity: .6; }
+    .ss12000-rule { border: 1px solid #d5d5d5; border-radius: .4em; padding: .6em .8em; margin: .6em 0; background: #fafafa; max-width: 70em; }
+    .ss12000-rule.is-off { opacity: .6; }
+    .ss12000-rule-head, .ss12000-rule-action, .ss12000-cond { display: flex; gap: .6em; align-items: center; flex-wrap: wrap; margin: .3em 0; }
+    .ss12000-rule .ss12000-rule-title { font-weight: bold; }
+    .ss12000-rule .ss12000-cond-values { min-width: 18em; flex: 1 1 18em; }
+    .ss12000-rule .ss12000-check { display: inline-flex; gap: .3em; align-items: center; }
 </style>
 </head>
 
@@ -93,6 +104,10 @@
     <li><a href="#sec-rules">[% ss('Import rules') %]</a></li>
     <li><a href="#sec-branches">[% ss('Branches mapping') %]</a></li>
     <li><a href="#sec-categories">[% ss('Categories mapping') %]</a></li>
+    <li><a href="#sec-catrules">[% ss('Category rules') %]</a></li>
+    <li><a href="#sec-schedule">[% ss('Schedule and run now') %]</a></li>
+    <li><a href="#sec-staff">[% ss('Staff') %]</a></li>
+    <li><a href="#sec-leavers">[% ss('Patrons who have left') %]</a></li>
     <li><a href="#sec-advanced">[% ss('Advanced') %]</a></li>
     <li><a href="/cgi-bin/koha/plugins/run.pl?class=[% CLASS | uri %]&amp;method=[% METHOD | uri %]&amp;op=log"><i class="fa fa-list" aria-hidden="true"></i> [% ss('SS12000 log') %]</a></li>
 </ul>
@@ -104,6 +119,9 @@
     <input type="hidden" name="csrf_token" value="[% csrf_token | html %]" />
     <input type="hidden" name="branch_mappings_json" id="branch_mappings_json" value="" />
     <input type="hidden" name="category_mappings_json" id="category_mappings_json" value="" />
+    <input type="hidden" name="rules_json" id="rules_json" value="" />
+    <input type="hidden" name="schedule_json" id="schedule_json" value="" />
+    <input type="hidden" name="leaver_mapping_json" id="leaver_mapping_json" value="" />
 
     <div class="page-section ss12000-section" id="sec-about">
         <a class="ss12000-about-logo" href="https://imcode.com" target="_blank" rel="noopener"><img src="[% logo_data_uri | html %]" alt="imCode" /></a>
@@ -270,7 +288,7 @@
                             <option value="[% c.code | html %]" [% IF c.code == koha_default_categorycode %]selected="selected"[% END %]>[% c.code | html %][% IF c.name %] - [% c.name | html %][% END %]</option>
                         [% END %]
                     </select>
-                    <span class="ss12000-help">[% ss('Used for everyone who does not get a category from the roles mapping, normally all students.') %] [% ss('When you change a parameter, it will be changed for all existing users in the next data update cycle') %].</span>
+                    <span class="ss12000-help">[% ss('Used for everyone who does not get a category from the rules or from the mapping "%s".', ss('Categories mapping')) %] [% ss('When you change a parameter, it will be changed for all existing users in the next data update cycle') %].</span>
                     </div>
                 </li>
                 <li>
@@ -321,7 +339,7 @@
                     <span class="ss12000-help">[% ss('Excluding all users that does not have enrolments') %]</span>
                     </div>
                 </li>
-                <li>
+                <li id="li-excl-dutyrole">
                     <label for="excluding_dutyRole_empty">[% ss('Exclude empty users, dutyRole') %]:</label>
                     <div class="ss12000-field">
                     <select name="excluding_dutyRole_empty" id="excluding_dutyRole_empty">
@@ -330,6 +348,7 @@
                         [% END %]
                     </select>
                     <span class="ss12000-help">[% ss('Excluding all users that does not have dutyRole') %]</span>
+                    <span class="ss12000-off-note">[% ss('Not used while "%s" is ticked', ss('Use rules')) %]</span>
                     </div>
                 </li>
                 <li>
@@ -392,6 +411,7 @@
     <div class="page-section ss12000-section" id="sec-categories">
         <fieldset class="rows">
             <legend>[% ss('Categories mapping') %]</legend>
+            <p class="ss12000-off-note">[% ss('Not used while "%s" is ticked', ss('Use rules')) %]</p>
             <p class="ss12000-help">[% ss('Connects a role (dutyRole, for example Lärare) in IST to a Koha patron category. Only roles that are in the mapping get that category; everyone else gets the default category.') %]</p>
             <div class="ss12000-inline">
                 <button type="button" class="btn btn-default" id="btn-load-roles"><i class="fa fa-cloud-download" aria-hidden="true"></i> [% ss('Load roles from IST') %]</button>
@@ -408,6 +428,141 @@
                 <tbody></tbody>
             </table>
             <datalist id="roles-list"></datalist>
+        </fieldset>
+    </div>
+
+    <div class="page-section ss12000-section" id="sec-catrules">
+        <fieldset class="rows">
+            <legend>[% ss('Category rules') %]</legend>
+            <p class="ss12000-help">[% ss('A rule has one or more conditions and an action: a Koha category, or do not import. Conditions in one rule must all be true. Several values in one condition mean any of them. Rules are tried in priority order (lowest number first) and the first rule that matches decides. When no rule matches, the default category is used.') %]</p>
+            <ol>
+                <li>
+                    <label for="use_rules">[% ss('Use rules') %]:</label>
+                    <div class="ss12000-field">
+                        <label><input type="checkbox" id="use_rules" name="use_rules" value="1" [% IF use_rules %]checked="checked"[% END %] /> [% ss('Decide the patron category with the rules below instead of the mapping "%s"', ss('Categories mapping')) %]</label>
+                        <span class="ss12000-help">[% ss('When this is not ticked the rules are ignored and "%s" works as before. When ticked, "%s" and the setting "%s" are not used (they are greyed out); use a rule with the condition role is empty instead.', ss('Categories mapping'), ss('Categories mapping'), ss('Exclude empty users, dutyRole')) %]</span>
+                    </div>
+                </li>
+            </ol>
+            <div class="ss12000-inline" id="rule-buttons">
+                <button type="button" class="btn btn-default" id="btn-add-rule"><i class="fa fa-plus" aria-hidden="true"></i> [% ss('Add rule') %]</button>
+                <button type="button" class="btn btn-default" id="btn-import-roles"><i class="fa fa-level-down" aria-hidden="true"></i> [% ss('Import "%s" as rules', ss('Categories mapping')) %]</button>
+            </div>
+            <p class="ss12000-off-note" id="rules-off-note">[% ss('The rules are not used until "%s" is ticked', ss('Use rules')) %]</p>
+            <div id="rule-messages"></div>
+            <div id="rule-list"></div>
+        </fieldset>
+    </div>
+
+    <div class="page-section ss12000-section" id="sec-schedule">
+        <fieldset class="rows">
+            <legend>[% ss('Schedule and run now') %]</legend>
+            <p class="ss12000-help">[% ss('The import runs on the days and times below (server time). Add one row for every run you want. Without rows nothing is started by the schedule. Run now starts within a minute. Both need that the system administrator has put the minute check (tick_ss12000.sh) in cron. It does not start an import every minute, it only looks if something is due.') %]</p>
+            <div id="cron-status"></div>
+            <table class="ss12000-map" id="schedule-map">
+                <thead><tr>
+                    <th>[% ss('Day') %]</th>
+                    <th>[% ss('Time') %]</th>
+                    <th></th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+            <div class="ss12000-inline">
+                <button type="button" class="btn btn-default" id="btn-add-schedule-row"><i class="fa fa-plus" aria-hidden="true"></i> [% ss('Add time') %]</button>
+                <span class="ss12000-help" style="display:inline">[% ss('Press Save to keep changes to the schedule.') %]</span>
+            </div>
+            <div class="ss12000-inline" style="margin-top: .8em">
+                <button type="button" class="btn btn-default" id="btn-run-import"><i class="fa fa-play" aria-hidden="true"></i> [% ss('Run import now') %]</button>
+                <button type="button" class="btn btn-default" id="btn-run-discover"><i class="fa fa-cloud-download" aria-hidden="true"></i> [% ss('Fetch values from IST now') %]</button>
+            </div>
+            <div id="job-messages"></div>
+            <table class="ss12000-map" id="job-list">
+                <thead><tr>
+                    <th>#</th><th>[% ss('Job') %]</th><th>[% ss('Source') %]</th><th>[% ss('Started by') %]</th><th>[% ss('State') %]</th><th>[% ss('Started') %]</th><th>[% ss('Finished') %]</th><th>[% ss('Message') %]</th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+        </fieldset>
+    </div>
+
+    <div class="page-section ss12000-section" id="sec-staff">
+        <fieldset class="rows">
+            <legend>[% ss('Staff') %]</legend>
+            <p class="ss12000-help">[% ss('Staff are read from their duties, in one extra pass after the schools. The category is decided by the rules above: a rule with the condition role (and the action category or do not import) for every role you want to import. A role without a rule is not imported. The branch is the school of the newest active duty. Needs Use rules to be ticked.') %]</p>
+            <ol>
+                <li>
+                    <label for="staff_import">[% ss('Import staff') %]:</label>
+                    <div class="ss12000-field">
+                        <label><input type="checkbox" id="staff_import" name="staff_import" value="1" [% IF staff_import %]checked="checked"[% END %] /> [% ss('Import staff with a duty') %]</label>
+                    </div>
+                </li>
+                <li>
+                    <label for="staff_keep_existing">[% ss('Staff already in Koha') %]:</label>
+                    <div class="ss12000-field">
+                        <label><input type="checkbox" id="staff_keep_existing" name="staff_keep_existing" value="1" [% IF staff_keep_existing %]checked="checked"[% END %] /> [% ss('Do not change staff that already exist in Koha (only new staff are added)') %]</label>
+                        <span class="ss12000-help">[% ss('A patron that the plugin has never handled is left exactly as it is, and the function for patrons who have left never touches it.') %]</span>
+                    </div>
+                </li>
+            </ol>
+        </fieldset>
+    </div>
+
+    <div class="page-section ss12000-section" id="sec-leavers">
+        <fieldset class="rows">
+            <legend>[% ss('Patrons who have left') %]</legend>
+            <p class="ss12000-help">[% ss('A patron who is no longer in the school register (not in IST, or without a valid enrolment) is handled at the end of a complete run, and nobody who has left may stay identifiable for ever. A patron without loans is removed with everything that identifies it. A patron with loans left cannot be removed, so after a time the account is anonymized: only the account and the loans are kept, until the loans are back and the account is removed. In between the patron can sit in a category of your choice. Only patrons in the categories below are touched. Start with Report only to see what would happen in the log.') %]</p>
+            <ol>
+                <li>
+                    <label for="leaver_mode">[% ss('What to do') %]:</label>
+                    <div class="ss12000-field">
+                        <select name="leaver_mode" id="leaver_mode">
+                            <option value="off" [% IF leaver_mode == 'off' %]selected="selected"[% END %]>[% ss('Nothing (off)') %]</option>
+                            <option value="report" [% IF leaver_mode == 'report' %]selected="selected"[% END %]>[% ss('Report only (write to the log, change nothing)') %]</option>
+                            <option value="apply" [% IF leaver_mode == 'apply' %]selected="selected"[% END %]>[% ss('Move and remove') %]</option>
+                        </select>
+                    </div>
+                </li>
+                <li>
+                    <label for="leaver_delete_days">[% ss('Remove after (days), no loans left') %]:</label>
+                    <div class="ss12000-field">
+                        <input type="number" name="leaver_delete_days" id="leaver_delete_days" value="[% leaver_delete_days | html %]" min="0" max="3650" style="width: 7em" />
+                        <span class="ss12000-help">[% ss('A patron without loans is removed, with everything that identifies it (also from Kohas logs and the list of deleted patrons), when it has been missing from the register for this many days. 0 removes at once.') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="leaver_anonymize_days_loans">[% ss('Anonymize after (days), loans left') %]:</label>
+                    <div class="ss12000-field">
+                        <input type="number" name="leaver_anonymize_days_loans" id="leaver_anonymize_days_loans" value="[% leaver_anonymize_days_loans | html %]" min="0" max="3650" style="width: 7em" />
+                        <span class="ss12000-help">[% ss('A patron with loans left cannot be removed. After this many days all personal data is removed from the account (name, civic number, contact details, class and the traces in the logs) and only the account and the loans are kept. The account is removed when the loans are back. Empty means never.') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="leaver_max_changes">[% ss('Most changes per run') %]:</label>
+                    <div class="ss12000-field">
+                        <input type="number" name="leaver_max_changes" id="leaver_max_changes" value="[% leaver_max_changes | html %]" min="1" max="100000" style="width: 7em" />
+                        <span class="ss12000-help">[% ss('A safety limit. What does not fit is handled in the next run.') %]</span>
+                    </div>
+                </li>
+                <li>
+                    <label for="leaver_expire_now">[% ss('Account') %]:</label>
+                    <div class="ss12000-field">
+                        <label><input type="checkbox" id="leaver_expire_now" name="leaver_expire_now" value="1" [% IF leaver_expire_now %]checked="checked"[% END %] /> [% ss('Let the account expire today when the patron is moved') %]</label>
+                    </div>
+                </li>
+            </ol>
+            <p class="ss12000-help">[% ss('Waiting to be handled') %]: [% leaver_waiting | html %][% IF leaver_last %]. [% ss('Last run') %]: [% leaver_last | html %][% END %]</p>
+            <div class="ss12000-inline">
+                <button type="button" class="btn btn-default" id="btn-add-leaver-row"><i class="fa fa-plus" aria-hidden="true"></i> [% ss('Add row') %]</button>
+            </div>
+            <table class="ss12000-map" id="leaver-map">
+                <thead><tr>
+                    <th>[% ss('Category of the patron') %]</th>
+                    <th>[% ss('Category while loans are left') %]</th>
+                    <th>[% ss('Category while no loans are left (empty = stays)') %]</th>
+                    <th></th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
         </fieldset>
     </div>
 
@@ -468,20 +623,16 @@
     <div class="ss12000-actions">
         <button type="submit" class="btn btn-primary" id="btn-save"><i class="fa fa-save" aria-hidden="true"></i> [% ss('Save') %]</button>
         <span id="save-hint" class="ss12000-help" style="display:inline"></span>
+        <button type="submit" form="clearLogForm" class="btn btn-default ss12000-actions-right" id="btn-clearlog"[% UNLESS log_count %] disabled="disabled" title="[% ss('Nothing to restart: no pages have been processed today') | html %]"[% END %]>[% ss('Set API scanner from the first page') %]</button>
     </div>
 </form>
 
-[% IF log_count %]
-<form method="post" action="" id="clearLogForm" class="ss12000-section">
+<form method="post" action="" id="clearLogForm">
     <input type="hidden" name="class" value="[% CLASS | html %]" />
     <input type="hidden" name="method" value="[% METHOD | html %]" />
     <input type="hidden" name="op" value="cud-clearlog-config" />
     <input type="hidden" name="csrf_token" value="[% csrf_token | html %]" />
-    <fieldset class="action">
-        <button type="submit" class="btn btn-default" id="btn-clearlog">[% ss('Set API scanner from the first page') %]</button>
-    </fieldset>
 </form>
-[% END %]
 
 <div id="ss12000-i18n" class="ss12000-hidden"
     data-loading="[% ss('Loading...') | html %]"
@@ -493,7 +644,7 @@
     data-suggested="[% ss('Suggested') | html %]"
     data-ambiguous="[% ss('Check this one') | html %]"
     data-remove="[% ss('Remove') | html %]"
-    data-confirm-clear="[% ss('Are you sure you want to clear the log? This action cannot be undone.') | html %]"
+    data-confirm-clear="[% ss('Start the import over from the first page? Pages that were already processed today are processed again.') | html %]"
     data-need-category="[% ss('Please select a default category') | html %]"
     data-need-attribute="[% ss('Matching on a patron attribute needs a civic number attribute to be selected') | html %]"
     data-need-match="[% ss('Select at least one way to find existing patrons') | html %]"
@@ -505,7 +656,48 @@
     data-missing-in-ist="[% ss('in the mapping but not in IST') | html %]"
     data-suggestions-applied="[% ss('suggestions applied. Review them and press Save.') | html %]"
     data-no-suggestions="[% ss('No new suggestions found.') | html %]"
-    data-roles-loaded="[% ss('roles loaded from IST') | html %]"></div>
+    data-roles-loaded="[% ss('roles loaded from IST') | html %]"
+    data-add-condition="[% ss('Add condition') | html %]"
+    data-priority="[% ss('Priority') | html %]"
+    data-rule-name="[% ss('Name (optional)') | html %]"
+    data-enabled="[% ss('Active') | html %]"
+    data-other-field="[% ss('Other field (advanced)') | html %]"
+    data-path-hint="[% ss('Field path, for example enrolments.educationCode') | html %]"
+    data-values-hint="[% ss('Values, separated by comma') | html %]"
+    data-do-not-import="[% ss('Do not import') | html %]"
+    data-then="[% ss('Then') | html %]"
+    data-no-rules="[% ss('No rules yet.') | html %]"
+    data-rule-label="[% ss('Rule') | html %]"
+    data-rule-needs-condition="[% ss('Every rule needs at least one condition') | html %]"
+    data-rule-needs-value="[% ss('Every condition needs a value') | html %]"
+    data-rule-needs-action="[% ss('Every rule needs a category or Do not import') | html %]"
+    data-rule-needs-path="[% ss('Enter a field path') | html %]"
+    data-rule-needs-number="[% ss('Use a number for this field') | html %]"
+    data-rules-imported="[% ss('rules added from the roles mapping. Review them and press Save.') | html %]"
+    data-no-roles-to-import="[% ss('The roles mapping is empty.') | html %]"
+    data-duplicate-priority="[% ss('The same priority is used by more than one rule (the lower rule number is tried first)') | html %]"
+    data-import-name="[% ss('From roles mapping') | html %]"
+    data-import-empty-role="[% ss('No role (from Exclude empty users, dutyRole)') | html %]"
+    data-cron-never="[% ss('The schedule is not active. The times and buttons below start nothing until the system administrator has put the minute check (tick_ss12000.sh) in cron.') | html %]"
+    data-cron-late="[% ss('The schedule may not be active right now: the minute check was last seen') | html %]"
+    data-cron-ok="[% ss('The schedule is active: the times below and the buttons Run import now and Fetch values from IST now start runs by themselves. The minute check was last seen') | html %]"
+    data-server-time="[% ss('Server time') | html %]"
+    data-no-schedule="[% ss('No times yet.') | html %]"
+    data-no-jobs="[% ss('No jobs yet.') | html %]"
+    data-queued-msg="[% ss('Queued. It starts within a minute.') | html %]"
+    data-already-msg="[% ss('A job of this kind is already waiting or running.') | html %]"
+    data-need-time="[% ss('Every row in the schedule needs a time') | html %]"
+    data-stays-label="[% ss('- stays in its category -') | html %]"
+    data-bad-response="[% ss('The server did not answer as expected') | html %]"
+    data-run-active="[% ss('A run is in progress') | html %]"
+    data-run-idle="[% ss('No run is in progress') | html %]"
+    data-run-last-log="[% ss('latest log row') | html %]"
+    data-src-lock="[% ss('lock file') | html %]"
+    data-src-job="[% ss('job queue') | html %]"
+    data-src-process="[% ss('cron script is running') | html %]"
+    data-src-log="[% ss('log activity in the last 10 minutes') | html %]"
+    data-waits-msg="[% ss('A run is already in progress. The new import starts when it has finished.') | html %]"
+    data-confirm-import="[% ss('Start the import now? It starts again from the first page and updates patrons.') | html %]"></div>
 
 [% END %]
 
@@ -516,6 +708,13 @@
         categories: [% categories_json | $raw %],
         branchMapping: [% branches_mapping_json | $raw %],
         categoryMapping: [% categories_mapping_json | $raw %],
+        rules: [% rules_json | $raw %],
+        ruleMeta: [% rule_meta_json | $raw %],
+        excludeDutyRoleEmpty: [% IF exclude_dutyrole_empty %]true[% ELSE %]false[% END %],
+        schedule: [% schedule_json | $raw %],
+        scheduleMeta: [% schedule_meta_json | $raw %],
+        leaverMapping: [% leaver_mapping_json | $raw %],
+        jobStatus: [% jobs_json | $raw %],
         hasSecret: [% IF client_secret_set %]true[% ELSE %]false[% END %],
         initialUserid: "[% useridPlugin | html %]",
         initialCardnumber: "[% cardnumberPlugin | html %]"
@@ -761,6 +960,351 @@
         }).catch(function (e) { showMessage(categoryMsgBox, "danger", String(e)); });
     });
 
+    // ---------- Category rules ----------
+    var ruleBox = document.getElementById("rule-list");
+    var ruleMsgBox = document.getElementById("rule-messages");
+    var rules = [];
+    var otherScopeRules = [];
+    var FIELD = {};
+    cfg.ruleMeta.fields.forEach(function (f) { FIELD[f.code] = f; });
+
+    function fieldType(code) { return code.indexOf("custom:") === 0 ? "any" : ((FIELD[code] || {}).type || "text"); }
+    function opsFor(code) { return cfg.ruleMeta.operators[fieldType(code)] || []; }
+    function needsValues(op) { return op !== "empty" && op !== "not_empty"; }
+    function splitValues(text) { return text.split(",").map(function (v) { return v.trim(); }).filter(function (v) { return v !== ""; }); }
+
+    function fieldSelect(cond) {
+        var sel = el("select", {});
+        var other = el("optgroup", { label: msg.otherField });
+        cfg.ruleMeta.fields.forEach(function (f) {
+            var o = el("option", { value: f.code, text: f.label });
+            if (cond.field === f.code) { o.selected = true; }
+            (f.advanced ? other : sel).appendChild(o);
+        });
+        var custom = el("option", { value: "custom", text: msg.otherField });
+        if (cond.field.indexOf("custom:") === 0) { custom.selected = true; }
+        other.appendChild(custom);
+        sel.appendChild(other);
+        return sel;
+    }
+
+    function renderRules() {
+        ruleBox.innerHTML = "";
+        if (!rules.length) { ruleBox.appendChild(el("p", { "class": "ss12000-help", text: msg.noRules })); }
+        rules.forEach(function (rule) {
+            var card = el("div", { "class": "ss12000-rule" + (rule.enabled ? "" : " is-off") });
+
+            var prio = el("input", { type: "number", min: "1", max: "9999", value: String(rule.priority), style: "width: 5em", title: msg.priority });
+            prio.addEventListener("input", function () { rule.priority = parseInt(prio.value, 10) || 1; showDuplicates(); });
+            var name = el("input", { type: "text", size: "30", value: rule.name || "", placeholder: msg.ruleName });
+            name.addEventListener("input", function () { rule.name = name.value; });
+            var on = el("input", { type: "checkbox" });
+            on.checked = !!rule.enabled;
+            on.addEventListener("change", function () { rule.enabled = on.checked ? 1 : 0; card.classList.toggle("is-off", !rule.enabled); });
+            var del = el("button", { type: "button", "class": "btn btn-default btn-xs", title: msg.remove, text: "\u00d7" });
+            del.addEventListener("click", function () { rules.splice(rules.indexOf(rule), 1); renderRules(); });
+            card.appendChild(el("div", { "class": "ss12000-rule-head" }, [
+                el("span", { "class": "ss12000-rule-title", text: msg.ruleLabel + (rule.id ? " #" + rule.id : "") }),
+                el("span", { text: msg.priority + ":" }), prio, name,
+                el("span", { "class": "ss12000-check" }, [on, el("span", { text: msg.enabled })]), del
+            ]));
+
+            var condBox = el("div", {});
+            rule.conditions.forEach(function (cond) {
+                var row = el("div", { "class": "ss12000-cond" });
+                var fsel = fieldSelect(cond);
+                var path = el("input", { type: "text", size: "28", placeholder: msg.pathHint, value: cond.field.indexOf("custom:") === 0 ? cond.field.slice(7) : "" });
+                var osel = el("select", {});
+                var vals = el("input", { type: "text", "class": "ss12000-cond-values", placeholder: msg.valuesHint, value: (cond.values || []).join(", ") });
+                var rm = el("button", { type: "button", "class": "btn btn-default btn-xs", title: msg.remove, text: "\u00d7" });
+
+                function fillOps() {
+                    osel.innerHTML = "";
+                    var ops = opsFor(cond.field);
+                    if (!ops.some(function (o) { return o.code === cond.op; })) { cond.op = ops.length ? ops[0].code : "in"; }
+                    ops.forEach(function (o) {
+                        var opt = el("option", { value: o.code, text: o.label });
+                        if (o.code === cond.op) { opt.selected = true; }
+                        osel.appendChild(opt);
+                    });
+                    vals.style.display = needsValues(cond.op) ? "" : "none";
+                    path.style.display = cond.field.indexOf("custom:") === 0 ? "" : "none";
+                }
+                fsel.addEventListener("change", function () {
+                    cond.field = fsel.value === "custom" ? "custom:" + path.value.trim() : fsel.value;
+                    fillOps();
+                });
+                path.addEventListener("input", function () { cond.field = "custom:" + path.value.trim(); });
+                osel.addEventListener("change", function () { cond.op = osel.value; fillOps(); });
+                vals.addEventListener("input", function () { cond.values = splitValues(vals.value); });
+                rm.addEventListener("click", function () { rule.conditions.splice(rule.conditions.indexOf(cond), 1); renderRules(); });
+                fillOps();
+                [fsel, path, osel, vals, rm].forEach(function (n) { row.appendChild(n); });
+                condBox.appendChild(row);
+            });
+            card.appendChild(condBox);
+
+            var add = el("button", { type: "button", "class": "btn btn-default btn-xs" }, [el("span", { text: "+ " + msg.addCondition })]);
+            add.addEventListener("click", function () { rule.conditions.push({ field: "school", op: "in", values: [] }); renderRules(); });
+            card.appendChild(add);
+
+            var act = el("select", {});
+            act.appendChild(el("option", { value: "", text: msg.noCategory }));
+            var skip = el("option", { value: "__skip__", text: msg.doNotImport });
+            if (rule.skip) { skip.selected = true; }
+            act.appendChild(skip);
+            cfg.categories.forEach(function (o) {
+                var opt = el("option", { value: o.code, text: o.code + (o.name ? " - " + o.name : "") });
+                if (!rule.skip && rule.category === o.code) { opt.selected = true; }
+                act.appendChild(opt);
+            });
+            if (!rule.skip && rule.category && !cfg.categories.some(function (o) { return o.code === rule.category; })) {
+                var miss = el("option", { value: rule.category, text: rule.category + " (" + msg.missingInKoha + ")" });
+                miss.selected = true;
+                act.appendChild(miss);
+            }
+            act.addEventListener("change", function () {
+                rule.skip = act.value === "__skip__" ? 1 : 0;
+                rule.category = rule.skip ? "" : act.value;
+            });
+            card.appendChild(el("div", { "class": "ss12000-rule-action" }, [el("strong", { text: msg.then + ":" }), act]));
+            ruleBox.appendChild(card);
+        });
+        showDuplicates();
+    }
+
+    function showDuplicates() {
+        var count = {};
+        rules.forEach(function (r) { if (r.enabled) { count[r.priority] = (count[r.priority] || 0) + 1; } });
+        var dup = Object.keys(count).filter(function (k) { return count[k] > 1; });
+        if (dup.length) { showMessage(ruleMsgBox, "warning", msg.duplicatePriority + ": " + dup.join(", ")); } else { ruleMsgBox.innerHTML = ""; }
+    }
+
+    function nextPriority() {
+        return rules.reduce(function (m, r) { return Math.max(m, r.priority); }, 0) + 1;
+    }
+
+    function fromServerRule(r) {
+        return {
+            id: r.id, priority: r.priority, name: r.name || "", enabled: r.enabled ? 1 : 0,
+            conditions: (r.conditions || []).map(function (c) { return { field: c.field, op: c.op, values: (c.values || []).slice() }; }),
+            skip: r.action && r.action.not_import ? 1 : 0, category: (r.action && r.action.category) || ""
+        };
+    }
+
+    document.getElementById("btn-add-rule").addEventListener("click", function () {
+        rules.push({ id: null, priority: nextPriority(), name: "", enabled: 1, conditions: [{ field: "school", op: "in", values: [] }], skip: 0, category: "" });
+        renderRules();
+    });
+
+    document.getElementById("btn-import-roles").addEventListener("click", function () {
+        var groups = [], index = {}, seen = {};
+        categoryRows.forEach(function (row) {
+            if (!row.role || seen[row.role] || !(row.category || row.not_import)) { return; }
+            seen[row.role] = true;
+            var key = row.not_import ? "__skip__" : row.category;
+            if (!(key in index)) { index[key] = groups.length; groups.push({ key: key, roles: [] }); }
+            groups[index[key]].roles.push(row.role);
+        });
+        var added = groups.map(function (g) {
+            return { id: null, priority: 0, name: msg.importName, enabled: 1, skip: g.key === "__skip__" ? 1 : 0, category: g.key === "__skip__" ? "" : g.key,
+                     conditions: [{ field: "role", op: "in", values: g.roles }] };
+        });
+        if (cfg.excludeDutyRoleEmpty) {
+            added.push({ id: null, priority: 0, name: msg.importEmptyRole, enabled: 1, skip: 1, category: "", conditions: [{ field: "role", op: "empty", values: [] }] });
+        }
+        if (!added.length) { showMessage(ruleMsgBox, "warning", msg.noRolesToImport); return; }
+        added.forEach(function (r) { r.priority = nextPriority(); rules.push(r); });
+        renderRules();
+        showMessage(ruleMsgBox, "success", added.length + " " + msg.rulesImported);
+    });
+
+    function serializeRules() {
+        return otherScopeRules.concat(rules.map(function (r) {
+            return {
+                id: r.id, priority: r.priority, name: r.name, enabled: r.enabled ? 1 : 0, scope: "category",
+                conditions: r.conditions.map(function (c) { return { field: c.field, op: c.op, values: needsValues(c.op) ? c.values : [] }; }),
+                action: r.skip ? { not_import: 1 } : { category: r.category }
+            };
+        }));
+    }
+
+    function checkRules() {
+        for (var i = 0; i < rules.length; i++) {
+            var r = rules[i];
+            if (!r.conditions.length) { return msg.ruleNeedsCondition; }
+            for (var j = 0; j < r.conditions.length; j++) {
+                var c = r.conditions[j];
+                if (c.field === "custom:") { return msg.ruleNeedsPath; }
+                if (needsValues(c.op) && !(c.values && c.values.length)) { return msg.ruleNeedsValue; }
+                if (needsValues(c.op) && fieldType(c.field) === "number" && !c.values.every(function (v) { return /^-?\d+(\.\d+)?$/.test(v); })) { return msg.ruleNeedsNumber; }
+                if ((c.op === "gte" || c.op === "lte") && !/^-?\d+(\.\d+)?$/.test(c.values[0])) { return msg.ruleNeedsNumber; }
+            }
+            if (!r.skip && !r.category) { return msg.ruleNeedsAction; }
+        }
+        return "";
+    }
+
+    // ---------- Schedule and run now ----------
+    var scheduleBody = document.querySelector("#schedule-map tbody");
+    var scheduleRows = [];
+    var jobBody = document.querySelector("#job-list tbody");
+    var jobMsgBox = document.getElementById("job-messages");
+    var cronBox = document.getElementById("cron-status");
+    var pollTimer = null;
+
+    function renderSchedule() {
+        scheduleBody.innerHTML = "";
+        if (!scheduleRows.length) {
+            var tr0 = el("tr", {});
+            tr0.appendChild(el("td", { colspan: "3", text: msg.noSchedule }));
+            scheduleBody.appendChild(tr0);
+        }
+        scheduleRows.forEach(function (row) {
+            var tr = el("tr", {});
+            var day = el("select", {});
+            cfg.scheduleMeta.weekdays.forEach(function (d) {
+                var o = el("option", { value: String(d.code), text: d.label });
+                if (d.code === row.weekday) { o.selected = true; }
+                day.appendChild(o);
+            });
+            day.addEventListener("change", function () { row.weekday = parseInt(day.value, 10); });
+            var time = el("input", { type: "time", step: "60", value: row.time });
+            time.addEventListener("input", function () { row.time = time.value; });
+            var del = el("button", { type: "button", "class": "btn btn-default btn-xs", title: msg.remove, text: "\u00d7" });
+            del.addEventListener("click", function () { scheduleRows.splice(scheduleRows.indexOf(row), 1); renderSchedule(); });
+            tr.appendChild(el("td", {}, [day]));
+            tr.appendChild(el("td", {}, [time]));
+            tr.appendChild(el("td", {}, [del]));
+            scheduleBody.appendChild(tr);
+        });
+    }
+
+    document.getElementById("btn-add-schedule-row").addEventListener("click", function () {
+        scheduleRows.push({ weekday: 1, time: "08:00", job_type: "import" });
+        renderSchedule();
+    });
+
+    function renderJobStatus(st) {
+        var meta = cfg.scheduleMeta;
+        cronBox.innerHTML = "";
+        var when = st.tick_seen ? " " + st.tick_seen : "";
+        var cls, text;
+        if (st.tick_age === null || st.tick_age === undefined || st.tick_seen === "") { cls = "warning"; text = msg.cronNever; }
+        else if (st.tick_age > 180) { cls = "warning"; text = msg.cronLate + when; }
+        else { cls = "success"; text = msg.cronOk + when; }
+        var line = text + (st.server_time ? " (" + msg.serverTime + " " + st.server_time + ")" : "");
+        cronBox.appendChild(el("div", { "class": "alert alert-" + cls, text: line }));
+
+        var act = st.activity || { running: 0, sources: [] };
+        var srcName = function (x) { return x.indexOf("lock:") === 0 ? msg.srcLock : (x.indexOf("job:") === 0 ? msg.srcJob : (x === "process" ? msg.srcProcess : msg.srcLog)); };
+        var actText = act.running
+            ? msg.runActive + " (" + act.sources.map(srcName).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(", ") + ")"
+            : msg.runIdle;
+        if (act.last_log) { actText += ", " + msg.runLastLog + " " + act.last_log; }
+        cronBox.appendChild(el("div", { "class": "alert alert-" + (act.running ? "info" : "default"), text: actText }));
+
+        jobBody.innerHTML = "";
+        if (!st.jobs.length) {
+            var tr0 = el("tr", {});
+            tr0.appendChild(el("td", { colspan: "8", text: msg.noJobs }));
+            jobBody.appendChild(tr0);
+        }
+        st.jobs.forEach(function (j) {
+            var tr = el("tr", {});
+            var text = j.message || "";
+            var stored = /^stored (\d+) values, (\d+) persons read$/.exec(text);
+            if (stored) { text = meta.storedFormat.replace("%s", stored[1]).replace("%s", stored[2]); }
+            else if (meta.messages[text]) { text = meta.messages[text]; }
+            [j.id, meta.types[j.job_type] || j.job_type, meta.sources[j.source] || j.source, j.requested_by, meta.states[j.status] || j.status, j.started_at, j.finished_at, text].forEach(function (v) {
+                tr.appendChild(el("td", { text: v === undefined || v === null ? "" : String(v) }));
+            });
+            jobBody.appendChild(tr);
+        });
+        var active = st.jobs.some(function (j) { return j.status === "queued" || j.status === "running"; });
+        if (pollTimer) { window.clearTimeout(pollTimer); pollTimer = null; }
+        if (active) { pollTimer = window.setTimeout(pollJobs, 5000); }
+    }
+
+    function pollJobs() {
+        ajax("ajax-job-status").then(function (r) { if (r.ok) { renderJobStatus(r); } }).catch(function () {});
+    }
+
+    function requestJob(type) {
+        var url = window.location.pathname;
+        var body = new URLSearchParams();
+        body.append("class", form.elements["class"].value);
+        body.append("method", form.elements["method"].value);
+        body.append("op", "cud-ajax-job-request");
+        body.append("job_type", type);
+        body.append("csrf_token", form.elements["csrf_token"].value);
+        fetch(url, { method: "POST", credentials: "same-origin", headers: { "Accept": "application/json" }, body: body })
+            .then(function (r) {
+                var type_ = r.headers.get("Content-Type") || "";
+                if (type_.indexOf("json") < 0) { throw new Error(msg.badResponse + " (HTTP " + r.status + ")"); }
+                return r.json();
+            })
+            .then(function (r) {
+                if (!r.ok) { showMessage(jobMsgBox, "danger", r.message); return; }
+                var busy = type === "import" && r.activity && r.activity.running && !r.already;
+                showMessage(jobMsgBox, (r.already || busy) ? "warning" : "success", r.already ? msg.alreadyMsg : (busy ? msg.waitsMsg : msg.queuedMsg));
+                renderJobStatus(r);
+            }).catch(function (e) { showMessage(jobMsgBox, "danger", String(e)); });
+    }
+
+    document.getElementById("btn-run-import").addEventListener("click", function () {
+        if (window.confirm(msg.confirmImport)) { requestJob("import"); }
+    });
+    document.getElementById("btn-run-discover").addEventListener("click", function () { requestJob("discover"); });
+
+    function serializeSchedule() {
+        return scheduleRows.map(function (r) { return { weekday: r.weekday, time: r.time, job_type: r.job_type || "import" }; });
+    }
+
+    // ---------- Patrons who have left ----------
+    var leaverBody = document.querySelector("#leaver-map tbody");
+    var leaverRows = [];
+
+    function renderLeavers() {
+        leaverBody.innerHTML = "";
+        leaverRows.forEach(function (row) {
+            var tr = el("tr", {});
+            var label = function (o) { return o.code + (o.name ? " - " + o.name : ""); };
+            var from = selectBox(cfg.categories, row.from, msg.noCategory, label, msg.missingInKoha);
+            from.addEventListener("change", function () { row.from = from.value; });
+            var to = selectBox(cfg.categories, row.to, msg.noCategory, label, msg.missingInKoha);
+            to.addEventListener("change", function () { row.to = to.value; });
+            var toNo = selectBox(cfg.categories, row.to_noloans || "", msg.staysLabel, label, msg.missingInKoha);
+            toNo.addEventListener("change", function () { row.to_noloans = toNo.value; });
+            var del = el("button", { type: "button", "class": "btn btn-default btn-xs", title: msg.remove, text: "\u00d7" });
+            del.addEventListener("click", function () { leaverRows.splice(leaverRows.indexOf(row), 1); renderLeavers(); });
+            tr.appendChild(el("td", {}, [from]));
+            tr.appendChild(el("td", {}, [to]));
+            tr.appendChild(el("td", {}, [toNo]));
+            tr.appendChild(el("td", {}, [del]));
+            leaverBody.appendChild(tr);
+        });
+    }
+    document.getElementById("btn-add-leaver-row").addEventListener("click", function () {
+        leaverRows.push({ from: "", to: "", to_noloans: "" });
+        renderLeavers();
+    });
+
+    // ---------- "Use rules" switches what is used ----------
+    var useRulesBox = document.getElementById("use_rules");
+    function applyRulesMode() {
+        var on = useRulesBox.checked;
+        ["sec-categories", "li-excl-dutyrole"].forEach(function (id) {
+            var node = document.getElementById(id);
+            node.classList.toggle("ss12000-off", on);
+            if (on) { node.setAttribute("inert", ""); node.setAttribute("aria-disabled", "true"); }
+            else { node.removeAttribute("inert"); node.removeAttribute("aria-disabled"); }
+        });
+        ["rule-list", "rule-buttons"].forEach(function (id) { document.getElementById(id).classList.toggle("ss12000-dim", !on); });
+        document.getElementById("rules-off-note").style.display = on ? "none" : "block";
+    }
+    useRulesBox.addEventListener("change", applyRulesMode);
+
     // ---------- Misc behaviour ----------
     function toggleMonths() {
         document.getElementById("dateexpiry_months_div").classList.toggle("ss12000-hidden", document.getElementById("dateexpiry_fallback").value !== "months");
@@ -772,6 +1316,16 @@
     function markDebug() { debugSel.style.color = debugSel.value === "Yes" ? "red" : ""; }
     debugSel.addEventListener("change", markDebug);
     markDebug();
+
+    // The save bar sticks to the bottom of the window, above Koha's fixed language bar
+    var actionsBar = document.querySelector(".ss12000-actions");
+    function placeActions() {
+        var lang = document.getElementById("changelanguage") || document.querySelector(".fixed-bottom");
+        var h = (lang && window.getComputedStyle(lang).position === "fixed") ? lang.offsetHeight : 0;
+        actionsBar.style.bottom = h + "px";
+    }
+    placeActions();
+    window.addEventListener("resize", placeActions);
 
     var clearBtn = document.getElementById("btn-clearlog");
     if (clearBtn) {
@@ -796,6 +1350,13 @@
             e.preventDefault();
             return;
         }
+        if (scheduleRows.some(function (r) { return !r.time; })) { window.alert(msg.needTime); e.preventDefault(); return; }
+        document.getElementById("schedule_json").value = JSON.stringify(serializeSchedule());
+        document.getElementById("leaver_mapping_json").value = JSON.stringify(
+            leaverRows.filter(function (r) { return r.from || r.to; }).map(function (r) { return { from: r.from, to: r.to, to_noloans: r.to_noloans || "" }; }));
+        var ruleProblem = checkRules();
+        if (ruleProblem) { window.alert(ruleProblem); e.preventDefault(); return; }
+        document.getElementById("rules_json").value = JSON.stringify(serializeRules());
         document.getElementById("branch_mappings_json").value = JSON.stringify(
             branchRows.filter(function (r) { return r.org && r.branch; }).map(function (r) { return { org: r.org, branch: r.branch }; }));
         document.getElementById("category_mappings_json").value = JSON.stringify(
@@ -805,8 +1366,16 @@
     // ---------- Init ----------
     branchRows = (cfg.branchMapping || []).map(function (m) { return { org: m.org, branch: m.branch, name: "", state: "" }; });
     categoryRows = (cfg.categoryMapping || []).map(function (m) { return { role: m.role, category: m.category, not_import: m.not_import }; });
+    (cfg.rules || []).forEach(function (r) { (r.scope === "branch" ? otherScopeRules : rules).push(r.scope === "branch" ? r : fromServerRule(r)); });
     renderBranches();
     renderCategories();
+    renderRules();
+    applyRulesMode();
+    scheduleRows = (cfg.schedule || []).map(function (r) { return { weekday: r.weekday, time: r.time, job_type: r.job_type }; });
+    renderSchedule();
+    renderJobStatus(cfg.jobStatus);
+    leaverRows = (cfg.leaverMapping || []).map(function (r) { return { from: r.from, to: r.to, to_noloans: r.to_noloans || "" }; });
+    renderLeavers();
     if (cfg.hasSecret) { loadOrgs(); }
 })();
 </script>

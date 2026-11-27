@@ -198,7 +198,7 @@ msgstr "Standardvärdet är 3 dagar"
 
 
 msgid "Save"
-msgstr "Spar"
+msgstr "Spara"
 
 
 msgid "Please select values for both Koha Default Categorycode and Koha Default Branchcode"
@@ -492,8 +492,6 @@ msgstr "skapas automatiskt"
 msgid "Patron attribute type where the class (for example 9A) is stored. The type CL is created automatically if it does not exist. Any other type must already exist."
 msgstr "Låntagarattributtyp där klassen (till exempel 9A) sparas. Typen CL skapas automatiskt om den saknas. Alla andra typer måste redan finnas."
 
-msgid "Used for everyone who does not get a category from the roles mapping, normally all students."
-msgstr "Används för alla som inte får en kategori från rollmappningen, normalt alla elever."
 
 msgid "- none (skip schools without mapping) -"
 msgstr "- ingen (hoppa över skolor utan mappning) -"
@@ -597,8 +595,6 @@ msgstr "Kontrollera denna"
 msgid "Remove"
 msgstr "Ta bort"
 
-msgid "Are you sure you want to clear the log? This action cannot be undone."
-msgstr "Är du säker på att du vill rensa loggen? Detta kan inte ångras."
 
 msgid "Please select a default category"
 msgstr "Välj en standardkategori"
@@ -889,3 +885,434 @@ msgstr "När rutan är ikryssad ersätter en tom e-postadress, telefon, mobil el
 
 msgid "missing in Koha"
 msgstr "saknas i Koha"
+
+msgid "Category rules"
+msgstr "Kategoriregler"
+
+msgid "A rule has one or more conditions and an action: a Koha category, or do not import. Conditions in one rule must all be true. Several values in one condition mean any of them. Rules are tried in priority order (lowest number first) and the first rule that matches decides. When no rule matches, the default category is used."
+msgstr "En regel har ett eller flera villkor och en åtgärd: en Koha-kategori, eller importera inte. Alla villkor i en regel måste vara sanna. Flera värden i ett villkor betyder något av dem. Reglerna prövas i prioritetsordning (lägst nummer först) och den första regel som träffar avgör. Om ingen regel träffar används standardkategorin."
+
+msgid "Use rules"
+msgstr "Använd regler"
+
+
+
+msgid "Add rule"
+msgstr "Lägg till regel"
+
+
+msgid "Add condition"
+msgstr "Lägg till villkor"
+
+msgid "Priority"
+msgstr "Prioritet"
+
+msgid "Name (optional)"
+msgstr "Namn (valfritt)"
+
+msgid "Active"
+msgstr "Aktiv"
+
+msgid "Other field (advanced)"
+msgstr "Annat fält (avancerat)"
+
+msgid "Field path, for example enrolments.educationCode"
+msgstr "Fältsökväg, till exempel enrolments.educationCode"
+
+msgid "Values, separated by comma"
+msgstr "Värden, avgränsade med komma"
+
+msgid "Then"
+msgstr "Då"
+
+msgid "No rules yet."
+msgstr "Inga regler ännu."
+
+msgid "Rule"
+msgstr "Regel"
+
+msgid "Every rule needs at least one condition"
+msgstr "Varje regel behöver minst ett villkor"
+
+msgid "Every condition needs a value"
+msgstr "Varje villkor behöver ett värde"
+
+msgid "Every rule needs a category or Do not import"
+msgstr "Varje regel behöver en kategori eller Importera inte"
+
+msgid "Enter a field path"
+msgstr "Ange en fältsökväg"
+
+msgid "Use a number for this field"
+msgstr "Använd ett tal för detta fält"
+
+msgid "rules added from the roles mapping. Review them and press Save."
+msgstr "regler lades till från rollmappningen. Granska dem och tryck på Spara."
+
+msgid "The roles mapping is empty."
+msgstr "Rollmappningen är tom."
+
+msgid "The same priority is used by more than one rule (the lower rule number is tried first)"
+msgstr "Samma prioritet används av fler än en regel (den med lägre regelnummer prövas först)"
+
+msgid "From roles mapping"
+msgstr "Från rollmappningen"
+
+msgid "No role (from Exclude empty users, dutyRole)"
+msgstr "Ingen roll (från Exclude empty users, dutyRole)"
+
+msgid "Rules were not saved: %s"
+msgstr "Reglerna sparades inte: %s"
+
+msgid "Rules could not be saved: %s"
+msgstr "Reglerna kunde inte sparas: %s"
+
+msgid "Rules had an invalid format and were not saved"
+msgstr "Reglerna hade ett ogiltigt format och sparades inte"
+
+msgid "School (organisation code)"
+msgstr "Skola (organisationskod)"
+
+msgid "School type"
+msgstr "Skoltyp"
+
+msgid "School year"
+msgstr "Årskurs"
+
+msgid "Education code (programme)"
+msgstr "Utbildningskod (program)"
+
+msgid "Class"
+msgstr "Klass"
+
+msgid "Assignment role"
+msgstr "Uppdragsroll"
+
+msgid "Age"
+msgstr "Ålder"
+
+msgid "Person kind (student, staff, both)"
+msgstr "Persontyp (elev, personal, båda)"
+
+msgid "School group (parent organisation id)"
+msgstr "Skolgrupp (överordnad organisations id)"
+
+msgid "School of the duty (staff)"
+msgstr "Skola för uppdraget (personal)"
+
+msgid "is one of"
+msgstr "är något av"
+
+msgid "starts with"
+msgstr "börjar med"
+
+msgid "is empty"
+msgstr "är tom"
+
+msgid "is not empty"
+msgstr "är inte tom"
+
+msgid "is at least"
+msgstr "är minst"
+
+msgid "is at most"
+msgstr "är högst"
+
+msgid "A job of this kind is already waiting or running."
+msgstr "Ett jobb av den här typen väntar redan eller körs."
+
+msgid "Add time"
+msgstr "Lägg till tid"
+
+msgid "Day"
+msgstr "Dag"
+
+msgid "Done"
+msgstr "Klart"
+
+msgid "Every row in the schedule needs a time"
+msgstr "Varje rad i schemat behöver en tid"
+
+msgid "Failed"
+msgstr "Misslyckades"
+
+msgid "Fetch values from IST"
+msgstr "Hämta värden från IST"
+
+msgid "Fetch values from IST now"
+msgstr "Hämta värden från IST nu"
+
+msgid "Finished"
+msgstr "Slutfört"
+
+msgid "Friday"
+msgstr "Fredag"
+
+msgid "Import of patrons"
+msgstr "Import av låntagare"
+
+msgid "Job"
+msgstr "Jobb"
+
+msgid "Message"
+msgstr "Meddelande"
+
+msgid "Monday"
+msgstr "Måndag"
+
+msgid "No jobs yet."
+msgstr "Inga jobb ännu."
+
+msgid "No times yet."
+msgstr "Inga tider ännu."
+
+msgid "Press Save to keep changes to the schedule."
+msgstr "Tryck på Spara för att behålla ändringar i schemat."
+
+msgid "Queued. It starts within a minute."
+msgstr "Köat. Det startar inom en minut."
+
+msgid "Run import now"
+msgstr "Kör import nu"
+
+msgid "Run now"
+msgstr "Kör nu"
+
+msgid "Running"
+msgstr "Körs"
+
+msgid "Saturday"
+msgstr "Lördag"
+
+msgid "Schedule"
+msgstr "Schema"
+
+msgid "Schedule and run now"
+msgstr "Schema och kör nu"
+
+msgid "Server time"
+msgstr "Servertid"
+
+msgid "Start the import now? It starts again from the first page and updates patrons."
+msgstr "Starta importen nu? Den startar om från första sidan och uppdaterar låntagare."
+
+msgid "Started"
+msgstr "Startade"
+
+msgid "Started by"
+msgstr "Startad av"
+
+msgid "Sunday"
+msgstr "Söndag"
+
+
+
+
+
+msgid "The request could not be verified. Reload the page and try again."
+msgstr "Begäran kunde inte verifieras. Ladda om sidan och försök igen."
+
+msgid "The schedule could not be saved: %s"
+msgstr "Schemat kunde inte sparas: %s"
+
+msgid "The schedule had an invalid format and was not saved"
+msgstr "Schemat hade ett ogiltigt format och sparades inte"
+
+msgid "The schedule was not saved: %s"
+msgstr "Schemat sparades inte: %s"
+
+msgid "Thursday"
+msgstr "Torsdag"
+
+msgid "Tuesday"
+msgstr "Tisdag"
+
+msgid "Unknown job type"
+msgstr "Okänd jobbtyp"
+
+msgid "Waiting"
+msgstr "Väntar"
+
+msgid "Wednesday"
+msgstr "Onsdag"
+
+msgid "A run is in progress"
+msgstr "En körning pågår"
+
+msgid "No run is in progress"
+msgstr "Ingen körning pågår"
+
+msgid "latest log row"
+msgstr "senaste loggrad"
+
+msgid "lock file"
+msgstr "låsfil"
+
+msgid "job queue"
+msgstr "jobbkön"
+
+msgid "cron script is running"
+msgstr "cron-skriptet körs"
+
+msgid "log activity in the last 10 minutes"
+msgstr "loggaktivitet de senaste 10 minuterna"
+
+msgid "A run is already in progress. The new import starts when it has finished."
+msgstr "En körning pågår redan. Den nya importen startar när den är klar."
+
+msgid "contains"
+msgstr "innehåller"
+
+msgid "The server did not answer as expected"
+msgstr "Servern svarade inte som förväntat"
+
+
+
+msgid "A safety limit. What does not fit is handled in the next run."
+msgstr "En säkerhetsgräns. Det som inte ryms hanteras i nästa körning."
+
+msgid "Account"
+msgstr "Konto"
+
+msgid "Category of the patron"
+msgstr "Låntagarens kategori"
+
+
+msgid "Last run"
+msgstr "Senaste körning"
+
+msgid "Let the account expire today when the patron is moved"
+msgstr "Låt kontot gå ut idag när låntagaren flyttas"
+
+msgid "Most changes per run"
+msgstr "Flest ändringar per körning"
+
+msgid "Move and remove"
+msgstr "Flytta och ta bort"
+
+msgid "Nothing (off)"
+msgstr "Ingenting (av)"
+
+msgid "Patrons who have left"
+msgstr "Låntagare som slutat"
+
+msgid "Patrons who have left could not be saved: %s"
+msgstr "Låntagare som slutat kunde inte sparas: %s"
+
+msgid "Patrons who have left had an invalid format and were not saved"
+msgstr "Låntagare som slutat hade ett ogiltigt format och sparades inte"
+
+msgid "Patrons who have left were not saved: %s"
+msgstr "Låntagare som slutat sparades inte: %s"
+
+
+msgid "Report only (write to the log, change nothing)"
+msgstr "Endast rapport (skriv till loggen, ändra inget)"
+
+msgid "Unknown Koha category '%s'"
+msgstr "Okänd Koha-kategori '%s'"
+
+msgid "Waiting to be handled"
+msgstr "Väntar på att hanteras"
+
+msgid "What to do"
+msgstr "Vad ska göras"
+
+msgid "Used for everyone who does not get a category from the rules or from the mapping \"%s\"."
+msgstr "Används för alla som inte får en kategori av reglerna eller av \"%s\"."
+
+msgid "Not used while \"%s\" is ticked"
+msgstr "Används inte när \"%s\" är ikryssad"
+
+msgid "Decide the patron category with the rules below instead of the mapping \"%s\""
+msgstr "Avgör låntagarens kategori med reglerna nedan i stället för \"%s\""
+
+msgid "When this is not ticked the rules are ignored and \"%s\" works as before. When ticked, \"%s\" and the setting \"%s\" are not used (they are greyed out); use a rule with the condition role is empty instead."
+msgstr "När rutan inte är ikryssad ignoreras reglerna och \"%s\" fungerar som tidigare. När den är ikryssad används varken \"%s\" eller inställningen \"%s\" (de är utgråade); använd i stället en regel med villkoret roll är tom."
+
+msgid "The rules are not used until \"%s\" is ticked"
+msgstr "Reglerna används inte förrän \"%s\" är ikryssad"
+
+msgid "Import \"%s\" as rules"
+msgstr "Importera \"%s\" som regler"
+
+msgid "A patron who is no longer in the school register (not in IST, or without a valid enrolment) is handled at the end of a complete run, and nobody who has left may stay identifiable for ever. A patron without loans is removed with everything that identifies it. A patron with loans left cannot be removed, so after a time the account is anonymized: only the account and the loans are kept, until the loans are back and the account is removed. In between the patron can sit in a category of your choice. Only patrons in the categories below are touched. Start with Report only to see what would happen in the log."
+msgstr "En låntagare som inte längre finns i elevregistret (saknas i IST eller saknar giltig inskrivning) hanteras i slutet av en komplett körning, och ingen som slutat får vara identifierbar för alltid. En låntagare utan lån tas bort med allt som identifierar den. En låntagare med lån kvar kan inte tas bort, så efter en tid anonymiseras kontot: bara kontot och lånen sparas, tills lånen är tillbaka och kontot tas bort. Däremellan kan låntagaren ligga i en kategori som ni väljer. Bara låntagare i kategorierna nedan berörs. Börja med Endast rapport för att se i loggen vad som skulle hända."
+
+msgid "Remove after (days), no loans left"
+msgstr "Ta bort efter (dagar), inga lån kvar"
+
+msgid "A patron without loans is removed, with everything that identifies it (also from Kohas logs and the list of deleted patrons), when it has been missing from the register for this many days. 0 removes at once."
+msgstr "En låntagare utan lån tas bort, med allt som identifierar den (även ur Kohas loggar och listan över borttagna låntagare), när den har saknats i registret så här många dagar. 0 tar bort direkt."
+
+msgid "Anonymize after (days), loans left"
+msgstr "Anonymisera efter (dagar), lån kvar"
+
+msgid "A patron with loans left cannot be removed. After this many days all personal data is removed from the account (name, civic number, contact details, class and the traces in the logs) and only the account and the loans are kept. The account is removed when the loans are back. Empty means never."
+msgstr "En låntagare med lån kvar kan inte tas bort. Efter så här många dagar tas alla personuppgifter bort från kontot (namn, personnummer, kontaktuppgifter, klass och spåren i loggarna) och bara kontot och lånen sparas. Kontot tas bort när lånen är tillbaka. Tomt betyder aldrig."
+
+msgid "Category while loans are left"
+msgstr "Kategori medan lån finns kvar"
+
+msgid "Category while no loans are left (empty = stays)"
+msgstr "Kategori medan inga lån finns kvar (tomt = ligger kvar)"
+
+msgid "- stays in its category -"
+msgstr "- ligger kvar i sin kategori -"
+
+msgid "Started by hand"
+msgstr "Startat manuellt"
+
+msgid "Source"
+msgstr "Källa"
+
+msgid "Stopped: the time limit of 8 hours was reached"
+msgstr "Avbrutet: tidsgränsen på 8 timmar nåddes"
+
+msgid "Stopped: configuration error, see the log"
+msgstr "Avbrutet: konfigurationsfel, se loggen"
+
+msgid "Stopped before the last page, see the log"
+msgstr "Avbrutet före sista sidan, se loggen"
+
+msgid "stored %s values, %s persons read"
+msgstr "sparade %s värden, %s personer lästa"
+
+msgid "The import runs on the days and times below (server time). Add one row for every run you want. Without rows nothing is started by the schedule. Run now starts within a minute. Both need that the system administrator has put the minute check (tick_ss12000.sh) in cron. It does not start an import every minute, it only looks if something is due."
+msgstr "Importen körs på dagarna och tiderna nedan (servertid). Lägg till en rad för varje körning du vill ha. Utan rader startar schemat ingenting. Kör nu startar inom en minut. Båda kräver att systemadministratören har lagt in minutkontrollen (tick_ss12000.sh) i cron. Den startar ingen import varje minut, den tittar bara om något ska startas."
+
+msgid "The schedule is not active. The times and buttons below start nothing until the system administrator has put the minute check (tick_ss12000.sh) in cron."
+msgstr "Schemaläggningen är inte aktiv. Tiderna och knapparna nedan startar ingenting förrän systemadministratören har lagt in minutkontrollen (tick_ss12000.sh) i cron."
+
+msgid "The schedule may not be active right now: the minute check was last seen"
+msgstr "Schemaläggningen verkar inte vara aktiv just nu: minutkontrollen sågs senast"
+
+msgid "The schedule is active: the times below and the buttons Run import now and Fetch values from IST now start runs by themselves. The minute check was last seen"
+msgstr "Schemaläggningen är aktiv: tiderna nedan och knapparna Kör import nu och Hämta värden från IST nu startar körningar av sig själva. Minutkontrollen sågs senast"
+
+msgid "Nothing to restart: no pages have been processed today"
+msgstr "Inget att starta om: inga sidor har behandlats idag"
+
+msgid "Start the import over from the first page? Pages that were already processed today are processed again."
+msgstr "Starta om dagens import från första sidan? Sidor som redan behandlats idag behandlas igen."
+
+msgid "Staff"
+msgstr "Personal"
+
+msgid "Staff are read from their duties, in one extra pass after the schools. The category is decided by the rules above: a rule with the condition role (and the action category or do not import) for every role you want to import. A role without a rule is not imported. The branch is the school of the newest active duty. Needs Use rules to be ticked."
+msgstr "Personal läses från sina uppdrag, i en extra omgång efter skolorna. Kategorin avgörs av reglerna ovan: en regel med villkoret roll (och åtgärden kategori eller importera inte) för varje roll som ska läggas in. En roll utan regel läggs inte in. Filialen är skolan för det senaste aktiva uppdraget. Kräver att Använd regler är ikryssad."
+
+msgid "Import staff"
+msgstr "Importera personal"
+
+msgid "Import staff with a duty"
+msgstr "Importera personal med uppdrag"
+
+msgid "Staff already in Koha"
+msgstr "Personal som redan finns i Koha"
+
+msgid "Do not change staff that already exist in Koha (only new staff are added)"
+msgstr "Ändra inte personal som redan finns i Koha (bara ny personal läggs till)"
+
+msgid "A patron that the plugin has never handled is left exactly as it is, and the function for patrons who have left never touches it."
+msgstr "En låntagare som pluginet aldrig har hanterat lämnas precis som den är, och funktionen för låntagare som slutat rör den aldrig."

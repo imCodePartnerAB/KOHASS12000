@@ -15,7 +15,7 @@ use base qw(Koha::Plugins::Base);
 
 use Koha::Plugin::imCode::KohaSS12000::ExportUsers ();
 
-our $VERSION = "1.91";
+our $VERSION = "2.0";
 
 our $metadata = {
     name            => 'Imported SS12000 users (log)',

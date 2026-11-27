@@ -2920,6 +2920,7 @@ sub _cronjob_inner {
         AND data_endpoint = ?
         AND page_token_next IS NULL 
         AND is_processed = 1
+        AND organisation_code <> 'STAFF'
         GROUP BY organisation_code
     };
     
@@ -2940,7 +2941,8 @@ sub _cronjob_inner {
         $total_orgs = 1;
     }
     
-    if (scalar(@$completed_orgs) >= $total_orgs) {
+    # The staff pass is one more round after the schools: the cycle is not complete while it is pending
+    if (scalar(@$completed_orgs) >= $total_orgs && !$self->staff_pass_pending($dbh, $self->get_config_data(), $data_endpoint)) {
         log_message("Yes", "Full processing cycle already completed today for all organizations");
         return "EndLastPageFromAPI" if $is_web;
         print "EndLastPageFromAPI\n";
@@ -4867,6 +4869,10 @@ sub fetchBorrowers {
                         }
                     } else {
                         # User is skipped - update opacnote with reason if user exists
+                        if ($opts->{staff_mode} && !%rule_decision) {
+                            save_rule_log($dbh, $id, person_kind => 'staff', category_result => 'do not import',
+                                category_explain => "skipped: $skip_reason", branch_result => '', branch_explain => '');
+                        }
                         my $current_version_info = $version_info;
                         my $skip_note_query = qq{
                             UPDATE $borrowers_table

@@ -1,6 +1,5 @@
-[% USE gtx = Gettext('com.imcode.exportusers', language, mbf_path) %]
 [% INCLUDE 'doc-head-open.inc' %]
-    <title>[% 'Configuration imCode SS12000' | gettext %]</title>
+    <title>[% ss('Configuration imCode SS12000') %]</title>
 [% INCLUDE 'doc-head-close.inc' %]
 
 </head>
@@ -10,9 +9,9 @@
 [% INCLUDE 'cat-search.inc' %]
 
 <div id="breadcrumbs">
-    <a href="/cgi-bin/koha/mainpage.pl">[% 'Home' | gettext %]</a> &rsaquo;
-    <a href="/cgi-bin/koha/plugins/plugins-home.pl">[% 'Plugins' | gettext %]</a> &rsaquo;
-    [% 'KohaSS12000 &rsaquo; Tool' | gettext %]
+    <a href="/cgi-bin/koha/mainpage.pl">[% ss('Home') %]</a> &rsaquo;
+    <a href="/cgi-bin/koha/plugins/plugins-home.pl">[% ss('Plugins') %]</a> &rsaquo;
+    [% ss('KohaSS12000 &rsaquo; Tool') %]
 </div>
 
 <div class="main container-fluid">
@@ -20,23 +19,23 @@
     <div class="col-sm-10 col-sm-push-2">
       <main>
 
-        <h1>[% 'Tool' | gettext %]</h1>
+        <h1>[% ss('Tool') %]</h1>
         <br/>
         <form method="post" action="">
             <table><tr>
             <td>
                 <select class="form-control" name="op">
-                    <option value="cud-run-export" [% IF run_export %]SELECTED[% END %]>[% 'Start exporting data from the API' | gettext %]</option>
-                    <option value="cud-show-logs" [% IF logs %]SELECTED[% END %]>[% 'Show user export log' | gettext %]</option>
-                    <option value="cud-show-stat" [% IF stats %]SELECTED[% END %]>[% 'Show user export statistics' | gettext %]</option>
-                    <option value="cud-show-updates" [% IF updates %]SELECTED[% END %]>[% 'Show users data update' | gettext %]</option>
+                    <option value="cud-run-export" [% IF run_export %]SELECTED[% END %]>[% ss('Start exporting data from the API') %]</option>
+                    <option value="cud-show-logs" [% IF logs %]SELECTED[% END %]>[% ss('Show user export log') %]</option>
+                    <option value="cud-show-stat" [% IF stats %]SELECTED[% END %]>[% ss('Show user export statistics') %]</option>
+                    <option value="cud-show-updates" [% IF updates %]SELECTED[% END %]>[% ss('Show users data update') %]</option>
                 </select>
                 <input type="hidden" name="class" value="[% CLASS %]" />
                 <input type="hidden" name="csrf_token" value="[% csrf_token %]">
                 <input type="hidden" name="method" value="[% METHOD %]" />
             </td>
             <td>
-                <input type="submit" value="[% 'Ok' | gettext %]" />
+                <input type="submit" value="[% ss('Ok') %]" />
             </td>
             </tr></table>
         </form>
@@ -45,7 +44,7 @@
             <div class="row">
                 <div class="col-sm-10 col-sm-push-1">
                     <main>
-                        <h1>[% 'SS12000 Export Users Tool' | gettext %]</h1>
+                        <h1>[% ss('SS12000 Export Users Tool') %]</h1>
 
                         [% IF process_started %]
                             <div id="export-status">
@@ -66,12 +65,12 @@
                                 <div id="action-buttons" style="margin-top: 10px;">
                                     <!-- Shown when a page finishes but more pages remain -->
                                     <button id="next-page-btn" class="btn btn-success" style="display: none;">
-                                        [% 'Scan next page' | gettext %]
+                                        [% ss('Scan next page') %]
                                     </button>
 
                                     <!-- Shown when process appears stuck (no update for 5+ minutes) -->
                                     <button id="force-unlock" class="btn btn-warning" style="display: none;">
-                                        [% 'Force Unlock Process' | gettext %]
+                                        [% ss('Force Unlock Process') %]
                                     </button>
                                 </div>
                             </div>
@@ -251,7 +250,7 @@
 
                                     // "Force unlock" button — terminates a stuck process
                                     $('#force-unlock').click(function() {
-                                        if (confirm('[% 'Are you sure you want to force unlock the process? Only do this if the process is stuck' | gettext %]')) {
+                                        if (confirm('[% ss('Are you sure you want to force unlock the process? Only do this if the process is stuck') %]')) {
                                             $.getJSON('/cgi-bin/koha/plugins/run.pl', {
                                                 class:      '[% CLASS %]',
                                                 method:     '[% METHOD %]',
@@ -275,8 +274,8 @@
                         [% ELSE %]
 
                             <div class="alert alert-info">
-                                <p>[% 'This tool will export users data using SS12000 format' | gettext %]</p>
-                                <p>[% 'The process will run in the background and may take several minutes to complete' | gettext %]</p>
+                                <p>[% ss('This tool will export users data using SS12000 format') %]</p>
+                                <p>[% ss('The process will run in the background and may take several minutes to complete') %]</p>
                             </div>
                             <div class="d-flex gap-2 align-items-center">
                                 <form method="post" action="">
@@ -285,7 +284,7 @@
                                     <input type="hidden" name="op" value="cud-run-export"/>
                                     <input type="hidden" name="csrf_token" value="[% csrf_token %]">
                                     <input type="hidden" name="start_export" value="1"/>
-                                    <button type="submit" class="btn btn-primary">[% 'Start Export' | gettext %]</button>
+                                    <button type="submit" class="btn btn-primary">[% ss('Start Export') %]</button>
                                 </form>
 
                                 [% IF log_count %]
@@ -295,12 +294,12 @@
                                         <input type="hidden" name="method" value="[% METHOD %]" />
                                         <input type="hidden" name="op" value="cud-clearlog" />
                                         <input type="hidden" name="csrf_token" value="[% csrf_token %]">
-                                        <input type="submit" class="btn btn-secondary" value="[% 'Set API scanner from the first page' | gettext %]" />
+                                        <input type="submit" class="btn btn-secondary" value="[% ss('Set API scanner from the first page') %]" />
                                     </form>
                                 </div>
                                 <script>
-                                document.querySelector('input[value="[% 'Set API scanner from the first page' | gettext %]"]').addEventListener('click', function(e) {
-                                    if (!confirm('[% 'Are you sure you want to clear the log? This action cannot be undone.' | gettext %]')) {
+                                document.querySelector('input[value="[% ss('Set API scanner from the first page') %]"]').addEventListener('click', function(e) {
+                                    if (!confirm('[% ss('Are you sure you want to clear the log? This action cannot be undone.') %]')) {
                                         e.preventDefault();
                                     }
                                 });
@@ -317,17 +316,17 @@
 
         [% IF logs.size > 0 %]
         <br/>
-        <h2>[% 'Logs Lines' | gettext %]</h2>
+        <h2>[% ss('Logs Lines') %]</h2>
         <table class="table table-striped">
             <thead>
                 <tr>
                     <th>ID</th>
-                    [% IF debug_mode == "Yes" %]<th>[% 'Page token Next' | gettext %]</th>[% END %]
-                    <th>[% 'Record Count' | gettext %]</th>
-                    [% IF debug_mode == "Yes" %]<th>[% 'Response' | gettext %]</th>[% END %]
-                    [% IF debug_mode == "No" %]<th>[% 'Data Status' | gettext %]</th>[% END %]
-                    <th>[% 'Created At' | gettext %]</th>
-                    <th>[% 'Is Processed' | gettext %]</th>
+                    [% IF debug_mode == "Yes" %]<th>[% ss('Page token Next') %]</th>[% END %]
+                    <th>[% ss('Record Count') %]</th>
+                    [% IF debug_mode == "Yes" %]<th>[% ss('Response') %]</th>[% END %]
+                    [% IF debug_mode == "No" %]<th>[% ss('Data Status') %]</th>[% END %]
+                    <th>[% ss('Created At') %]</th>
+                    <th>[% ss('Is Processed') %]</th>
                 </tr>
             </thead>
             <tbody>
@@ -338,7 +337,7 @@
                         <td>[% log.record_count %]</td>
                         <td class="truncate-text">[% log.response %]</td>
                         <td>[% log.created_at %]</td>
-                        <td>[% IF log.is_processed == 1 %][% 'Yes' | gettext %][% ELSE %][% 'No' | gettext %][% END %]</td>
+                        <td>[% IF log.is_processed == 1 %][% ss('Yes') %][% ELSE %][% ss('No') %][% END %]</td>
                     </tr>
                 [% END %]
             </tbody>
@@ -348,7 +347,7 @@
             <nav aria-label="Page navigation">
                 <ul class="pagination">
                     [% IF prev_page %]
-                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-logs&page=[% prev_page %]">[% 'Previous page' | gettext %]</a></li>
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-logs&page=[% prev_page %]">[% ss('Previous page') %]</a></li>
                     [% END %]
 
                     [% SET max_pages = 10 %]
@@ -379,11 +378,11 @@
                     [% END %]
 
                     [% IF next_page %]
-                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-logs&page=[% next_page %]">[% 'Next page' | gettext %]</a></li>
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-logs&page=[% next_page %]">[% ss('Next page') %]</a></li>
                     [% END %]
 
                     [% IF total_pages && total_pages > 10 && next_page && next_page < total_pages - 1 && page_number < total_pages %]
-                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-logs&page=[% total_pages %]">[% 'Last' | gettext %], [% total_pages %] [% 'page' | gettext %]</a></li>
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-logs&page=[% total_pages %]">[% ss('Last') %], [% total_pages %] [% ss('page') %]</a></li>
                     [% END %]
 
                 </ul>
@@ -394,13 +393,13 @@
 
         [% IF stats.size > 0 %]
         <br/>
-        <h2>[% 'Last Statistics Lines' | gettext %]</h2>
+        <h2>[% ss('Last Statistics Lines') %]</h2>
         <table class="table table-striped">
             <thead>
                 <tr>
-                    <th>[% 'Added' | gettext %]</th>
-                    <th>[% 'Updated' | gettext %]</th>
-                    <th>[% 'Date' | gettext %]</th>
+                    <th>[% ss('Added') %]</th>
+                    <th>[% ss('Updated') %]</th>
+                    <th>[% ss('Date') %]</th>
                 </tr>
             </thead>
             <tbody>
@@ -417,26 +416,26 @@
 
         [% IF search && !updates %]
         <br/>
-        <h2>[% 'Updates Lines' | gettext %]</h2>
+        <h2>[% ss('Updates Lines') %]</h2>
         <form method="post" action="#">
                 <input type="hidden" name="op" value="cud-show-updates">
                 <input type="hidden" name="class" value="[% CLASS %]" />
                 <input type="hidden" name="csrf_token" value="[% csrf_token %]">
                 <input type="hidden" name="method" value="[% METHOD %]" />
                 <table><tr>
-                <td><input type="search" name="search" class="form-control" id="datatable-search-input" placeholder="[% 'Search' | gettext %]" value="[% search %]"></td>
-                <td><input type="submit" value="[% 'Search' | gettext %]" /></td>
+                <td><input type="search" name="search" class="form-control" id="datatable-search-input" placeholder="[% ss('Search') %]" value="[% search %]"></td>
+                <td><input type="submit" value="[% ss('Search') %]" /></td>
                 </tr></table>
             <br/>
         </form>
         <div class="alert alert-warning" role="alert">
-            [% 'Nothing was found for your request' | gettext %]
+            [% ss('Nothing was found for your request') %]
         </div>
         [% END %]
 
         [% IF updates.size > 0 %]
         <br/>
-        <h2>[% 'Updates Lines' | gettext %]</h2>
+        <h2>[% ss('Updates Lines') %]</h2>
 
         <form method="post" action="#">
                 <input type="hidden" name="op" value="cud-show-updates">
@@ -444,8 +443,8 @@
                 <input type="hidden" name="csrf_token" value="[% csrf_token %]">
                 <input type="hidden" name="method" value="[% METHOD %]" />
                 <table><tr>
-                <td><input type="search" name="search" class="form-control" id="datatable-search-input" placeholder="[% 'Search' | gettext %]" value="[% search %]"></td>
-                <td><input type="submit" value="[% 'Search' | gettext %]" /></td>
+                <td><input type="search" name="search" class="form-control" id="datatable-search-input" placeholder="[% ss('Search') %]" value="[% search %]"></td>
+                <td><input type="submit" value="[% ss('Search') %]" /></td>
                 </tr></table>
             <br/>
         </form>
@@ -453,9 +452,9 @@
         <table class="table table-striped">
             <thead>
                 <tr>
-                    <th>[% 'User' | gettext %]</th>
-                    <th>[% 'Change Description' | gettext %]</th>
-                    <th>[% 'Change Timestamp' | gettext %]</th>
+                    <th>[% ss('User') %]</th>
+                    <th>[% ss('Change Description') %]</th>
+                    <th>[% ss('Change Timestamp') %]</th>
                 </tr>
             </thead>
             <tbody>
@@ -477,7 +476,7 @@
             <nav aria-label="Page navigation">
                 <ul class="pagination">
                     [% IF prev_page %]
-                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-updates&page=[% prev_page %]&search=[% search %]">[% 'Previous page' | gettext %]</a></li>
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-updates&page=[% prev_page %]&search=[% search %]">[% ss('Previous page') %]</a></li>
                     [% END %]
 
                     [% SET max_pages = 10 %]
@@ -508,11 +507,11 @@
                     [% END %]
 
                     [% IF next_page %]
-                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-updates&page=[% next_page %]&search=[% search %]">[% 'Next page' | gettext %]</a></li>
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-updates&page=[% next_page %]&search=[% search %]">[% ss('Next page') %]</a></li>
                     [% END %]
 
                     [% IF total_pages && total_pages > 10 && next_page && next_page < total_pages - 1 && page_number < total_pages %]
-                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-updates&page=[% total_pages %]&search=[% search %]">[% 'Last' | gettext %], [% total_pages %] [% 'page' | gettext %]</a></li>
+                        <li class="page-item"><a class="page-link" href="?class=[% CLASS %]&method=[% METHOD %]&op=cud-show-updates&page=[% total_pages %]&search=[% search %]">[% ss('Last') %], [% total_pages %] [% ss('page') %]</a></li>
                     [% END %]
 
                 </ul>

@@ -160,8 +160,6 @@ msgstr ""
 msgid "Select a category"
 msgstr ""
 
-msgid "Used for everyone who does not get a category from the roles mapping, normally all students."
-msgstr ""
 
 msgid "When you change a parameter, it will be changed for all existing users in the next data update cycle"
 msgstr ""
@@ -331,8 +329,6 @@ msgstr ""
 msgid "Remove"
 msgstr ""
 
-msgid "Are you sure you want to clear the log? This action cannot be undone."
-msgstr ""
 
 msgid "Please select a default category"
 msgstr ""
@@ -734,4 +730,435 @@ msgid "When ticked, an empty e-mail, phone, mobile or address from IST never rep
 msgstr ""
 
 msgid "missing in Koha"
+msgstr ""
+
+msgid "Category rules"
+msgstr ""
+
+msgid "A rule has one or more conditions and an action: a Koha category, or do not import. Conditions in one rule must all be true. Several values in one condition mean any of them. Rules are tried in priority order (lowest number first) and the first rule that matches decides. When no rule matches, the default category is used."
+msgstr ""
+
+msgid "Use rules"
+msgstr ""
+
+
+
+msgid "Add rule"
+msgstr ""
+
+
+msgid "Add condition"
+msgstr ""
+
+msgid "Priority"
+msgstr ""
+
+msgid "Name (optional)"
+msgstr ""
+
+msgid "Active"
+msgstr ""
+
+msgid "Other field (advanced)"
+msgstr ""
+
+msgid "Field path, for example enrolments.educationCode"
+msgstr ""
+
+msgid "Values, separated by comma"
+msgstr ""
+
+msgid "Then"
+msgstr ""
+
+msgid "No rules yet."
+msgstr ""
+
+msgid "Rule"
+msgstr ""
+
+msgid "Every rule needs at least one condition"
+msgstr ""
+
+msgid "Every condition needs a value"
+msgstr ""
+
+msgid "Every rule needs a category or Do not import"
+msgstr ""
+
+msgid "Enter a field path"
+msgstr ""
+
+msgid "Use a number for this field"
+msgstr ""
+
+msgid "rules added from the roles mapping. Review them and press Save."
+msgstr ""
+
+msgid "The roles mapping is empty."
+msgstr ""
+
+msgid "The same priority is used by more than one rule (the lower rule number is tried first)"
+msgstr ""
+
+msgid "From roles mapping"
+msgstr ""
+
+msgid "No role (from Exclude empty users, dutyRole)"
+msgstr ""
+
+msgid "Rules were not saved: %s"
+msgstr ""
+
+msgid "Rules could not be saved: %s"
+msgstr ""
+
+msgid "Rules had an invalid format and were not saved"
+msgstr ""
+
+msgid "School (organisation code)"
+msgstr ""
+
+msgid "School type"
+msgstr ""
+
+msgid "School year"
+msgstr ""
+
+msgid "Education code (programme)"
+msgstr ""
+
+msgid "Class"
+msgstr ""
+
+msgid "Assignment role"
+msgstr ""
+
+msgid "Age"
+msgstr ""
+
+msgid "Person kind (student, staff, both)"
+msgstr ""
+
+msgid "School group (parent organisation id)"
+msgstr ""
+
+msgid "School of the duty (staff)"
+msgstr ""
+
+msgid "is one of"
+msgstr ""
+
+msgid "starts with"
+msgstr ""
+
+msgid "is empty"
+msgstr ""
+
+msgid "is not empty"
+msgstr ""
+
+msgid "is at least"
+msgstr ""
+
+msgid "is at most"
+msgstr ""
+
+msgid "A job of this kind is already waiting or running."
+msgstr ""
+
+msgid "Add time"
+msgstr ""
+
+msgid "Day"
+msgstr ""
+
+msgid "Done"
+msgstr ""
+
+msgid "Every row in the schedule needs a time"
+msgstr ""
+
+msgid "Failed"
+msgstr ""
+
+msgid "Fetch values from IST"
+msgstr ""
+
+msgid "Fetch values from IST now"
+msgstr ""
+
+msgid "Finished"
+msgstr ""
+
+msgid "Friday"
+msgstr ""
+
+msgid "Import of patrons"
+msgstr ""
+
+msgid "Job"
+msgstr ""
+
+msgid "Message"
+msgstr ""
+
+msgid "Monday"
+msgstr ""
+
+msgid "No jobs yet."
+msgstr ""
+
+msgid "No times yet."
+msgstr ""
+
+msgid "Press Save to keep changes to the schedule."
+msgstr ""
+
+msgid "Queued. It starts within a minute."
+msgstr ""
+
+msgid "Run import now"
+msgstr ""
+
+msgid "Run now"
+msgstr ""
+
+msgid "Running"
+msgstr ""
+
+msgid "Saturday"
+msgstr ""
+
+msgid "Schedule"
+msgstr ""
+
+msgid "Schedule and run now"
+msgstr ""
+
+msgid "Server time"
+msgstr ""
+
+msgid "Start the import now? It starts again from the first page and updates patrons."
+msgstr ""
+
+msgid "Started"
+msgstr ""
+
+msgid "Started by"
+msgstr ""
+
+msgid "Sunday"
+msgstr ""
+
+
+
+
+
+msgid "The request could not be verified. Reload the page and try again."
+msgstr ""
+
+msgid "The schedule could not be saved: %s"
+msgstr ""
+
+msgid "The schedule had an invalid format and was not saved"
+msgstr ""
+
+msgid "The schedule was not saved: %s"
+msgstr ""
+
+msgid "Thursday"
+msgstr ""
+
+msgid "Tuesday"
+msgstr ""
+
+msgid "Unknown job type"
+msgstr ""
+
+msgid "Waiting"
+msgstr ""
+
+msgid "Wednesday"
+msgstr ""
+
+msgid "A run is in progress"
+msgstr ""
+
+msgid "No run is in progress"
+msgstr ""
+
+msgid "latest log row"
+msgstr ""
+
+msgid "lock file"
+msgstr ""
+
+msgid "job queue"
+msgstr ""
+
+msgid "cron script is running"
+msgstr ""
+
+msgid "log activity in the last 10 minutes"
+msgstr ""
+
+msgid "A run is already in progress. The new import starts when it has finished."
+msgstr ""
+
+msgid "contains"
+msgstr ""
+
+msgid "The server did not answer as expected"
+msgstr ""
+
+
+
+msgid "A safety limit. What does not fit is handled in the next run."
+msgstr ""
+
+msgid "Account"
+msgstr ""
+
+msgid "Category of the patron"
+msgstr ""
+
+
+msgid "Last run"
+msgstr ""
+
+msgid "Let the account expire today when the patron is moved"
+msgstr ""
+
+msgid "Most changes per run"
+msgstr ""
+
+msgid "Move and remove"
+msgstr ""
+
+msgid "Nothing (off)"
+msgstr ""
+
+msgid "Patrons who have left"
+msgstr ""
+
+msgid "Patrons who have left could not be saved: %s"
+msgstr ""
+
+msgid "Patrons who have left had an invalid format and were not saved"
+msgstr ""
+
+msgid "Patrons who have left were not saved: %s"
+msgstr ""
+
+
+msgid "Report only (write to the log, change nothing)"
+msgstr ""
+
+msgid "Unknown Koha category '%s'"
+msgstr ""
+
+msgid "Waiting to be handled"
+msgstr ""
+
+msgid "What to do"
+msgstr ""
+
+msgid "Used for everyone who does not get a category from the rules or from the mapping \"%s\"."
+msgstr ""
+
+msgid "Not used while \"%s\" is ticked"
+msgstr ""
+
+msgid "Decide the patron category with the rules below instead of the mapping \"%s\""
+msgstr ""
+
+msgid "When this is not ticked the rules are ignored and \"%s\" works as before. When ticked, \"%s\" and the setting \"%s\" are not used (they are greyed out); use a rule with the condition role is empty instead."
+msgstr ""
+
+msgid "The rules are not used until \"%s\" is ticked"
+msgstr ""
+
+msgid "Import \"%s\" as rules"
+msgstr ""
+
+msgid "A patron who is no longer in the school register (not in IST, or without a valid enrolment) is handled at the end of a complete run, and nobody who has left may stay identifiable for ever. A patron without loans is removed with everything that identifies it. A patron with loans left cannot be removed, so after a time the account is anonymized: only the account and the loans are kept, until the loans are back and the account is removed. In between the patron can sit in a category of your choice. Only patrons in the categories below are touched. Start with Report only to see what would happen in the log."
+msgstr ""
+
+msgid "Remove after (days), no loans left"
+msgstr ""
+
+msgid "A patron without loans is removed, with everything that identifies it (also from Kohas logs and the list of deleted patrons), when it has been missing from the register for this many days. 0 removes at once."
+msgstr ""
+
+msgid "Anonymize after (days), loans left"
+msgstr ""
+
+msgid "A patron with loans left cannot be removed. After this many days all personal data is removed from the account (name, civic number, contact details, class and the traces in the logs) and only the account and the loans are kept. The account is removed when the loans are back. Empty means never."
+msgstr ""
+
+msgid "Category while loans are left"
+msgstr ""
+
+msgid "Category while no loans are left (empty = stays)"
+msgstr ""
+
+msgid "- stays in its category -"
+msgstr ""
+
+msgid "Started by hand"
+msgstr ""
+
+msgid "Source"
+msgstr ""
+
+msgid "Stopped: the time limit of 8 hours was reached"
+msgstr ""
+
+msgid "Stopped: configuration error, see the log"
+msgstr ""
+
+msgid "Stopped before the last page, see the log"
+msgstr ""
+
+msgid "stored %s values, %s persons read"
+msgstr ""
+
+msgid "The import runs on the days and times below (server time). Add one row for every run you want. Without rows nothing is started by the schedule. Run now starts within a minute. Both need that the system administrator has put the minute check (tick_ss12000.sh) in cron. It does not start an import every minute, it only looks if something is due."
+msgstr ""
+
+msgid "The schedule is not active. The times and buttons below start nothing until the system administrator has put the minute check (tick_ss12000.sh) in cron."
+msgstr ""
+
+msgid "The schedule may not be active right now: the minute check was last seen"
+msgstr ""
+
+msgid "The schedule is active: the times below and the buttons Run import now and Fetch values from IST now start runs by themselves. The minute check was last seen"
+msgstr ""
+
+msgid "Nothing to restart: no pages have been processed today"
+msgstr ""
+
+msgid "Start the import over from the first page? Pages that were already processed today are processed again."
+msgstr ""
+
+msgid "Staff"
+msgstr ""
+
+msgid "Staff are read from their duties, in one extra pass after the schools. The category is decided by the rules above: a rule with the condition role (and the action category or do not import) for every role you want to import. A role without a rule is not imported. The branch is the school of the newest active duty. Needs Use rules to be ticked."
+msgstr ""
+
+msgid "Import staff"
+msgstr ""
+
+msgid "Import staff with a duty"
+msgstr ""
+
+msgid "Staff already in Koha"
+msgstr ""
+
+msgid "Do not change staff that already exist in Koha (only new staff are added)"
+msgstr ""
+
+msgid "A patron that the plugin has never handled is left exactly as it is, and the function for patrons who have left never touches it."
 msgstr ""

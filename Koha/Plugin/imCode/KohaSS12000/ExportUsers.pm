@@ -43,6 +43,13 @@ use POSIX qw(strftime); # To format date/time
 use Encode;
 use URI::Escape qw(uri_escape);
 use Unicode::Normalize qw(NFD);
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Rules ();
+BEGIN { *SS12000Rules:: = \%Koha::Plugin::imCode::KohaSS12000::ExportUsers::Rules::; }
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Schedule ();
+BEGIN { *SS12000Schedule:: = \%Koha::Plugin::imCode::KohaSS12000::ExportUsers::Schedule::; }
+use Koha::Plugin::imCode::KohaSS12000::ExportUsers::Leavers ();
+BEGIN { *SS12000Leavers:: = \%Koha::Plugin::imCode::KohaSS12000::ExportUsers::Leavers::; }
+use Koha::Patrons;
 
 use File::Basename;
 
@@ -58,19 +65,110 @@ our $branches_table   = 'branches'; # Koha branches table
 our $data_change_log_table    = 'imcode_data_change_log';
 our $categories_mapping_table = 'imcode_categories_mapping';
 our $branches_mapping_table   = 'imcode_branches_mapping';
+our $rules_table              = 'imcode_rules';
+our $rule_log_table           = 'imcode_rule_log';
+our $schedule_table           = 'imcode_schedule';
+our $jobs_table               = 'imcode_jobs';
+our $state_table              = 'imcode_state';
+our $seen_values_table        = 'imcode_seen_values';
+our $leaver_mapping_table     = 'imcode_leaver_mapping';
+our $leavers_table            = 'imcode_leavers';
+our @rules_ddl = (
+    qq{CREATE TABLE IF NOT EXISTS $rules_table (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        priority INT NOT NULL DEFAULT 1,
+        name VARCHAR(120) NOT NULL DEFAULT '',
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        scope VARCHAR(10) NOT NULL DEFAULT 'category',
+        conditions_json TEXT NOT NULL,
+        action_category VARCHAR(10) DEFAULT NULL,
+        action_branch VARCHAR(10) DEFAULT NULL,
+        not_import TINYINT(1) NOT NULL DEFAULT 0,
+        KEY idx_scope_priority (scope, priority)
+    );},
+    qq{CREATE TABLE IF NOT EXISTS $rule_log_table (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        person_id VARCHAR(64) NOT NULL,
+        borrowernumber INT DEFAULT NULL,
+        person_kind VARCHAR(10) DEFAULT NULL,
+        category_result VARCHAR(40) DEFAULT NULL,
+        category_explain TEXT,
+        branch_result VARCHAR(40) DEFAULT NULL,
+        branch_explain TEXT,
+        decision_hash VARCHAR(32) DEFAULT NULL,
+        changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_person (person_id),
+        KEY idx_borrowernumber (borrowernumber)
+    );},
+    qq{CREATE TABLE IF NOT EXISTS $schedule_table (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        weekday TINYINT NOT NULL,
+        run_time CHAR(5) NOT NULL,
+        job_type VARCHAR(10) NOT NULL DEFAULT 'import',
+        UNIQUE KEY unique_entry (weekday, run_time, job_type)
+    );},
+    qq{CREATE TABLE IF NOT EXISTS $jobs_table (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        job_type VARCHAR(10) NOT NULL,
+        source VARCHAR(10) NOT NULL DEFAULT 'manual',
+        schedule_key VARCHAR(60) DEFAULT NULL,
+        status VARCHAR(10) NOT NULL DEFAULT 'queued',
+        requested_by VARCHAR(100) DEFAULT NULL,
+        requested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        started_at DATETIME DEFAULT NULL,
+        finished_at DATETIME DEFAULT NULL,
+        message VARCHAR(255) DEFAULT NULL,
+        UNIQUE KEY unique_schedule_key (schedule_key),
+        KEY idx_status (status)
+    );},
+    qq{CREATE TABLE IF NOT EXISTS $state_table (
+        name VARCHAR(60) NOT NULL PRIMARY KEY,
+        value VARCHAR(255) DEFAULT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    );},
+    qq{CREATE TABLE IF NOT EXISTS $seen_values_table (
+        field_name VARCHAR(40) NOT NULL,
+        value VARCHAR(190) NOT NULL,
+        label VARCHAR(255) DEFAULT NULL,
+        seen_count INT NOT NULL DEFAULT 0,
+        last_seen DATETIME NOT NULL,
+        PRIMARY KEY (field_name, value)
+    );},
+    qq{CREATE TABLE IF NOT EXISTS $leaver_mapping_table (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        from_category VARCHAR(10) NOT NULL,
+        to_category VARCHAR(10) NOT NULL,
+        to_noloans VARCHAR(10) DEFAULT NULL,
+        UNIQUE KEY unique_from (from_category)
+    );},
+    qq{ALTER TABLE $leaver_mapping_table ADD COLUMN IF NOT EXISTS to_noloans VARCHAR(10) DEFAULT NULL;},
+    qq{CREATE TABLE IF NOT EXISTS $leavers_table (
+        borrowernumber INT NOT NULL PRIMARY KEY,
+        first_seen DATETIME NOT NULL,
+        reason VARCHAR(40) DEFAULT NULL,
+        previous_category VARCHAR(10) DEFAULT NULL,
+        anonymized_at DATETIME DEFAULT NULL
+    );},
+    qq{ALTER TABLE $leavers_table ADD COLUMN IF NOT EXISTS anonymized_at DATETIME DEFAULT NULL;},
+);
 our $added_count      = 0; # to count added
 our $updated_count    = 0; # to count updated
 our $processed_count  = 0; # to count processed
 our $duties_forbidden = 0; # set when the duties endpoint answers 403
+our %duties_by_person;     # all duties of the run grouped by person id (one read instead of one request per person)
+our $duties_loaded       = 0;
+our $duties_cache_failed = 0;
+our $use_duties_cache    = 1;
 our %org_code_cache;       # organisation id => organisationCode, valid for one run
 
-our $VERSION = "1.91";
+our $VERSION = "2.0";
 
 our $metadata = {
     name            => 'Export Users from SS12000',
     author          => 'imCode.com',
     date_authored   => '2023-08-08',
-    date_updated    => '2026-11-17',
+    date_updated    => '2026-11-19',
     minimum_version => '20.05',
     maximum_version => undef,
     version         => $VERSION,
@@ -365,6 +463,8 @@ sub install {
     qq{INSERT INTO imcode_config (name,value) VALUES ('use_default_for_unmapped','No');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('dateexpiry_fallback','keep');},
     qq{INSERT INTO imcode_config (name,value) VALUES ('dateexpiry_months','12');},
+    qq{INSERT INTO imcode_config (name,value) VALUES ('use_rules','No');},
+    @rules_ddl,
 
     );
 
@@ -507,6 +607,16 @@ sub upgrade {
     };
     if ($@) {
         warn "Error altering table: $@";
+        $success = 0;
+    }
+
+    eval {
+        $dbh->do($_) or die "Failed to create rules table: " . $dbh->errstr for @rules_ddl;
+        log_message("Yes", "Rules tables checked/created");
+    };
+    if ($@) {
+        warn "Error creating rules tables: $@";
+        log_message("Yes", "Error creating rules tables: $@");
         $success = 0;
     }
 
@@ -654,7 +764,7 @@ sub uninstall {
 
     my $dbh = C4::Context->dbh;
 
-    my @tables_to_delete = ($config_table, $logs_table, $data_change_log_table, $categories_mapping_table, $branches_mapping_table); 
+    my @tables_to_delete = ($config_table, $logs_table, $data_change_log_table, $categories_mapping_table, $branches_mapping_table, $rules_table, $rule_log_table, $schedule_table, $jobs_table, $state_table, $seen_values_table, $leaver_mapping_table, $leavers_table); 
 
     eval {
         foreach my $table (@tables_to_delete) {
@@ -845,12 +955,24 @@ sub configure {
     insertConfigValue($dbh, 'email_suffix_enabled', 'No');
     insertConfigValue($dbh, 'keep_existing_category', 'No');
     insertConfigValue($dbh, 'keep_existing_contact', 'No');
+    insertConfigValue($dbh, 'use_rules', 'No');
+    insertConfigValue($dbh, 'leaver_mode', 'off');
+    insertConfigValue($dbh, 'staff_import', 'No');
+    insertConfigValue($dbh, 'staff_keep_existing', 'Yes');
+    insertConfigValue($dbh, 'leaver_delete_days', '30');
+    insertConfigValue($dbh, 'leaver_anonymize_days_loans', '300');
+    insertConfigValue($dbh, 'leaver_max_changes', '200');
+    insertConfigValue($dbh, 'leaver_expire_now', 'Yes');
+    ensure_tables($dbh);
 
     return $self->log_page($session_data) if ($op // '') eq 'log';
     return $self->log_ajax($op)           if ($op // '') =~ /^ajax-log-/;
 
-    if (($op // '') =~ /^ajax-/) {
-        return $self->configure_ajax($op, $cgi);
+    # Koha requires every POST op to start with cud-; the name used by the handler is without it
+    if (($op // '') =~ /^(?:cud-)?ajax-/) {
+        $self->{session_data} = $session_data;
+        (my $ajax_op = $op) =~ s/^cud-//;
+        return $self->configure_ajax($ajax_op, $cgi);
     }
 
     my $select_query = qq{SELECT name, value FROM $config_table};
@@ -917,6 +1039,20 @@ sub configure {
 
         my $branch_mappings_json   = $cgi->param('branch_mappings_json');
         my $category_mappings_json = $cgi->param('category_mappings_json');
+        my $rules_json             = $cgi->param('rules_json');
+        my $schedule_json          = $cgi->param('schedule_json');
+        my $leaver_mapping_json    = $cgi->param('leaver_mapping_json');
+        my $staff_import           = $cgi->param('staff_import') ? 'Yes' : 'No';
+        my $staff_keep_existing    = $cgi->param('staff_keep_existing') ? 'Yes' : 'No';
+        my $leaver_mode            = SS12000Leavers::normalize_mode($cgi->param('leaver_mode'));
+        my $leaver_delete_days     = int($cgi->param('leaver_delete_days') // 30);
+        $leaver_delete_days = 0 if $leaver_delete_days < 0; $leaver_delete_days = 3650 if $leaver_delete_days > 3650;
+        my $leaver_anon_raw        = $cgi->param('leaver_anonymize_days_loans') // '';
+        $leaver_anon_raw =~ s/^\s+|\s+$//g;
+        my $leaver_anonymize_days_loans = $leaver_anon_raw =~ /^\d+$/ ? ($leaver_anon_raw > 3650 ? 3650 : $leaver_anon_raw + 0) : '';
+        my $leaver_max_changes     = int($cgi->param('leaver_max_changes') // 200);
+        $leaver_max_changes = 1 if $leaver_max_changes < 1; $leaver_max_changes = 100000 if $leaver_max_changes > 100000;
+        my $leaver_expire_now      = $cgi->param('leaver_expire_now') ? 'Yes' : 'No';
 
         my @match_methods        = grep { /^(?:attribute|userid|cardnumber)$/ } $cgi->multi_param('match_methods');
         my $civic_attribute_code = $cgi->param('civic_attribute_code') // '';
@@ -925,6 +1061,7 @@ sub configure {
         my $email_suffix_enabled = $cgi->param('email_suffix_enabled') ? 'Yes' : 'No';
         my $keep_existing_category = $cgi->param('keep_existing_category') ? 'Yes' : 'No';
         my $keep_existing_contact  = $cgi->param('keep_existing_contact')  ? 'Yes' : 'No';
+        my $use_rules              = $cgi->param('use_rules') ? 'Yes' : 'No';
         $useridPlugin     = 'civicNo' unless defined $useridPlugin     && $useridPlugin     =~ /^(?:civicNo|externalIdentifier|email_local|email|keep)$/;
         $cardnumberPlugin = 'civicNo' unless defined $cardnumberPlugin && $cardnumberPlugin =~ /^(?:civicNo|externalIdentifier|keep)$/;
 
@@ -1011,6 +1148,74 @@ sub configure {
             }
         }
 
+        # Rules are saved as one list; if any rule is invalid nothing is changed and every problem is reported
+        if (defined $rules_json && $rules_json ne '') {
+            my $raw_rules = eval { decode_json_param($rules_json) };
+            if (ref $raw_rules eq 'ARRAY') {
+                my ($rules, $rule_errors) = SS12000Rules::normalize_rules($raw_rules);
+                if (@$rule_errors) {
+                    push @save_errors, $self->t('Rules were not saved: %s', $_) for @$rule_errors;
+                } else {
+                    my $err = save_rules($dbh, $rules);
+                    if ($err) {
+                        log_message("Yes", "Error saving rules: $err");
+                        push @save_errors, $self->t('Rules could not be saved: %s', $err);
+                    } else {
+                        log_message("Yes", "Saved " . scalar(@$rules) . " rules");
+                    }
+                }
+            } else {
+                push @save_errors, $self->t('Rules had an invalid format and were not saved');
+            }
+        }
+
+        # Which category a patron who has left moves to; saved as one list, all or nothing
+        if (defined $leaver_mapping_json && $leaver_mapping_json ne '') {
+            my $raw_map = eval { decode_json_param($leaver_mapping_json) };
+            if (ref $raw_map eq 'ARRAY') {
+                my ($rows, $map_errors) = SS12000Leavers::normalize_mapping($raw_map);
+                foreach my $r (@$rows) {
+                    push @$map_errors, $self->t("Unknown Koha category '%s'", $_) for grep { defined && !$valid_category{$_} } ($r->{from}, $r->{to}, $r->{to_noloans});
+                }
+                if (@$map_errors) {
+                    push @save_errors, $self->t('Patrons who have left were not saved: %s', $_) for @$map_errors;
+                } else {
+                    my $ok = eval {
+                        my $own_tx = $dbh->{AutoCommit} ? 1 : 0;
+                        $dbh->begin_work if $own_tx;
+                        $dbh->do("DELETE FROM $leaver_mapping_table");
+                        $dbh->do("INSERT INTO $leaver_mapping_table (from_category, to_category, to_noloans) VALUES (?, ?, ?)", undef, $_->{from}, $_->{to}, $_->{to_noloans}) for @$rows;
+                        $dbh->commit if $own_tx;
+                        1;
+                    };
+                    unless ($ok) { my $e = $@; eval { $dbh->rollback }; push @save_errors, $self->t('Patrons who have left could not be saved: %s', $e) }
+                }
+            } else {
+                push @save_errors, $self->t('Patrons who have left had an invalid format and were not saved');
+            }
+        }
+
+        # The run schedule is saved as one list; if any row is invalid nothing is changed
+        if (defined $schedule_json && $schedule_json ne '') {
+            my $raw_schedule = eval { decode_json_param($schedule_json) };
+            if (ref $raw_schedule eq 'ARRAY') {
+                my ($entries, $schedule_errors) = SS12000Schedule::normalize_entries($raw_schedule);
+                if (@$schedule_errors) {
+                    push @save_errors, $self->t('The schedule was not saved: %s', $_) for @$schedule_errors;
+                } else {
+                    my $err = save_schedule($dbh, $entries);
+                    if ($err) {
+                        log_message("Yes", "Error saving schedule: $err");
+                        push @save_errors, $self->t('The schedule could not be saved: %s', $err);
+                    } else {
+                        log_message("Yes", "Saved " . scalar(@$entries) . " schedule rows");
+                    }
+                }
+            } else {
+                push @save_errors, $self->t('The schedule had an invalid format and was not saved');
+            }
+        }
+
         # Patron matching and attribute settings (validated against Koha before saving)
         my @new_key_errors;
         push @new_key_errors, $self->t("Civic number attribute '%s' does not exist (Administration > Patron attribute types)", $civic_attribute_code)
@@ -1039,6 +1244,14 @@ sub configure {
             my $upd2 = $dbh->prepare("UPDATE $config_table SET value = ? WHERE name = ?");
             $upd2->execute($keep_existing_category, 'keep_existing_category');
             $upd2->execute($keep_existing_contact,  'keep_existing_contact');
+            $upd2->execute($use_rules,              'use_rules');
+            $upd2->execute($leaver_mode,            'leaver_mode');
+            $upd2->execute($staff_import,           'staff_import');
+            $upd2->execute($staff_keep_existing,    'staff_keep_existing');
+            $upd2->execute($leaver_delete_days,     'leaver_delete_days');
+            $upd2->execute($leaver_anonymize_days_loans, 'leaver_anonymize_days_loans');
+            $upd2->execute($leaver_max_changes,     'leaver_max_changes');
+            $upd2->execute($leaver_expire_now,      'leaver_expire_now');
         }
         $template->param(error => join('; ', @save_errors)) if @save_errors;
 
@@ -1272,6 +1485,23 @@ sub configure {
         email_suffix_enabled => (($config_data->{email_suffix_enabled} // 'No') eq 'Yes' ? 1 : 0),
         keep_existing_category => (($config_data->{keep_existing_category} // 'No') eq 'Yes' ? 1 : 0),
         keep_existing_contact  => (($config_data->{keep_existing_contact}  // 'No') eq 'Yes' ? 1 : 0),
+        use_rules              => (($config_data->{use_rules} // 'No') eq 'Yes' ? 1 : 0),
+        rules_json             => json_for_html([ SS12000Rules::sort_rules(@{ load_rules($dbh) }) ]),
+        rule_meta_json         => json_for_html($self->rule_meta),
+        exclude_dutyrole_empty => (($config_data->{excluding_dutyRole_empty} // 'No') eq 'Yes' ? 1 : 0),
+        schedule_json          => json_for_html(load_schedule($dbh)),
+        leaver_mode            => SS12000Leavers::normalize_mode($config_data->{leaver_mode}),
+        staff_import           => (($config_data->{staff_import} // 'No') eq 'Yes' ? 1 : 0),
+        staff_keep_existing    => (($config_data->{staff_keep_existing} // 'Yes') eq 'Yes' ? 1 : 0),
+        leaver_delete_days     => int($config_data->{leaver_delete_days} // 30),
+        leaver_anonymize_days_loans => ($config_data->{leaver_anonymize_days_loans} // ''),
+        leaver_max_changes     => int($config_data->{leaver_max_changes} || 200),
+        leaver_expire_now      => (($config_data->{leaver_expire_now} // 'Yes') eq 'Yes' ? 1 : 0),
+        leaver_mapping_json    => json_for_html(leaver_mapping_rows($dbh)),
+        leaver_last            => (eval { (state_get($dbh, 'leavers_last'))[0] } // ''),
+        leaver_waiting         => scalar(eval { (leaver_candidates($dbh))[0] } // 0),
+        schedule_meta_json     => json_for_html($self->schedule_meta),
+        jobs_json              => json_for_html(job_status($dbh)),
         client_id     => $config_data->{ist_client_id} || '',
         customerId    => $config_data->{ist_customer_id} || '',
         api_url       => $config_data->{ist_api_url} || '',
@@ -1312,6 +1542,548 @@ sub admin {
 
 # Decode JSON received in a form field. Koha normally hands over decoded characters
 # (CGI -utf8), but raw UTF-8 bytes are handled too.
+# Field and operator names for the rule editor (texts are translated)
+sub rule_meta {
+    my ($self) = @_;
+    my %label = (
+        school          => $self->t('School (organisation code)'),
+        school_type     => $self->t('School type'),
+        school_year     => $self->t('School year'),
+        education_code  => $self->t('Education code (programme)'),
+        class           => $self->t('Class'),
+        role            => $self->t('Role (dutyRole)'),
+        assignment_role => $self->t('Assignment role'),
+        age             => $self->t('Age'),
+        person_kind     => $self->t('Person kind (student, staff, both)'),
+        school_group    => $self->t('School group (parent organisation id)'),
+        duty_school     => $self->t('School of the duty (staff)'),
+    );
+    my %advanced = map { $_ => 1 } qw(school_group duty_school);
+    my %op_label = (
+        in          => $self->t('is one of'),
+        starts_with => $self->t('starts with'),
+        contains    => $self->t('contains'),
+        empty       => $self->t('is empty'),
+        not_empty   => $self->t('is not empty'),
+        gte         => $self->t('is at least'),
+        lte         => $self->t('is at most'),
+    );
+    my %operators;
+    foreach my $type (qw(text number any)) {
+        my @ops = SS12000Rules::operators_for($type eq 'any' ? 'custom:x' : ($type eq 'number' ? 'age' : 'class'));
+        $operators{$type} = [ map { { code => $_, label => $op_label{$_} } } @ops ];
+    }
+    return {
+        fields    => [ map { { code => $_, label => $label{$_}, type => SS12000Rules::field_type($_), advanced => ($advanced{$_} ? 1 : 0) } }
+                       qw(school school_type school_year education_code class role assignment_role age person_kind school_group duty_school) ],
+        operators => \%operators,
+    };
+}
+
+# Replaces the saved rules with the given normalised rules. Rules keep their id when they have one,
+# so rule numbers in the rule log stay valid. Returns an error text or undef.
+sub save_rules {
+    my ($dbh, $rules) = @_;
+    my $own_tx = $dbh->{AutoCommit} ? 1 : 0;
+    my $ok = eval {
+        $dbh->begin_work if $own_tx;
+        my $existing = $dbh->selectcol_arrayref("SELECT id FROM $rules_table") || [];
+        my %have = map { $_ => 1 } @$existing;
+        my %keep = map { $_->{id} => 1 } grep { defined $_->{id} && $have{ $_->{id} } } @$rules;
+        $dbh->do("DELETE FROM $rules_table WHERE id = ?", undef, $_) for grep { !$keep{$_} } @$existing;
+        my %used;
+        foreach my $r (@$rules) {
+            my @vals = ($r->{priority}, $r->{name}, $r->{enabled}, $r->{scope}, SS12000Rules::conditions_to_json($r->{conditions}),
+                        $r->{action}{category}, $r->{action}{branch}, ($r->{action}{not_import} ? 1 : 0));
+            if (defined $r->{id} && $have{ $r->{id} } && !$used{ $r->{id} }++) {
+                $dbh->do("UPDATE $rules_table SET priority = ?, name = ?, enabled = ?, scope = ?, conditions_json = ?, action_category = ?, action_branch = ?, not_import = ? WHERE id = ?",
+                         undef, @vals, $r->{id});
+            } else {
+                $dbh->do("INSERT INTO $rules_table (priority, name, enabled, scope, conditions_json, action_category, action_branch, not_import) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                         undef, @vals);
+            }
+        }
+        $dbh->commit if $own_tx;
+        1;
+    };
+    return undef if $ok;
+    my $err = $@ || 'unknown error';
+    eval { $dbh->rollback };
+    return $err;
+}
+
+sub leaver_mapping_rows {
+    my ($dbh) = @_;
+    my $rows = eval { $dbh->selectall_arrayref("SELECT from_category, to_category, to_noloans FROM $leaver_mapping_table ORDER BY id") } || [];
+    return [ map { +{ from => $_->[0], to => $_->[1], to_noloans => ($_->[2] // '') } } @$rows ];
+}
+
+sub state_get {
+    my ($dbh, $name) = @_;
+    return $dbh->selectrow_array("SELECT value, updated_at FROM $state_table WHERE name = ?", undef, $name);
+}
+
+# Patrons that the import has marked as no longer in the school register: not in IST, or without a valid
+# enrolment (the notes are written by the import and by mark_missing_users_from_api)
+my $LEAVER_NOTE_SQL = q{b.opacnote LIKE '%by SS12000:%' AND (
+        b.opacnote LIKE '%No update: user no longer in API%'
+     OR b.opacnote LIKE '%No update: enrolment cancelled%'
+     OR b.opacnote LIKE '%No update: dateexpiry exceeded%'
+     OR b.opacnote LIKE '%No update: no valid enrolment%'
+     OR b.opacnote LIKE '%No update: no enrolments in API%')};
+
+# Returns (count, \@borrowernumbers) of patrons waiting to be handled
+sub leaver_candidates {
+    my ($dbh) = @_;
+    my $rows = $dbh->selectcol_arrayref("SELECT b.borrowernumber FROM $borrowers_table b WHERE $LEAVER_NOTE_SQL ORDER BY b.borrowernumber") || [];
+    return (scalar(@$rows), $rows);
+}
+
+# Removes everything that identifies a patron outside the patron record itself: Koha's action log (BorrowersLog
+# keeps the whole record), the plugin's change log (the trigger writes old and new values), the rule log and
+# anything left in deletedborrowers.
+sub leaver_purge_traces {
+    my ($dbh, $bn) = @_;
+    $dbh->do("DELETE FROM action_logs WHERE module = 'MEMBERS' AND object = ?", undef, $bn);
+    $dbh->do("DELETE FROM $data_change_log_table WHERE table_name = 'borrowers' AND record_id = ?", undef, $bn);
+    $dbh->do("DELETE FROM $rule_log_table WHERE borrowernumber = ?", undef, $bn);
+    $dbh->do("DELETE FROM deletedborrowers WHERE borrowernumber = ?", undef, $bn);
+    $dbh->do("DELETE FROM message_queue WHERE borrowernumber = ?", undef, $bn);
+    $dbh->do("DELETE FROM borrower_modifications WHERE borrowernumber = ?", undef, $bn);
+}
+
+# Removes a patron through Koha (which refuses open loans, fines and guarantees). The record is NOT copied to
+# deletedborrowers, the checkout history is anonymized and every trace is purged. Returns 1 when removed.
+sub leaver_remove_patron {
+    my ($dbh, $bn, $days, $category) = @_;
+    my $removed = eval {
+        my $patron = Koha::Patrons->find($bn);
+        return 0 unless $patron && $patron->safe_to_delete;
+        $patron->old_checkouts->anonymize;
+        $patron->delete;
+        1;
+    };
+    log_message('Yes', "Leavers: removing patron $bn failed: $@") if $@;
+    return 0 unless $removed;
+    leaver_purge_traces($dbh, $bn);
+    $dbh->do("DELETE FROM $leavers_table WHERE borrowernumber = ?", undef, $bn);
+    $dbh->do("INSERT INTO $data_change_log_table (table_name, record_id, action, change_description) VALUES ('borrowers', ?, 'leaver_deleted', ?)",
+             undef, $bn, "removed after $days days as a leaver, category was $category");
+    return 1;
+}
+
+# Wipes everything personal from a patron that cannot be removed yet (open loans), but keeps the account so the
+# loans can still be followed up: name, contact details, birth date, notes, attributes (civic number, class),
+# card number and the traces in the logs. The user id becomes anon<borrowernumber>.
+sub leaver_anonymize_patron {
+    my ($dbh, $bn, $to_category, $expire) = @_;
+    my %keep = map { $_ => 1 } qw(borrowernumber categorycode branchcode surname userid cardnumber password opacnote dateenrolled dateexpiry
+        date_renewed flags lang login_attempts anonymized auth_method updated_on lastseen debarred debarredcomment checkprevcheckout
+        privacy privacy_guarantor_fines privacy_guarantor_checkouts);
+    my $cols = $dbh->selectall_arrayref("SELECT column_name, is_nullable, data_type FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'borrowers'");
+    my (@set, @vals);
+    foreach my $c (@$cols) {
+        my ($name, $nullable, $type) = @$c;
+        next if $keep{ lc $name };
+        my $null = ($nullable eq 'YES');
+        if    ($type =~ /char|text/)                { push @set, "`$name` = ?"; push @vals, ($null ? undef : '') }
+        elsif ($type =~ /int|dec|float|double/)     { push @set, "`$name` = ?"; push @vals, ($null ? undef : 0) }
+        elsif ($type =~ /date|time/ && $null)       { push @set, "`$name` = NULL" }
+        elsif ($type eq 'enum' && $null)            { push @set, "`$name` = NULL" }
+    }
+    push @set, "surname = 'Anonymiserad'", "userid = ?", "cardnumber = NULL", "password = NULL", "anonymized = 1", "opacnote = ?";
+    push @vals, "anon$bn", "Anonymized by SS12000: plugin $version_info at " . strftime('%Y-%m-%d %H:%M:%S', localtime) . " No update: user no longer in API";
+    if (defined $to_category && $to_category ne '') { push @set, "categorycode = ?"; push @vals, $to_category }
+    push @set, "dateexpiry = IF(dateexpiry IS NULL OR dateexpiry > CURDATE(), CURDATE(), dateexpiry)" if $expire;
+    $dbh->do("UPDATE $borrowers_table SET " . join(', ', @set) . " WHERE borrowernumber = ?", undef, @vals, $bn);
+    $dbh->do("DELETE FROM borrower_attributes WHERE borrowernumber = ?", undef, $bn);
+    eval { my $p = Koha::Patrons->find($bn); $p->old_checkouts->anonymize if $p; 1 } or log_message('Yes', "Leavers: anonymizing the checkout history of $bn failed: $@");
+    leaver_purge_traces($dbh, $bn);
+    $dbh->do("UPDATE $leavers_table SET anonymized_at = NOW() WHERE borrowernumber = ?", undef, $bn);
+    $dbh->do("INSERT INTO $data_change_log_table (table_name, record_id, action, change_description) VALUES ('borrowers', ?, 'leaver_anonymized', 'all personal data removed, the account is kept for the loans that are left')", undef, $bn);
+}
+
+# Patrons who have left. Per category (mapping) they move to a category while loans are left, and to another one
+# (or stay) while they have no loans; the account can expire. Without loans they are removed after
+# leaver_delete_days; with loans left the account is anonymized after leaver_anonymize_days_loans (a patron with
+# open loans cannot be removed) and removed later when the loans are back. Everything personal is removed with
+# the patron. Only categories in the mapping are touched. leaver_mode: off | report | apply.
+sub process_leavers {
+    my ($self, $dbh, $config, $only) = @_;    # $only: optional list of borrowernumbers (used by tests)
+    my $mode = SS12000Leavers::normalize_mode($config->{leaver_mode});
+    return if $mode eq 'off';
+
+    # Patrons who are back in the register (touched by today's import without "No update") are no longer leavers
+    $dbh->do(qq{DELETE FROM $leavers_table WHERE borrowernumber IN (
+        SELECT borrowernumber FROM $borrowers_table WHERE opacnote LIKE CONCAT('%', CURDATE(), '%') AND opacnote NOT LIKE '%No update%')});
+
+    my %mapping = map { $_->[0] => { loans => $_->[1], noloans => $_->[2] } }
+        @{ $dbh->selectall_arrayref("SELECT from_category, to_category, to_noloans FROM $leaver_mapping_table") || [] };
+    unless (%mapping) {
+        log_message('Yes', 'Leavers: the mapping is empty, nothing to do');
+        return;
+    }
+    my $alimit = $config->{leaver_anonymize_days_loans};
+    my %opts   = (delete_after_days => int($config->{leaver_delete_days} // 30),
+                  anonymize_after_days_loans => (defined $alimit && $alimit =~ /^\d+$/ ? $alimit + 0 : undef));
+    my $max    = int($config->{leaver_max_changes} || 200);
+    my $expire = (($config->{leaver_expire_now} // 'Yes') eq 'Yes');
+    my (undef, $candidates) = leaver_candidates($dbh);
+    if ($only) { my %want = map { $_ => 1 } @$only; $candidates = [ grep { $want{$_} } @$candidates ]; }
+
+    my (%count, $changes, $capped);
+    $changes = 0;
+    foreach my $bn (@$candidates) {
+        my $b = $dbh->selectrow_hashref("SELECT borrowernumber, categorycode, dateexpiry FROM $borrowers_table WHERE borrowernumber = ?", undef, $bn) or next;
+        $dbh->do("INSERT IGNORE INTO $leavers_table (borrowernumber, first_seen, reason, previous_category) VALUES (?, NOW(), 'not in IST', ?)", undef, $bn, $b->{categorycode});
+        my ($days, $prev, $anon) = $dbh->selectrow_array("SELECT TIMESTAMPDIFF(DAY, first_seen, NOW()), previous_category, anonymized_at IS NOT NULL FROM $leavers_table WHERE borrowernumber = ?", undef, $bn);
+        my ($loans) = $dbh->selectrow_array("SELECT COUNT(*) FROM issues WHERE borrowernumber = ?", undef, $bn);
+        my $d = SS12000Leavers::decide({ category => $b->{categorycode}, previous_category => $prev, has_loans => ($loans ? 1 : 0), days => $days // 0, anonymized => ($anon ? 1 : 0) }, \%mapping, \%opts);
+        my $action = $d->{action};
+        my $entry  = $mapping{ $prev // $b->{categorycode} } || $mapping{ $b->{categorycode} } || {};
+        my $want   = $loans ? $entry->{loans} : $entry->{noloans};
+
+        if ($mode eq 'apply' && ($action eq 'move' || $action eq 'delete' || $action eq 'anonymize')) {
+            if ($changes >= $max) { $capped = 1; $count{waiting_for_next_run}++; next }
+            if ($action eq 'delete') {
+                if (leaver_remove_patron($dbh, $bn, $days, $b->{categorycode})) { $changes++; $count{deleted}++; next }
+                $count{blocked_by_fines_or_guarantees}++;
+                $action = (defined $want && $want ne $b->{categorycode}) ? 'move' : 'keep';
+                $d = { action => $action, to => $want };
+            }
+            if ($action eq 'anonymize') {
+                leaver_anonymize_patron($dbh, $bn, $want, $expire);
+                $changes++; $count{anonymized}++;
+                next;
+            }
+            if ($action eq 'move') {
+                $dbh->do("UPDATE $borrowers_table SET categorycode = ?" . ($expire ? ", dateexpiry = IF(dateexpiry IS NULL OR dateexpiry > CURDATE(), CURDATE(), dateexpiry)" : '') . " WHERE borrowernumber = ?",
+                         undef, $d->{to}, $bn);
+                $dbh->do("INSERT INTO $data_change_log_table (table_name, record_id, action, change_description) VALUES ('borrowers', ?, 'leaver_moved', ?)",
+                         undef, $bn, "left the school register: category $b->{categorycode} to $d->{to}" . ($loans ? ", $loans loan(s) left" : '') . ($expire ? ', account expires' : ''));
+                $changes++; $count{moved}++;
+                next;
+            }
+        }
+        $count{ $mode eq 'report' && $action =~ /^(?:move|delete|anonymize)$/ ? "would_$action" : $action }++;
+    }
+
+    my $summary = join(', ', map { "$_ $count{$_}" } sort keys %count) || 'no patrons';
+    $summary .= ' (limit per run reached)' if $capped;
+    my $line = strftime('%Y-%m-%d %H:%M', localtime) . " $mode: $summary";
+    state_set($dbh, 'leavers_last', substr($line, 0, 255));
+    log_message('Yes', "Leavers ($mode): $summary");
+}
+
+# POST with a valid CSRF token for the current session
+sub verify_csrf {
+    my ($self, $cgi) = @_;
+    return 0 unless ($cgi->request_method // '') eq 'POST';
+    my $token = $cgi->param('csrf_token') // '';
+    my $session_id = $cgi->cookie('CGISESSID') // '';
+    return 0 unless length $token && length $session_id;
+    return Koha::Token->new->check_csrf({ session_id => $session_id, token => $token }) ? 1 : 0;
+}
+
+sub schedule_meta {
+    my ($self) = @_;
+    my @names = ($self->t('Monday'), $self->t('Tuesday'), $self->t('Wednesday'), $self->t('Thursday'), $self->t('Friday'), $self->t('Saturday'), $self->t('Sunday'));
+    return {
+        weekdays => [ map { { code => $_ + 1, label => $names[$_] } } 0 .. 6 ],
+        types    => { import => $self->t('Import of patrons'), discover => $self->t('Fetch values from IST') },
+        sources  => { manual => $self->t('Started by hand'), schedule => $self->t('Schedule') },
+        messages => { 'time-limit-8h' => $self->t('Stopped: the time limit of 8 hours was reached'), 'configuration-error-see-log' => $self->t('Stopped: configuration error, see the log'), 'stopped-before-the-last-page' => $self->t('Stopped before the last page, see the log') },
+        storedFormat => $self->t('stored %s values, %s persons read'),
+        states   => { queued => $self->t('Waiting'), running => $self->t('Running'), done => $self->t('Done'), failed => $self->t('Failed') },
+    };
+}
+
+sub load_schedule {
+    my ($dbh) = @_;
+    my $rows = eval { $dbh->selectall_arrayref("SELECT weekday, run_time, job_type FROM $schedule_table ORDER BY weekday, run_time, job_type", { Slice => {} }) } || [];
+    return [ map { { weekday => $_->{weekday} + 0, time => $_->{run_time}, job_type => $_->{job_type} } } @$rows ];
+}
+
+# Replaces the saved schedule with the given normalised entries. Returns an error text or undef.
+sub save_schedule {
+    my ($dbh, $entries) = @_;
+    my $own_tx = $dbh->{AutoCommit} ? 1 : 0;
+    my $ok = eval {
+        $dbh->begin_work if $own_tx;
+        $dbh->do("DELETE FROM $schedule_table");
+        $dbh->do("INSERT INTO $schedule_table (weekday, run_time, job_type) VALUES (?, ?, ?)", undef, $_->{weekday}, $_->{time}, $_->{job_type}) for @$entries;
+        $dbh->commit if $own_tx;
+        1;
+    };
+    return undef if $ok;
+    my $err = $@ || 'unknown error';
+    eval { $dbh->rollback };
+    return $err;
+}
+
+# Creates the version 2 tables when they are missing (for example when the plugin files were copied
+# over a 2.0 installation, where Koha does not run upgrade again)
+sub ensure_tables {
+    my ($dbh) = @_;
+    eval { $dbh->do($_) for @rules_ddl; 1 } or log_message('Yes', "ensure_tables failed: $@");
+}
+
+sub state_set {
+    my ($dbh, $name, $value) = @_;
+    $dbh->do("INSERT INTO $state_table (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()", undef, $name, $value);
+}
+
+# Is an import running right now, and who started it? Looks at the shared lock file (held while one page is
+# processed), the job queue, the processes of the cron wrapper and the latest activity in imcode_logs.
+sub run_activity {
+    my ($dbh) = @_;
+    my @sources;
+
+    my $lock = eval { Koha::Plugin::imCode::KohaSS12000::ExportUsers->new->get_lock_info };
+    push @sources, 'lock:' . ($lock->{source} // '?') if ref $lock eq 'HASH' && $lock->{pid} && kill(0, $lock->{pid});
+
+    my ($job) = eval { $dbh->selectrow_array("SELECT CONCAT(job_type, ':', source) FROM $jobs_table WHERE status = 'running' ORDER BY id LIMIT 1") };
+    push @sources, "job:$job" if $job;
+
+    push @sources, 'process' if system('pgrep -f "[r]un_ss12000\\.sh|[i]mcode_ss12000\\.pl" >/dev/null 2>&1') == 0;
+
+    my ($last, $age) = eval { $dbh->selectrow_array("SELECT DATE_FORMAT(MAX(created_at), '%Y-%m-%d %H:%i'), TIMESTAMPDIFF(MINUTE, MAX(created_at), NOW()) FROM $logs_table WHERE data_endpoint = 'persons'") };
+    push @sources, 'log' if defined $age && $age <= 10;
+
+    return { running => (@sources ? 1 : 0), sources => \@sources, last_log => $last // '', last_log_age => defined $age ? $age + 0 : undef };
+}
+
+# Latest jobs and the cron heartbeat for the configuration page
+sub job_status {
+    my ($dbh) = @_;
+    my $jobs = eval {
+        $dbh->selectall_arrayref(
+            "SELECT id, job_type, source, status, requested_by, requested_at, started_at, finished_at, message FROM $jobs_table ORDER BY id DESC LIMIT 8",
+            { Slice => {} });
+    } || [];
+    my ($seen, $age) = eval { $dbh->selectrow_array("SELECT value, TIMESTAMPDIFF(SECOND, updated_at, NOW()) FROM $state_table WHERE name = 'tick_last_seen'") };
+    my ($now) = eval { $dbh->selectrow_array("SELECT DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i') ") };
+    my ($values_at) = eval { $dbh->selectrow_array("SELECT DATE_FORMAT(MAX(last_seen), '%Y-%m-%d %H:%i') FROM $seen_values_table") };
+    return {
+        jobs        => [ map { my $j = $_; +{ map { $_ => (defined $j->{$_} ? "$j->{$_}" : '') } keys %$j } } @$jobs ],
+        tick_seen   => $seen // '',
+        tick_age    => defined $age ? $age + 0 : undef,
+        server_time => $now // '',
+        values_at   => $values_at // '',
+        activity    => run_activity($dbh),
+    };
+}
+
+# Queues a job unless one of the same type is already waiting or running
+sub request_job {
+    my ($dbh, $type, $by, $source) = @_;
+    return { ok => 0 } unless defined $type && $type =~ /^(?:import|discover)$/;
+    my ($open) = $dbh->selectrow_array("SELECT id FROM $jobs_table WHERE job_type = ? AND status IN ('queued', 'running') ORDER BY id LIMIT 1", undef, $type);
+    return { ok => 1, id => $open, already => 1 } if $open;
+    $dbh->do("INSERT INTO $jobs_table (job_type, source, status, requested_by) VALUES (?, ?, 'queued', ?)", undef, $type, ($source || 'manual'), substr($by // '', 0, 100));
+    return { ok => 1, id => $dbh->last_insert_id(undef, undef, $jobs_table, undef) };
+}
+
+sub finish_job {
+    my ($dbh, $id, $status, $message) = @_;
+    return unless defined $id && $id =~ /^\d+$/;
+    $status = 'failed' unless defined $status && $status =~ /^(?:done|failed)$/;
+    $dbh->do("UPDATE $jobs_table SET status = ?, finished_at = NOW(), message = ? WHERE id = ? AND status = 'running'", undef, $status, substr($message // '', 0, 255), $id);
+}
+
+sub release_job {
+    my ($dbh, $id) = @_;
+    return unless defined $id && $id =~ /^\d+$/;
+    $dbh->do("UPDATE $jobs_table SET status = 'queued', started_at = NULL WHERE id = ? AND status = 'running'", undef, $id);
+}
+
+# Called by cron every minute (cron/imcode_ss12000_tick.pl). Writes the heartbeat, queues the schedule rows
+# that are due and starts at most one waiting job. Prints nothing itself; returns one of
+#   IDLE | JOB:<id>:import (the shell script runs the import) | DONE:<id>:<status> (a job that ran inside this call)
+sub tick {
+    my ($self) = @_;
+    my $dbh = C4::Context->dbh;
+
+    eval { $dbh->selectrow_array("SELECT 1 FROM $jobs_table LIMIT 1"); 1 } or ensure_tables($dbh);
+    state_set($dbh, 'tick_last_seen', strftime('%Y-%m-%d %H:%M:%S', localtime));
+    $dbh->do("UPDATE $jobs_table SET status = 'failed', finished_at = NOW(), message = 'stopped without finishing (over 10 hours)' WHERE status = 'running' AND started_at < DATE_SUB(NOW(), INTERVAL 10 HOUR)");
+    my ($running) = $dbh->selectrow_array("SELECT id FROM $jobs_table WHERE status = 'running' LIMIT 1");
+    return 'IDLE' if $running;
+
+    foreach my $due (SS12000Schedule::due_entries(load_schedule($dbh), time())) {
+        $dbh->do("INSERT IGNORE INTO $jobs_table (job_type, source, schedule_key, status, requested_by) VALUES (?, 'schedule', ?, 'queued', 'schedule')",
+                 undef, $due->{entry}{job_type}, $due->{key});
+    }
+
+    my ($id, $type) = $dbh->selectrow_array("SELECT id, job_type FROM $jobs_table WHERE status = 'queued' ORDER BY id LIMIT 1");
+    return 'IDLE' unless $id;
+    my $started = $dbh->do("UPDATE $jobs_table SET status = 'running', started_at = NOW() WHERE id = ? AND status = 'queued'", undef, $id);
+    return 'IDLE' unless $started && $started > 0;
+
+    if ($type eq 'import') {
+        # An import started by an older cron line is still running: wait for it instead of resetting its progress
+        if (system('pgrep -f "[r]un_ss12000\\.sh|[i]mcode_ss12000\\.pl" >/dev/null 2>&1') == 0) {
+            release_job($dbh, $id);
+            log_message('Yes', "Job $id (import) waits: another import is running");
+            return 'IDLE';
+        }
+        $dbh->do("UPDATE $logs_table SET is_processed = 0, updated_count = 0, added_count = 0, page_token_next = 'RESET' WHERE DATE(created_at) = CURDATE()");
+        log_message('Yes', "Job $id (import) started");
+        return "JOB:$id:import";
+    }
+
+    if ($type eq 'discover') {
+        log_message('Yes', "Job $id (discover) started");
+        my ($ok, $message) = $self->discover_values($dbh);
+        finish_job($dbh, $id, ($ok ? 'done' : 'failed'), $message);
+        log_message('Yes', "Job $id (discover) finished: $message");
+        return "DONE:$id:" . ($ok ? 'done' : 'failed');
+    }
+
+    finish_job($dbh, $id, 'failed', "unknown job type $type");
+    return 'IDLE';
+}
+
+sub tick_cli {
+    my ($self, @args) = @_;
+    my $dbh = C4::Context->dbh;
+    my $cmd = $args[0] // '';
+    if ($cmd eq '--finish') {
+        finish_job($dbh, $args[1], $args[2], join(' ', @args[3 .. $#args]));
+        print "OK\n";
+        return 0;
+    }
+    if ($cmd eq '--release') {
+        release_job($dbh, $args[1]);
+        print "OK\n";
+        return 0;
+    }
+    my $result = eval { $self->tick };
+    if ($@) {
+        log_message('Yes', "tick failed: $@");
+        print "ERROR\n";
+        return 1;
+    }
+    print "$result\n";
+    return 0;
+}
+
+# Reads the values IST really contains (schools, school types, years, programmes, classes, roles) and
+# stores them for the rule editor. Only fields that are not personal data are stored.
+sub discover_values {
+    my ($self, $dbh) = @_;
+    my $config = $self->get_config_data();
+    unless ($config->{ist_client_id} && length($config->{ist_client_secret} // '') && $config->{ist_customer_id}) {
+        return (0, 'IST connection is not configured');
+    }
+    my $token = $self->get_api_token($config, LWP::UserAgent->new);
+    return (0, 'could not get an access token') unless $token;
+    my $api_base = ($config->{ist_api_url} || '') . '/ss12000v2-api/source/' . ($config->{ist_customer_id} || '') . '/v2.0/';
+    my $ignore_cancelled = (($config->{ignore_cancelled_flag} // 'No') eq 'Yes');
+    my $today = strftime('%Y-%m-%d', localtime);
+
+    my (%count, %label, %done, @notes);
+    my $add = sub { my ($field, $value, $n) = @_; return unless defined $value && !ref $value && length $value; $count{$field}{$value} += ($n // 1) };
+
+    my $each_page = sub {
+        my ($endpoint, $params, $cb) = @_;
+        my ($page_token, $pages) = (undef, 0);
+        while (1) {
+            my $url = $api_base . $endpoint . '?limit=100';
+            $url .= '&' . uri_escape($_) . '=' . uri_escape($params->{$_}) for sort keys %{ $params || {} };
+            $url .= '&pageToken=' . uri_escape($page_token) if $page_token;
+            my ($body, $code, $err) = getApiResponse($url, $token);
+            return (0, $code // 0) unless defined $body;
+            my $data = eval { decode_json($body) };
+            return (0, 0) unless ref $data eq 'HASH';
+            $cb->($_) for @{ $data->{data} || [] };
+            $page_token = $data->{pageToken};
+            last if !$page_token || ++$pages >= 2000;
+        }
+        return (1, 200);
+    };
+
+    my %org_code;
+    my (%children, %org_types);
+    my ($ok, $code) = $each_page->('organisations', {}, sub {
+        my ($o) = @_;
+        $org_code{ $o->{id} } = $o->{organisationCode} // '';
+        $add->('school', $o->{organisationCode});
+        $org_types{$_}++ for grep { defined && !ref } @{ ref $o->{schoolTypes} eq 'ARRAY' ? $o->{schoolTypes} : [] };
+        my $pid = ref $o->{parentOrganisation} eq 'HASH' ? $o->{parentOrganisation}{id} : undef;
+        if ($pid && ($o->{organisationCode} // '') ne '') { push @{ $children{$pid} }, $o->{organisationCode}; }
+    });
+    return (0, "could not read organisations (HTTP $code)") unless $ok;
+    $done{$_} = 1 for qw(school school_group);
+    foreach my $pid (keys %children) {
+        $count{school_group}{$pid} = scalar @{ $children{$pid} };
+        $label{school_group}{$pid} = join(', ', sort @{ $children{$pid} });
+    }
+
+    ($ok, $code) = $each_page->('duties', {}, sub {
+        my ($d) = @_;
+        $add->('role', $d->{dutyRole});
+        $add->('assignment_role', $d->{assignmentRole});
+    });
+    if ($ok) { $done{$_} = 1 for qw(role assignment_role) }
+    else { push @notes, ($code == 403 ? 'duties are not available (403)' : "duties could not be read (HTTP $code)") }
+
+    ($ok, $code) = $each_page->('groups', { groupType => 'Klass' }, sub { $add->('class', $_[0]{displayName}) });
+    if ($ok) { $done{class} = 1 } else { push @notes, "classes could not be read (HTTP $code)" }
+
+    my $persons = 0;
+    ($ok, $code) = $each_page->('persons', {}, sub {
+        my ($p) = @_;
+        $persons++;
+        foreach my $e (@{ ref $p->{enrolments} eq 'ARRAY' ? $p->{enrolments} : [] }) {
+            next unless ref $e eq 'HASH' && defined $e->{startDate} && defined $e->{endDate};
+            next unless $e->{startDate} le $today && $today le $e->{endDate};
+            next if $e->{cancelled} && !$ignore_cancelled;
+            $add->('school_type', $e->{schoolType});
+            $add->('school_year', $e->{schoolYear});
+            $add->('education_code', $e->{educationCode});
+        }
+    });
+    if ($ok) {
+        $done{$_} = 1 for qw(school_year education_code school_type);
+    } else {
+        push @notes, "persons could not be read (HTTP $code)";
+        if (%org_types) {
+            $count{school_type} = { %org_types };
+            $done{school_type} = 1;
+        }
+    }
+
+    return (0, 'nothing could be read: ' . join('; ', @notes)) unless %done;
+
+    my $stored = 0;
+    my $own_tx = $dbh->{AutoCommit} ? 1 : 0;
+    my $saved = eval {
+        $dbh->begin_work if $own_tx;
+        foreach my $field (sort keys %done) {
+            $dbh->do("DELETE FROM $seen_values_table WHERE field_name = ?", undef, $field);
+            my @values = sort { $count{$field}{$b} <=> $count{$field}{$a} || $a cmp $b } keys %{ $count{$field} || {} };
+            splice(@values, 1000) if @values > 1000;
+            foreach my $v (@values) {
+                # Values that the database collation treats as equal (case, trailing spaces) are added together
+                $dbh->do("INSERT INTO $seen_values_table (field_name, value, label, seen_count, last_seen) VALUES (?, ?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE seen_count = seen_count + VALUES(seen_count)",
+                         undef, $field, substr($v, 0, 190), (defined $label{$field}{$v} ? substr($label{$field}{$v}, 0, 255) : undef), $count{$field}{$v});
+                $stored++;
+            }
+        }
+        $dbh->commit if $own_tx;
+        1;
+    };
+    unless ($saved) {
+        my $err = $@ || 'unknown error';
+        eval { $dbh->rollback };
+        return (0, "could not store the values: $err");
+    }
+    my $summary = "stored $stored values, $persons persons read";
+    $summary .= '; ' . join('; ', @notes) if @notes;
+    return (1, $summary);
+}
+
 sub decode_json_param {
     my ($text) = @_;
     my $json = JSON->new;
@@ -1561,6 +2333,19 @@ sub ajax_dispatch {
     my ($self, $op, $cgi) = @_;
 
     my $dbh    = C4::Context->dbh;
+
+    if ($op eq 'ajax-job-status') {
+        return { ok => JSON::true, %{ job_status($dbh) } };
+    }
+    if ($op eq 'ajax-job-request') {
+        return { ok => JSON::false, message => $self->t('The request could not be verified. Reload the page and try again.') }
+            unless $self->verify_csrf($cgi);
+        my $type = $cgi->param('job_type') // '';
+        my $r = request_job($dbh, $type, (($self->{session_data} || {})->{userid} // 'unknown'), 'manual');
+        return { ok => JSON::false, message => $self->t('Unknown job type') } unless $r->{ok};
+        return { ok => JSON::true, id => $r->{id}, already => ($r->{already} ? JSON::true : JSON::false), %{ job_status($dbh) } };
+    }
+
     my $config = $self->get_config_data();
 
     unless ($config->{ist_client_id} && length($config->{ist_client_secret} // '') && $config->{ist_customer_id}) {
@@ -2135,6 +2920,7 @@ sub _cronjob_inner {
         AND data_endpoint = ?
         AND page_token_next IS NULL 
         AND is_processed = 1
+        AND organisation_code <> 'STAFF'
         GROUP BY organisation_code
     };
     
@@ -2155,7 +2941,8 @@ sub _cronjob_inner {
         $total_orgs = 1;
     }
     
-    if (scalar(@$completed_orgs) >= $total_orgs) {
+    # The staff pass is one more round after the schools: the cycle is not complete while it is pending
+    if (scalar(@$completed_orgs) >= $total_orgs && !$self->staff_pass_pending($dbh, $self->get_config_data(), $data_endpoint)) {
         log_message("Yes", "Full processing cycle already completed today for all organizations");
         return "EndLastPageFromAPI" if $is_web;
         print "EndLastPageFromAPI\n";
@@ -2178,6 +2965,7 @@ sub _cronjob_inner {
         WHERE created_at < DATE_SUB(CURDATE(), INTERVAL ? DAY)
     };
     $dbh->do($cleanup_query, undef, $logs_limit);
+    eval { $dbh->do("DELETE FROM $rule_log_table WHERE updated_at < DATE_SUB(CURDATE(), INTERVAL 90 DAY)") };
 
     my $archived_limit = int($config_data->{archived_limit}) || 0;
 
@@ -2218,6 +3006,8 @@ sub _cronjob_inner {
             push @organisation_codes, $org_code;
         }
         
+        push @organisation_codes, 'STAFF' if $self->staff_pass_pending($dbh, $config_data, $data_endpoint);
+
         if (@organisation_codes) {
             log_message('Yes', 'Found ' . scalar(@organisation_codes) . ' unprocessed organisation codes');
             
@@ -2239,12 +3029,18 @@ sub _cronjob_inner {
                 
                 log_message('Yes', "Processing organisation code: $org_code");
                 
-                my $org_id = $self->get_organisation_id($org_code, $config_data);
+                my $org_id = $org_code eq 'STAFF' ? 'STAFF' : $self->get_organisation_id($org_code, $config_data);
                 
                 if ($org_id) {
                     log_message('Yes', "Got organisation ID: $org_id for code: $org_code");
                     
-                    my $filter_params = {
+                    my $filter_params = $org_code eq 'STAFF'
+                        ? {
+                            'relationship.startDate.onOrBefore'  => $today,
+                            'relationship.endDate.onOrAfter'     => $today,
+                            'relationship.entity.type'           => 'duty'
+                        }
+                        : {
                         'relationship.organisation'           => $org_id,
                         'relationship.startDate.onOrBefore'  => $today,
                         'relationship.endDate.onOrAfter'     => $today,
@@ -2301,6 +3097,7 @@ sub _cronjob_inner {
             };
             
             my ($remaining_count) = $dbh->selectrow_array($check_all_completed, undef, $data_endpoint);
+            $remaining_count += $self->staff_pass_pending($dbh, $config_data, $data_endpoint);
             if ($remaining_count == 0) {
                 log_message('Yes', "All organisations processed successfully");
 
@@ -2818,7 +3615,7 @@ sub mark_missing_users_from_api {
                 };
                 $dbh->do($insert_log_query, undef, 
                     $user->{borrowernumber}, 
-                    "User no longer in API (verified) - cardnumber: $user->{cardnumber}"
+                    "User no longer in API (verified)"
                 );
                 
                 # Update opacnote for this user
@@ -2848,6 +3645,8 @@ sub mark_missing_users_from_api {
     if ($@) {
         log_message('Yes', "Error marking missing users: $@");
     }
+
+    eval { $self->process_leavers($dbh, $config_data); 1 } or log_message('Yes', "Error handling patrons who have left: $@");
 }
 
 sub fetchDataFromAPI {
@@ -2916,6 +3715,28 @@ sub fetchDataFromAPI {
         keep_existing_contact  => (($config_data->{keep_existing_contact}  // 'No') eq 'Yes' ? 1 : 0),
     };
     
+    if (($config_data->{use_rules} // 'No') eq 'Yes') {
+        my $rules = load_rules($dbh);
+        my $used  = SS12000Rules::fields_used($rules);
+        $opts->{use_rules}              = 1;
+        $opts->{rules}                  = $rules;
+        $opts->{rules_need_duties}      = (grep { $used->{$_} } qw(role assignment_role duty_school person_kind)) ? 1 : 0;
+        $opts->{rules_need_duty_school} = $used->{duty_school}  ? 1 : 0;
+        $opts->{rules_need_school_group} = $used->{school_group} ? 1 : 0;
+        $opts->{custom_paths}           = [ SS12000Rules::custom_paths($rules) ];
+        $opts->{valid_categories}       = { map { $_ => 1 } @{ $dbh->selectcol_arrayref("SELECT categorycode FROM $categories_table") || [] } };
+        $opts->{valid_branches}         = { map { $_ => 1 } @{ $dbh->selectcol_arrayref("SELECT branchcode FROM $branches_table") || [] } };
+        log_message($debug_mode, 'Using ' . scalar(@$rules) . ' rule(s) for category and branch');
+    }
+
+    # The staff pass (pseudo organisation STAFF) reads persons with a duty instead of an enrolment
+    if (($current_org_code // '') eq 'STAFF') {
+        $opts->{staff_mode}          = 1;
+        $opts->{staff_keep_existing} = (($config_data->{staff_keep_existing} // 'Yes') eq 'Yes') ? 1 : 0;
+        $opts->{rules_need_duties}      = 1;
+        $opts->{rules_need_duty_school} = 1;
+    }
+
     if ($debug_mode eq "Yes") { 
         log_message($debug_mode, "Starting processing for endpoint: $data_endpoint, organisation: $current_org_code");
         log_message($debug_mode, "Filter params: " . Dumper($filter_params)) if $filter_params;
@@ -3224,6 +4045,57 @@ sub fetchDataFromAPI {
 # Callers that only need the body can still call in scalar context — they just
 # get undef on error, same as before. Callers that need the status code should
 # call in list context: my ($body, $err_code, $err_body) = getApiResponse(...).
+# True when a patron with this civic number exists in Koha that the plugin has never handled (no plugin note)
+sub staff_exists_unmanaged {
+    my ($dbh, $civic, $attr_code) = @_;
+    return 0 unless defined $civic && $civic ne '';
+    (my $digits = $civic) =~ s/\D//g;
+    return 0 unless length $digits;
+    my @conds = ("REPLACE(b.cardnumber, '-', '') = ?", "REPLACE(b.userid, '-', '') = ?");
+    my @binds = ($digits, $digits);
+    if (defined $attr_code && $attr_code ne '') {
+        push @conds, q{b.borrowernumber IN (SELECT ba.borrowernumber FROM borrower_attributes ba WHERE ba.code = ? AND REPLACE(REPLACE(TRIM(ba.attribute), '-', ''), ' ', '') = ?)};
+        push @binds, $attr_code, $digits;
+    }
+    my ($n) = $dbh->selectrow_array("SELECT COUNT(*) FROM borrowers b WHERE (" . join(' OR ', @conds) . ") AND (b.opacnote IS NULL OR b.opacnote NOT LIKE '%by SS12000:%')", undef, @binds);
+    return $n ? 1 : 0;
+}
+
+# The staff pass is an extra "organisation" called STAFF that runs with the others, one page per round
+sub staff_pass_pending {
+    my ($self, $dbh, $config, $endpoint) = @_;
+    return 0 unless ($config->{staff_import} // 'No') eq 'Yes' && ($config->{use_rules} // 'No') eq 'Yes';
+    my ($done) = $dbh->selectrow_array(
+        "SELECT 1 FROM $logs_table WHERE DATE(created_at) = CURDATE() AND organisation_code = 'STAFF' AND page_token_next IS NULL AND data_endpoint = ? AND is_processed = 1 LIMIT 1",
+        undef, $endpoint);
+    return $done ? 0 : 1;
+}
+
+# Reads every duty once and groups them by person; used when the rules need roles. Falls back to one request
+# per person when the read fails, and notes the 403 of customers that have not ordered duties.
+sub load_all_duties_once {
+    my ($api_url_base, $token) = @_;
+    my ($rows, $code) = ist_fetch_all($api_url_base, $token, 'duties', {}, 100);
+    unless ($rows) {
+        if (($code // 0) == 403) {
+            $duties_forbidden = 1;
+            log_message('Yes', "Duties endpoint is not available for this customer (403 Forbidden): dutyRole will not be used");
+        } else {
+            $duties_cache_failed = 1;
+            log_message('Yes', "Could not read all duties (HTTP " . ($code // '?') . "), using one request per person");
+        }
+        return 0;
+    }
+    %duties_by_person = ();
+    foreach my $d (@$rows) {
+        my $pid = ref $d->{person} eq 'HASH' ? $d->{person}{id} : undef;
+        push @{ $duties_by_person{$pid} }, $d if defined $pid;
+    }
+    $duties_loaded = 1;
+    log_message('Yes', 'Duties read once for this run: ' . scalar(@$rows) . ' duties for ' . scalar(keys %duties_by_person) . ' persons');
+    return 1;
+}
+
 sub getApiResponse {
     my ($api_url, $access_token) = @_;
 
@@ -3300,6 +4172,77 @@ sub verify_categorycode_and_branchcode {
     }
 }
 
+our %org_info_cache;    # organisation id => { code, parent_id }, valid for one run
+our %rule_warned;       # rule warnings already written to the log in this run
+
+# Organisation code and parent id for an organisation id (one API call per organisation and run)
+sub org_info {
+    my ($org_id, $access_token, $api_url_base) = @_;
+    return {} unless defined $org_id && $org_id ne '';
+    return $org_info_cache{$org_id} if exists $org_info_cache{$org_id};
+    my $info = {};
+    eval {
+        my $raw = getApiResponse($api_url_base . 'organisations/' . $org_id, $access_token);
+        if (defined $raw && length($raw) > 0) {
+            my $org = decode_json($raw);
+            if (ref $org eq 'HASH') {
+                $info = { code => $org->{organisationCode}, parent_id => (ref $org->{parentOrganisation} eq 'HASH' ? $org->{parentOrganisation}{id} : undef) };
+                $org_info_cache{$org_id} = $info;
+            }
+        }
+    };
+    return $info;
+}
+
+# Rules from the database as normalised rule hashes (invalid rows are skipped and logged)
+sub load_rules {
+    my ($dbh) = @_;
+    my $rows = eval {
+        $dbh->selectall_arrayref(
+            "SELECT id, priority, name, enabled, scope, conditions_json, action_category, action_branch, not_import FROM $rules_table",
+            { Slice => {} }
+        );
+    } || [];
+    my @rules;
+    foreach my $row (@$rows) {
+        my $action = $row->{scope} eq 'branch' ? { branch => $row->{action_branch} }
+                   : $row->{not_import}        ? { not_import => 1 }
+                   :                             { category => $row->{action_category} };
+        my ($rule, $err) = SS12000Rules::normalize_rule({
+            id => $row->{id}, priority => $row->{priority}, name => $row->{name}, enabled => $row->{enabled},
+            scope => $row->{scope}, conditions => SS12000Rules::conditions_from_json($row->{conditions_json}), action => $action,
+        });
+        if ($err) {
+            log_message('Yes', "Rule #$row->{id} skipped: $err");
+            next;
+        }
+        push @rules, $rule;
+    }
+    return \@rules;
+}
+
+# One row per person with the latest rule decision; changed_at only moves when the decision changes
+sub save_rule_log {
+    my ($dbh, $person_id, %r) = @_;
+    my $hash = Digest::MD5::md5_hex(Encode::encode('UTF-8', join("\x1f", map { $_ // '' } @r{qw(person_kind category_result category_explain branch_result branch_explain)})));
+    eval {
+        $dbh->do(qq{
+            INSERT INTO $rule_log_table (person_id, person_kind, category_result, category_explain, branch_result, branch_explain, decision_hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                changed_at = IF(decision_hash <=> VALUES(decision_hash), changed_at, NOW()),
+                person_kind = VALUES(person_kind),
+                category_result = VALUES(category_result),
+                category_explain = VALUES(category_explain),
+                branch_result = VALUES(branch_result),
+                branch_explain = VALUES(branch_explain),
+                decision_hash = VALUES(decision_hash),
+                updated_at = NOW()
+        }, undef, $person_id, @r{qw(person_kind category_result category_explain branch_result branch_explain)}, $hash);
+    };
+    log_message('Yes', "Error saving rule log for person $person_id: $@") if $@;
+}
+
 sub fetchBorrowers {
     my (
             $response_data,
@@ -3346,6 +4289,7 @@ sub fetchBorrowers {
                 my $koha_branchcode   = $koha_default_branchcode;
                 my $not_import        = 0;
                 my $skip_reason       = '';
+                my $silent_skip       = 0;
 
                 my $response_page_data = $response_data->{data}[$i-1];
                 if ($response_page_data) {
@@ -3362,7 +4306,7 @@ sub fetchBorrowers {
                     log_message($debug_mode, 'person_groupMemberships_api_url: '.$person_groupMemberships_api_url);
                     my $response_data_groupMemberships;
                     eval {
-                        my $raw_groupMemberships = getApiResponse($person_groupMemberships_api_url, $access_token);
+                        my $raw_groupMemberships = $opts->{staff_mode} ? undef : getApiResponse($person_groupMemberships_api_url, $access_token);
                         if (defined $raw_groupMemberships && length($raw_groupMemberships) > 0) {
                             $response_data_groupMemberships = decode_json($raw_groupMemberships);
                             log_message($debug_mode, 'response_data_groupMemberships: '.Dumper($response_data_groupMemberships));
@@ -3439,7 +4383,18 @@ sub fetchBorrowers {
                     # for the rest of this run instead of one failing call per user.
                     if ($duties_forbidden) {
                         log_message($debug_mode, "Skipping duties lookup (API returned 403 earlier in this run)");
+                    } elsif ($opts->{use_rules} && !$opts->{rules_need_duties}) {
+                        log_message($debug_mode, "Skipping duties lookup (no rule uses roles)");
                     } else {
+                        # With rules the duties of everybody are read once, otherwise there is one request per person
+                        if ($opts->{use_rules} && $use_duties_cache && !$duties_loaded && !$duties_cache_failed) {
+                            load_all_duties_once($api_url_base, $access_token);
+                        }
+                        if ($duties_forbidden) {
+                            log_message($debug_mode, "Skipping duties lookup (API returned 403 earlier in this run)");
+                        } elsif ($duties_loaded) {
+                            $response_data_person = { data => ($duties_by_person{$id} || []) };
+                        } else {
                         eval {
                             my ($raw_duties, $duties_err) = getApiResponse($person_api_url, $access_token);
                             if (defined $raw_duties && length($raw_duties) > 0) {
@@ -3452,6 +4407,7 @@ sub fetchBorrowers {
                                 log_message($debug_mode, "Empty/undef response for duties, person id: $id");
                             }
                         };
+                        }
                     }
 
                     if (
@@ -3465,8 +4421,15 @@ sub fetchBorrowers {
                     } 
 
 
+                    my $duties_list;
+                    if ($response_data_person && ref($response_data_person) eq 'HASH' && ref($response_data_person->{data}) eq 'ARRAY') {
+                        $duties_list = $response_data_person->{data};
+                    }
+
                     log_message($debug_mode, '::duty_role BEGIN');
-                    if ($duty_role) {
+                    if ($opts->{use_rules}) {
+                        log_message($debug_mode, 'Category and branch are decided by rules (role mapping and excluding_dutyRole_empty are not used)');
+                    } elsif ($duty_role) {
                         log_message($debug_mode, 'duty_role: '.$duty_role);
                         log_message($debug_mode, "Checking categories_mapping, in categories_mapping we have: ". Dumper(@categories_mapping));
                         foreach my $category_mapping (@categories_mapping) {
@@ -3521,6 +4484,7 @@ sub fetchBorrowers {
                         }
                     }
 
+                    my $school_code;
                     if ($enroledAtId) {
                         log_message($debug_mode, 'enroledAtId: '.$enroledAtId);
                         
@@ -3570,6 +4534,7 @@ sub fetchBorrowers {
                         }
 
                         if ($organisationCode) {
+                            $school_code = $organisationCode;
                             log_message($debug_mode, 'organisationCode: '.$organisationCode);
                             log_message($debug_mode, "Checking branches_mapping, in branches_mapping we have: ". Dumper(@branches_mapping));
                             foreach my $branch_mapping (@branches_mapping) {
@@ -3583,7 +4548,7 @@ sub fetchBorrowers {
                         }
                     } else {
 
-                        if ($excluding_enrolments_empty eq "Yes") {
+                        if (!$opts->{staff_mode} && $excluding_enrolments_empty eq "Yes") {
                                 $not_import = 1;
                                 # Check why no valid enrolment was found
                                 my $ignore_cancelled = ($ignore_cancelled_flag eq 'Yes');
@@ -3606,6 +4571,113 @@ sub fetchBorrowers {
 
                     }
                     log_message($debug_mode, '::organisationCode END');
+
+                    if ($opts->{staff_mode}) {
+                        if (defined $current_enrolment) {
+                            $not_import  = 1;
+                            $skip_reason = 'student, handled with the students';
+                        } else {
+                            my @active = sort {
+                                ($b->{startDate} // '') cmp ($a->{startDate} // '')
+                                || ((($a->{dutyAt} || {})->{id}) // '') cmp ((($b->{dutyAt} || {})->{id}) // '')
+                            } grep { ref $_ eq 'HASH' && SS12000Rules::duty_is_active($_, $today) } @{ $duties_list || [] };
+                            if (!@active) {
+                                $not_import  = 1;
+                                $skip_reason = 'no active duty';
+                            } else {
+                                my $mapped = 0;
+                                foreach my $d (@active) {
+                                    my $code = org_info((($d->{dutyAt} || {})->{id}), $access_token, $api_url_base)->{code} or next;
+                                    $school_code //= $code;
+                                    foreach my $bm (@branches_mapping) {
+                                        if ($bm->{organisationCode} && $bm->{organisationCode} eq $code) {
+                                            $koha_branchcode = $bm->{branchcode};
+                                            $school_code     = $code;
+                                            $mapped          = 1;
+                                            last;
+                                        }
+                                    }
+                                    last if $mapped;
+                                }
+                                if (!$mapped && !$koha_branchcode) {
+                                    $not_import  = 1;
+                                    $skip_reason = 'school of the duty is not in the branch mapping';
+                                }
+                            }
+                        }
+                    }
+
+                    my %rule_decision;
+                    if ($opts->{use_rules} && !$not_import) {
+                        my $duties_for_facts;
+                        if (ref $duties_list eq 'ARRAY') {
+                            $duties_for_facts = [ map { +{
+                                dutyRole       => $_->{dutyRole},
+                                assignmentRole => $_->{assignmentRole},
+                                school         => ($opts->{rules_need_duty_school} ? org_info(($_->{dutyAt} || {})->{id}, $access_token, $api_url_base)->{code} : undef),
+                                startDate      => $_->{startDate},
+                                endDate        => $_->{endDate},
+                            } } grep { ref $_ eq 'HASH' } @$duties_list ];
+                        }
+                        my @group_ids;
+                        if ($opts->{rules_need_school_group} && $enroledAtId) {
+                            my $parent_id = org_info($enroledAtId, $access_token, $api_url_base)->{parent_id};
+                            push @group_ids, $parent_id if $parent_id;
+                        }
+                        my $civic_for_facts = ref $response_page_data->{civicNo} eq 'HASH' ? $response_page_data->{civicNo}{value} : undef;
+                        my %custom = map { $_ => [ SS12000Rules::extract_values($response_page_data, $_) ] } @{ $opts->{custom_paths} || [] };
+
+                        my $facts = SS12000Rules::build_facts(
+                            today            => $today,
+                            enrolment        => $current_enrolment,
+                            school_codes     => [ grep { defined } $school_code ],
+                            school_group_ids => \@group_ids,
+                            klass            => $klass_displayName,
+                            duties           => $duties_for_facts,
+                            birthdate        => $response_page_data->{birthDate},
+                            civic_no         => $civic_for_facts,
+                            custom           => \%custom,
+                        );
+                        my %ev = (valid_categories => $opts->{valid_categories}, valid_branches => $opts->{valid_branches});
+                        my $cat_result = SS12000Rules::evaluate($opts->{rules}, $facts, scope => 'category', %ev);
+                        my $br_result  = SS12000Rules::evaluate($opts->{rules}, $facts, scope => 'branch',   %ev);
+
+                        if ($cat_result->{winner}) {
+                            if ($cat_result->{winner}{action}{not_import}) {
+                                $not_import  = 1;
+                                $skip_reason = 'rule #' . ($cat_result->{winner}{id} // '?');
+                            } else {
+                                $koha_categorycode = $cat_result->{winner}{action}{category};
+                            }
+                        } elsif ($opts->{staff_mode}) {
+                            $not_import  = 1;
+                            $skip_reason = 'no rule for the roles';
+                        }
+                        $koha_branchcode = $br_result->{winner}{action}{branch} if $br_result->{winner};
+
+                        foreach my $w (@{ $cat_result->{warnings} }, @{ $br_result->{warnings} }) {
+                            log_message('Yes', "Rules: $w") unless $rule_warned{$w}++;
+                        }
+                        %rule_decision = (
+                            person_kind      => $facts->{person_kind},
+                            category_result  => ($not_import ? 'do not import' : $koha_categorycode),
+                            category_explain => ($cat_result->{winner} ? SS12000Rules::explain($cat_result) : "no rule matched, default category " . ($koha_categorycode // '')),
+                            branch_result    => $koha_branchcode,
+                            branch_explain   => ($br_result->{winner} ? SS12000Rules::explain($br_result) : 'no rule matched, branch from organisation mapping or default'),
+                        );
+                        log_message($debug_mode, 'Rules, category: ' . $rule_decision{category_explain});
+                        log_message($debug_mode, 'Rules, branch: ' . $rule_decision{branch_explain});
+                        save_rule_log($dbh, $id, %rule_decision);
+                    }
+
+                    if ($opts->{staff_mode} && $opts->{staff_keep_existing} && !$not_import) {
+                        my $civic_staff = ref $response_page_data->{civicNo} eq 'HASH' ? $response_page_data->{civicNo}{value} : $response_page_data->{civicNo};
+                        if (staff_exists_unmanaged($dbh, $civic_staff, $opts->{civic_attribute_code})) {
+                            $not_import  = 1;
+                            $skip_reason = 'existing staff left as is';
+                            $silent_skip = 1;
+                        }
+                    }
 
                     my $givenName  = $response_page_data->{givenName};
                     my $familyName = $response_page_data->{familyName};
@@ -3764,6 +4836,7 @@ sub fetchBorrowers {
                         log_message($debug_mode, 'addOrUpdateBorrower, externalIdentifier: '.$externalIdentifier);
                         log_message($debug_mode, 'addOrUpdateBorrower, klass_displayName: '.(defined $klass_displayName ? $klass_displayName : ''));
 
+                        $opts->{borrowernumber_out} = undef;
                         addOrUpdateBorrower(
                                 $cardnumber,
                                 $familyName,
@@ -3791,8 +4864,15 @@ sub fetchBorrowers {
                                 $enrolment_cancelled,
                                 $opts,
                             );
+                        if (%rule_decision && $opts->{borrowernumber_out}) {
+                            eval { $dbh->do("UPDATE $rule_log_table SET borrowernumber = ? WHERE person_id = ?", undef, $opts->{borrowernumber_out}, $id) };
+                        }
                     } else {
                         # User is skipped - update opacnote with reason if user exists
+                        if ($opts->{staff_mode} && !%rule_decision) {
+                            save_rule_log($dbh, $id, person_kind => 'staff', category_result => 'do not import',
+                                category_explain => "skipped: $skip_reason", branch_result => '', branch_explain => '');
+                        }
                         my $current_version_info = $version_info;
                         my $skip_note_query = qq{
                             UPDATE $borrowers_table
@@ -3822,6 +4902,7 @@ sub fetchBorrowers {
                             push @skip_binds, $opts->{civic_attribute_code}, $cardnumber;
                         }
                         eval {
+                            return if $silent_skip;
                             my $skip_sth = $dbh->prepare($skip_note_query);
                             $skip_sth->execute(
                                 $current_version_info, $skip_reason,
@@ -4513,6 +5594,8 @@ sub addOrUpdateBorrower {
     }
 
     # Optionally keep the civic number in a borrower attribute (e.g. CIVICNO), used for matching
+    $opts->{borrowernumber_out} = $borrowernumber;
+
     if ($borrowernumber && $civic_attr_code ne '' && $has_value->($civic_no)) {
         set_borrower_attribute($dbh, $borrowernumber, $civic_attr_code, $civic_no);
     }
